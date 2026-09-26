@@ -137,45 +137,44 @@ def decode_stream(runs: Sequence[Tuple[int, int, int]],
 
     Sync rule, from the line code only: a 3UI run can occur only inside a
     preamble, so the first 3UI run after a frame's data is the next preamble.
-    The preamble is `preamble_ui` UI long; everything after it up to the next
-    preamble is biphase-mark data.
+    The preamble is `preamble_ui` UI long (and may hold more than one 3UI run);
+    the 508 data cells after it are biphase-mark data, and the next frame must
+    open with a 3UI run right after them.
     """
     lens = [r[1] for r in runs]
     starts = [r[0] for r in runs]
     classify_runs(lens)
 
-    # index of every run that is a 3UI violation
-    viol = [i for i, n in enumerate(lens) if n == 3]
-    if not viol:
-        raise BmcDecodeError("no 3UI coding violation found - cannot locate a preamble")
-
+    # the first 3UI violation opens the first frame; from there on, frames
+    # follow each other, 8 UI of preamble and 508 cells of data
     frames: List[dict] = []
-    for vi, v in enumerate(viol):
-        start_ui = starts[v]
+    i = next((k for k, n in enumerate(lens) if n == 3), None)
+    if i is None:
+        raise BmcDecodeError("no 3UI coding violation found - cannot locate a preamble")
+    while i < len(lens):
+        start_ui = starts[i]
 
         # consume exactly preamble_ui UI of runs from here
-        i = v
         acc = 0
         pre_runs = []
-        while i < len(lens) and acc < preamble_ui:
-            acc += lens[i]
-            pre_runs.append(lens[i])
-            i += 1
+        j = i
+        while j < len(lens) and acc < preamble_ui:
+            acc += lens[j]
+            pre_runs.append(lens[j])
+            j += 1
         if acc != preamble_ui:
             break                      # truncated tail, not an error
 
-        # data cells until the next violation (or the end)
-        stop = viol[vi + 1] if vi + 1 < len(viol) else len(lens)
+        # data cells, exactly FRAME_BITS - PREAMBLE_CELLS of them
         bits = bytearray(S.FRAME_BYTES)
         bit_index = S.PREAMBLE_CELLS
-        j = i
         ok = True
-        while j < stop and bit_index < S.FRAME_BITS:
+        while j < len(lens) and bit_index < S.FRAME_BITS:
             n = lens[j]
             if n == 2:
                 j += 1                                    # '0'
             elif n == 1:
-                if j + 1 >= stop or lens[j + 1] != 1:
+                if j + 1 >= len(lens) or lens[j + 1] != 1:
                     ok = False
                     break
                 bits[bit_index >> 3] |= 1 << (7 - (bit_index & 7))   # '1'
@@ -191,5 +190,8 @@ def decode_stream(runs: Sequence[Tuple[int, int, int]],
 
         frames.append(dict(start_ui=start_ui, frame=bytes(bits),
                            preamble_runs=pre_runs))
+        if j >= len(lens) or lens[j] != 3:
+            break                      # the next frame must open with a violation
+        i = j
 
     return frames

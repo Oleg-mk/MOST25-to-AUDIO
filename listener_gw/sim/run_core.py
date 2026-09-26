@@ -6,6 +6,10 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              every check in check_core.py must pass
   core44     44.1 kHz ring, PWD -0.15 UI, jitter 0.195 UI, -1000 ppm, 240 frames:
              every check must pass
+  pre2       core48 with S/PDIF-like preambles (3-3-1-1, block start 3-1-1-3: two
+             3-UI runs in one preamble): every check must pass. The design as
+             first written took the second 3-UI run for a lost frame and never
+             injected; the clock loop saw two events per frame
   mut_nofix  core48 with the injector's parity fix turned off (NOFIX): INJ must
              FAIL and nothing else - proof that the injection check sees parity
   inj_early  core48 with "inject" sent before the Si514 is centred: the ring
@@ -46,6 +50,8 @@ CORNERS = [
                    "--ppm", "0", "--seed", "7"], []),
     ("core44",    ["--fs", "44100", "--frames", "240", "--pwd", "-0.15", "--jit", "0.195",
                    "--ppm", "-1000", "--seed", "11"], []),
+    ("pre2",      ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
+                   "--ppm", "0", "--seed", "7", "--preamble", "spdif"], []),
     ("mut_nofix", ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
                    "--ppm", "0", "--seed", "7"], ["-DNOFIX"]),
     ("inj_early", ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",

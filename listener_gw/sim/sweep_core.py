@@ -8,7 +8,8 @@ here draws its own case:
   rate 48 or 44.1 kHz (alternating), pulse-width distortion -0.15..+0.316 UI
   (the SP4 limits), edge jitter 0.1..0.195 UI, ring offset -1000..+1000 ppm,
   the Si514's own crystal error -100..+100 ppm (the widest stability grade
-  on the shelf), its I2C address 0x08..0x77,
+  on the shelf), its I2C address 0x08..0x77, the preamble's run pattern (the
+  placeholder or the S/PDIF-like set with two 3-UI runs),
   whether "inject" is sent before the Si514 is centred, and a fresh seed.
 Every third run also kills the line for 5..50 us, 2 ms after LOCK.
 
@@ -53,6 +54,7 @@ def case(i, base):
         si_ppm=round(r.uniform(-100.0, 100.0), 1),
         addr=r.randrange(0x08, 0x78),
         early=r.random() < 0.3,
+        pre=r.choice(["default", "spdif"]),
         seed=r.randrange(1, 10 ** 6),
         gap_us=round(r.uniform(5.0, 50.0), 1) if i % 3 == 2 else 0.0,
     )
@@ -66,7 +68,7 @@ def run(c, work):
         shutil.rmtree(d)
     subprocess.run([sys.executable, "make_stim.py", "--fs", str(c["fs"]), "--frames", str(c["frames"]),
                     "--pwd", str(c["pwd"]), "--jit", str(c["jit"]), "--ppm", str(c["ppm"]),
-                    "--seed", str(c["seed"]), "--out", str(d)],
+                    "--preamble", c["pre"], "--seed", str(c["seed"]), "--out", str(d)],
                    cwd=HERE, check=True, capture_output=True)
     nclk = len((d / "samples.hex").read_text().split())
     opts = [f"-Ptb_core.MAXCLK={nclk + 1000}", f"-Ptb_core.SI_ADDR={c['addr']}",
@@ -93,7 +95,7 @@ def main():
         dirs = list(ex.map(lambda c: run(c, a.work), cases))
     fails = 0
     print(f"{'run':>4} {'Fs':>6} {'PWD':>7} {'jit':>6} {'ring':>8} {'Si514':>6} {'addr':>5} "
-          f"{'early':>5} {'gap':>6}  result")
+          f"{'early':>5} {'gap':>6} {'pre':>7}  result")
     for c, d in zip(cases, dirs):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -105,7 +107,8 @@ def main():
         note = f"LOCK {int(lock) / 1e9:.2f} ms" if lock else "no LOCK"
         print(f"{c['i']:>4} {c['fs']:>6} {c['pwd']:>+7.3f} {c['jit']:>6.3f} {c['ppm']:>+8.1f} "
               f"{c['si_ppm']:>+6.1f} {c['addr']:>#5x} {'yes' if c['early'] else '-':>5} "
-              f"{c['gap_us']:>6.1f}  {'PASS' if not bad else 'FAIL ' + ','.join(bad)}  {note}", flush=True)
+              f"{c['gap_us']:>6.1f} {c['pre']:>7}  {'PASS' if not bad else 'FAIL ' + ','.join(bad)}  {note}",
+              flush=True)
         if bad or c["gap_us"]:
             print("      " + buf.getvalue().strip().replace("\n", "\n      "))
         if not bad:

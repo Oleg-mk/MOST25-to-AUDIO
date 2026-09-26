@@ -427,9 +427,12 @@ def check_fs(d):
         r = (tr[n + 1] - tr[n]) / ui
         return r - pwd if bits[tr[n]] else r + pwd
     cand = [tr[n] for n in range(len(tr) - 1) if 2.5 < ui_len(n) < 3.5]
+    # a preamble may hold two 3-UI runs (the S/PDIF-like set): the frame's edge
+    # is the first of them, so 3-UI runs less than 8 UI apart are one preamble
+    first = [c for k, c in enumerate(cand) if k == 0 or c - cand[k - 1] > 8 * ui]
     frame = 1024 * ui
-    starts = [s for k, s in enumerate(cand)
-              if any(abs(abs(c - s) - frame) < ui for c in cand[max(0, k - 3):k + 4] if c != s)]
+    starts = [s for k, s in enumerate(first)
+              if any(abs(abs(c - s) - frame) < ui for c in first[max(0, k - 3):k + 4] if c != s)]
     mids = []
     for f in starts:
         want = f + 512 * ui

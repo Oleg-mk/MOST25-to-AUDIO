@@ -13,6 +13,8 @@ Distortion model, from MOST Specification of Physical Layer Rev 1.1, SP4:
   * edge jitter: each edge moves by a uniform random amount in +/- jit/2 UI
     (tDDJ4 0.15 + tUJ4 0.045 = 0.195 UI peak-to-peak at most);
   * the sampling clock is free-running and unrelated to the ring.
+The preamble run pattern is a parameter (--preamble): the specifications do
+not give it, so the listener is tested with more than one shape.
 
 Outputs, in --out:
   samples.hex   one line per 99 MHz clock: 2 hex digits, bit 0 = earliest sample
@@ -37,7 +39,7 @@ sys.path.insert(0, str(ROOT))
 
 from virtual_most_source import most_spec as S          # noqa: E402
 from virtual_most_source.bmc import encode_frames       # noqa: E402
-from virtual_most_source.config import SourceConfig     # noqa: E402
+from virtual_most_source.config import PREAMBLE_SETS, SourceConfig     # noqa: E402
 from virtual_most_source.frame_builder import FrameBuilder  # noqa: E402
 
 FSAMP = 792e6
@@ -51,13 +53,16 @@ def main():
     ap.add_argument("--pwd", type=float, default=0.0, help="high-pulse stretch, UI")
     ap.add_argument("--jit", type=float, default=0.0, help="edge jitter p-p, UI")
     ap.add_argument("--ppm", type=float, default=0.0, help="ring clock offset, ppm")
+    ap.add_argument("--preamble", default="default", choices=sorted(PREAMBLE_SETS),
+                    help="preamble run pattern set (virtual_most_source/config.py PREAMBLE_SETS)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
     rnd = random.Random(a.seed)
     np_rng = np.random.default_rng(a.seed)
 
-    cfg = SourceConfig()
+    pf, pb = PREAMBLE_SETS[a.preamble]
+    cfg = SourceConfig(preamble_runs_frame=list(pf), preamble_runs_block=list(pb))
     fb = FrameBuilder(cfg)
     frames, first = [], []
     for i in range(a.frames):

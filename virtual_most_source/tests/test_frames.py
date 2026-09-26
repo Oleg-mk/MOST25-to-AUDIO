@@ -14,7 +14,7 @@ from fractions import Fraction
 
 from .. import most_spec as S
 from ..bmc import BmcDecodeError, classify_runs, decode_stream, encode_frames
-from ..config import KNOB_MAPS, SourceConfig
+from ..config import KNOB_MAPS, PREAMBLE_SETS, SourceConfig
 from ..frame_builder import FrameBuilder
 
 PASS = 0
@@ -96,21 +96,30 @@ def test_frame_layout():
 
 def test_bmc():
     section("Biphase Mark coding")
-    cfg = SourceConfig()
-    fb = FrameBuilder(cfg)
-    frames = [fb.build(1000 * i, -1000 * i, 0, 0) for i in range(4)]
-    st = encode_frames(frames, cfg.preamble_runs_frame, cfg.preamble_runs_block,
-                       [i % 16 == 0 for i in range(4)])
-    check(st.total_ui == 4 * S.UI_PER_FRAME, f"total UI {st.total_ui}")
-    lens = [r[1] for r in st.runs()]
-    check(set(lens) <= {1, 2, 3}, f"only UI/2UI/3UI may occur, saw {sorted(set(lens))}")
-    check(lens.count(3) == 4, f"exactly one 3UI per frame, got {lens.count(3)}")
-    dec = decode_stream(list(st.runs()))
-    check(len(dec) == 4, f"decoded {len(dec)} frames")
-    for i, d in enumerate(dec):
-        check(d["start_ui"] == i * S.UI_PER_FRAME, f"frame {i} boundary")
-        check(d["frame"][1:] == frames[i][1:], f"frame {i} body mismatch")
-        check((d["frame"][0] & 0x0F) == (frames[i][0] & 0x0F), f"frame {i} BD")
+    # every named preamble set: the placeholder (one 3UI run per preamble) and
+    # the S/PDIF-like one (two). Nothing may depend on which; a 3UI run only
+    # ever occurs inside a preamble, and every preamble holds at least one.
+    for name, (pf, pb) in PREAMBLE_SETS.items():
+        cfg = SourceConfig(preamble_runs_frame=list(pf), preamble_runs_block=list(pb))
+        fb = FrameBuilder(cfg)
+        frames = [fb.build(1000 * i, -1000 * i, 0, 0) for i in range(20)]
+        st = encode_frames(frames, cfg.preamble_runs_frame, cfg.preamble_runs_block,
+                           [i % 16 == 0 for i in range(20)])
+        check(st.total_ui == 20 * S.UI_PER_FRAME, f"{name}: total UI {st.total_ui}")
+        runs = list(st.runs())
+        lens = [r[1] for r in runs]
+        check(set(lens) <= {1, 2, 3}, f"{name}: only UI/2UI/3UI may occur, saw {sorted(set(lens))}")
+        in_pre = [r for r in runs if r[1] == 3 and (r[0] % S.UI_PER_FRAME) < S.PREAMBLE_UI]
+        check(len(in_pre) == lens.count(3), f"{name}: a 3UI run outside a preamble")
+        check(all(any(r[1] == 3 and r[0] == f for r in runs) for f in st.frame_starts),
+              f"{name}: every frame must open with a 3UI run")
+        dec = decode_stream(runs)
+        check(len(dec) == 20, f"{name}: decoded {len(dec)} frames")
+        for i, d in enumerate(dec):
+            check(d["start_ui"] == i * S.UI_PER_FRAME, f"{name}: frame {i} boundary")
+            check(d["frame"][1:] == frames[i][1:], f"{name}: frame {i} body mismatch")
+            check((d["frame"][0] & 0x0F) == (frames[i][0] & 0x0F), f"{name}: frame {i} BD")
+            check(d["preamble_runs"] == list(pb if i % 16 == 0 else pf), f"{name}: frame {i} preamble runs")
     try:
         classify_runs([4])
         check(False, "a 4UI run was accepted")

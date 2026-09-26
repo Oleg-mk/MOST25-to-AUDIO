@@ -3,6 +3,8 @@
 
 Corners come from the MOST Specification of Physical Layer Rev 1.1:
   fs     44.1 and 48 kHz (both occur in cars: Audi/BMW vs JLR)
+  pre    the preamble's run pattern: the placeholder (one 3-UI run) and an
+         S/PDIF-like set (two 3-UI runs in one preamble) - the specs give none
   pwd    average pulse-width distortion tapwd4, -0.15 .. +0.316 UI (SP4)
   jit    tDDJ4 + tUJ4 = 0.15 + 0.045 = 0.195 UI peak-to-peak (SP4)
   ppm    FS tolerance +/- 0.1 % (section 2.1, "normal accuracy mode")
@@ -33,15 +35,18 @@ RTL = HERE.parent / "rtl"
 SRC = ["tb_rx.v", str(RTL / "rx_runlen.v"), str(RTL / "rx_classify.v"), str(RTL / "rx_framer.v")]
 
 CORNERS = [
-    # name              fs     pwd     jit    ppm
-    ("48k_ideal",       48000, 0.0,    0.0,   0),
-    ("44k1_ideal",      44100, 0.0,    0.0,   0),
-    ("48k_pwd+",        48000, 0.316,  0.195, 0),
-    ("48k_pwd-",        48000, -0.15,  0.195, 0),
-    ("44k1_pwd+",       44100, 0.316,  0.195, 0),
-    ("44k1_pwd-",       44100, -0.15,  0.195, 0),
-    ("48k_fast_pwd+",   48000, 0.316,  0.195, 1000),
-    ("44k1_slow_pwd-",  44100, -0.15,  0.195, -1000),
+    # name              fs     pwd     jit    ppm    preamble set (make_stim --preamble)
+    ("48k_ideal",       48000, 0.0,    0.0,   0,     "default"),
+    ("44k1_ideal",      44100, 0.0,    0.0,   0,     "default"),
+    ("48k_pwd+",        48000, 0.316,  0.195, 0,     "default"),
+    ("48k_pwd-",        48000, -0.15,  0.195, 0,     "default"),
+    ("44k1_pwd+",       44100, 0.316,  0.195, 0,     "default"),
+    ("44k1_pwd-",       44100, -0.15,  0.195, 0,     "default"),
+    ("48k_fast_pwd+",   48000, 0.316,  0.195, 1000,  "default"),
+    ("44k1_slow_pwd-",  44100, -0.15,  0.195, -1000, "default"),
+    # S/PDIF-like preambles: two 3-UI runs in one preamble (3-3-1-1 / 3-1-1-3)
+    ("48k_spdif_pwd+",  48000, 0.316,  0.195, 0,     "spdif"),
+    ("44k1_spdif_pwd-", 44100, -0.15,  0.195, -1000, "spdif"),
 ]
 
 
@@ -104,13 +109,13 @@ def main():
     vvp = a.work / "tb_rx.vvp"
     subprocess.run(["iverilog", "-g2005", "-o", str(vvp)] + SRC, cwd=HERE, check=True)
     fails = 0
-    for i, (name, fs, pwd, jit, ppm) in enumerate(CORNERS):
+    for i, (name, fs, pwd, jit, ppm, pre) in enumerate(CORNERS):
         d = a.work / name
         if d.exists():
             shutil.rmtree(d)
         subprocess.run([sys.executable, str(HERE / "make_stim.py"), "--fs", str(fs),
                         "--frames", str(a.frames), "--pwd", str(pwd), "--jit", str(jit),
-                        "--ppm", str(ppm), "--seed", str(i + 1), "--out", str(d)],
+                        "--ppm", str(ppm), "--preamble", pre, "--seed", str(i + 1), "--out", str(d)],
                        check=True, capture_output=True)
         sim = subprocess.run(["vvp", "-n", str(vvp)], cwd=d, capture_output=True, text=True)
         stat = next((l for l in sim.stdout.splitlines() if l.startswith("clocks=")), "no status")

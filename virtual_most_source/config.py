@@ -36,6 +36,15 @@ from . import most_spec as S
 PREAMBLE_RUNS_FRAME: List[int] = [3, 1, 2, 1, 1]        # sums to 8 UI
 PREAMBLE_RUNS_BLOCK: List[int] = [3, 1, 1, 2, 1]        # sums to 8 UI
 
+# Named sets for the simulations, so that nothing downstream may come to rely
+# on the placeholder's shape. "spdif" is the other documented family of
+# biphase-mark preambles (IEC 60958 M and B, 3-3-1-1 and 3-1-1-3): two 3UI runs
+# in one preamble, which the placeholder never has. A listener must not care.
+PREAMBLE_SETS: Dict[str, tuple] = {
+    "default": (PREAMBLE_RUNS_FRAME, PREAMBLE_RUNS_BLOCK),
+    "spdif":   ([3, 3, 1, 1], [3, 1, 1, 3]),
+}
+
 # ---------------------------------------------------------------------------
 # OPEN POINT 2 - the parity convention
 # ---------------------------------------------------------------------------

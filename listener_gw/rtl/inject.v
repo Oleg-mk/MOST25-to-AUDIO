@@ -32,10 +32,18 @@
 // no rate conversion: one sample pair per MOST frame. The last complete pair
 // is taken at the start of each outgoing frame; the latency is fixed.
 //
+// Frames. A frame opens with a 3-UI run; the preamble's pattern is not
+// documented and may hold a second 3-UI run (S/PDIF-like ones do), so a 3-UI
+// run inside the first 8 UI of a frame is part of the preamble and copied, not
+// a new frame. A 3-UI run anywhere else opens a frame: on time (exactly 1024 UI
+// after the last) it counts towards INJ_LOCK, early it starts the count again -
+// the line changed under us, or the first frame was anchored on a preamble's
+// second run, and this run is the right anchor.
+//
 // Safety. Injection runs only while: the command is on, this block has seen
-// INJ_LOCK frames in a row exactly 1024 UI apart, and the I2S clocks run. Any
-// of these lost stops it at once, mid-frame; a new frame starts it again.
-// It never touches the preamble or bytes 0 and 61..63.
+// INJ_LOCK frames in a row exactly 1024 UI apart, this frame opened on time,
+// and the I2S clocks run. Any of these lost stops it at once, mid-frame; a new
+// frame starts it again. It never touches the preamble or bytes 0 and 61..63.
 module inject #(
     parameter INJ_LOCK = 8                  // frames in a row before injecting
 ) (
@@ -125,10 +133,12 @@ module inject #(
     reg        inf;                         // in a frame
     reg [10:0] nxt;                         // UI index of the UI in this clock
     reg [3:0]  good;                        // frames in a row, 1024 UI apart
-    wire       pre   = st && st_len == 2'd3;             // a preamble opens here
-    wire       fstart = pre && (!inf || nxt == 11'd1024);
-    wire [9:0] u     = fstart ? 10'd0 : nxt[9:0];        // this UI
-    wire       lost  = inf && ((pre && nxt != 11'd1024) || nxt > 11'd1024);
+    wire       pre    = st && st_len == 2'd3;            // a 3-UI run opens here
+    wire       inpre  = inf && nxt < 11'd8;              // ...inside the preamble: part of it
+    wire       fstart = pre && !inpre;                   // ...anywhere else: a frame opens
+    wire       intime = inf && nxt == 11'd1024;          // exactly one frame after the last
+    wire [9:0] u      = fstart ? 10'd0 : nxt[9:0];       // this UI
+    wire       lost   = inf && nxt > 11'd1024;           // no preamble where one was due
 
     // this frame's settings and samples, taken at its first UI
     reg        on;                          // injecting in this frame
@@ -169,10 +179,11 @@ module inject #(
                 inf <= 1'b0; good <= 4'd0; on <= 1'b0; active <= 1'b0;
             end else if (fstart) begin
                 inf <= 1'b1; nxt <= 11'd1;
-                if (inf && good != 4'd15) good <= good + 4'd1;
+                if (!intime) good <= 4'd0;
+                else if (good != 4'd15) good <= good + 4'd1;
                 // take this frame's settings and the newest sample pair
-                on     <= (r_m[1:0] != 2'd0) && good >= INJ_LOCK && irun[1];
-                active <= (r_m[1:0] != 2'd0) && good >= INJ_LOCK && irun[1];
+                on     <= (r_m[1:0] != 2'd0) && intime && good >= INJ_LOCK && irun[1];
+                active <= (r_m[1:0] != 2'd0) && intime && good >= INJ_LOCK && irun[1];
                 fix    <= ~r_m[7];
                 w3     <= (r_m[1:0] == 2'd3);
                 delta  <= 1'b0;
