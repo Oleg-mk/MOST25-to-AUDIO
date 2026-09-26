@@ -24,6 +24,13 @@ Every pinout below was checked against the maker's data sheet:
                                                      Rext and supply filters per
                                                      Avago AN 5344 / AFBR-1013 data sheet
   Tang Nano 20K header pads                        - Sipeed pin label drawing
+  DIR9001 (TSSOP-28)                               - TI SLES198A: Pin Functions,
+                                                     Tables 4, 6, 13, section 8.3.3
+  SRC4192 (SSOP-28, DB)                            - TI SBFS022C: Pin Functions,
+                                                     Tables 1, 2, 3, section 7.4.1
+  PLR135/T10, PLT133/T10W (TOSLINK)                - Everlight data sheets (Rev 2;
+                                                     DPL-0000049 Rev.5): pin functions
+  ASE-xxxMHz oscillator, Conn_Coaxial              - KiCad 10 library symbols
 Pin ORDER on the custom symbols is chosen for the drawing; pin NUMBERS are the
 data-sheet ones.
 
@@ -233,6 +240,43 @@ S = {
         ("5", "SD1", "passive", "L", 12.7), ("6", "UART_TX", "passive", "L", 15.24),
         ("7", "GND", "passive", "L", 17.78), ("8", "GND", "passive", "L", 20.32),
     ], "Analyser: MCLK 512 Fs, TDM (2 x TDM8), raw control blocks on UART"),
+    "TOSLINK_RX": ic("PLR135", "J", 15.24, 12.7, [
+        ("1", "VOUT", "output", "R", 3.81),
+        ("3", "VCC", "power_in", "T", 7.62), ("2", "GND", "power_in", "B", 7.62),
+    ], "TOSLINK receiver, 2.4-5.5 V, 16 Mbps (Everlight PLR135/T10)"),
+    "TOSLINK_TX": ic("PLT133", "J", 15.24, 12.7, [
+        ("1", "VIN", "input", "L", 3.81), ("4", "NC", "no_connect", "L", 8.89), ("5", "NC", "no_connect", "L", 11.43),
+        ("2", "VCC", "power_in", "T", 7.62), ("3", "GND", "power_in", "B", 7.62),
+    ], "TOSLINK transmitter, 2.7-5.5 V, 16 Mbps (Everlight PLT133/T10W)"),
+    "DIR9001": ic("DIR9001", "U", 40.64, 43.18, [
+        ("21", "RST", "input", "L", 5.08), ("20", "RXIN", "input", "L", 10.16), ("27", "ERROR", "output", "L", 15.24),
+        ("22", "FILT", "passive", "L", 20.32), ("7", "XTO", "output", "L", 30.48),
+        ("11", "BCKO", "output", "R", 5.08), ("10", "LRCKO", "output", "R", 7.62), ("12", "DOUT", "output", "R", 10.16),
+        ("4", "SCKO", "output", "R", 15.24), ("1", "AUDIO", "output", "R", 17.78), ("17", "EMPH", "output", "R", 20.32),
+        ("2", "FSOUT0", "output", "R", 22.86), ("3", "FSOUT1", "output", "R", 25.4), ("18", "BFRAME", "output", "R", 27.94),
+        ("9", "CLKST", "output", "R", 30.48), ("15", "COUT", "output", "R", 33.02), ("16", "UOUT", "output", "R", 35.56),
+        ("5", "VDD", "power_in", "T", 7.62), ("24", "VCC", "power_in", "T", 12.7),
+        ("26", "FMT1", "input", "T", 25.4), ("25", "FMT0", "input", "T", 30.48),
+        ("6", "DGND", "power_in", "B", 5.08), ("23", "AGND", "power_in", "B", 10.16),
+        ("14", "PSCK1", "input", "B", 17.78), ("13", "PSCK0", "input", "B", 20.32), ("28", "CKSEL", "input", "B", 22.86),
+        ("19", "RSV", "input", "B", 25.4), ("8", "XTI", "input", "B", 27.94),
+    ], "S/PDIF receiver, PLL clock recovery, 24-bit I2S out, hardware mode (TI SLES198A)"),
+    "SRC4192": ic("SRC4192", "U", 45.72, 43.18, [
+        ("5", "BCKI", "input", "L", 5.08), ("6", "LRCKI", "input", "L", 7.62), ("4", "SDIN", "input", "L", 10.16),
+        ("2", "RCKI", "input", "L", 17.78),
+        ("23", "SDOUT", "output", "R", 5.08), ("25", "BCKO", "input", "R", 7.62), ("24", "LRCKO", "input", "R", 10.16),
+        ("15", "RDY", "output", "R", 15.24), ("13", "RST", "input", "R", 20.32), ("3", "NC", "no_connect", "R", 25.4),
+        ("22", "VDD", "power_in", "T", 7.62), ("7", "VIO", "power_in", "T", 12.7),
+        ("10", "IFMT0", "input", "T", 27.94), ("19", "OFMT0", "input", "T", 33.02),
+        ("8", "DGND", "power_in", "B", 5.08), ("21", "DGND", "power_in", "B", 7.62),
+        ("11", "IFMT1", "input", "B", 12.7), ("12", "IFMT2", "input", "B", 15.24),
+        ("26", "MODE0", "input", "B", 17.78), ("27", "MODE1", "input", "B", 20.32), ("28", "MODE2", "input", "B", 22.86),
+        ("1", "LGRP", "input", "B", 25.4), ("9", "BYPAS", "input", "B", 27.94), ("14", "MUTE", "input", "B", 30.48),
+        ("20", "TDMI", "input", "B", 33.02), ("17", "OWL0", "input", "B", 35.56), ("16", "OWL1", "input", "B", 38.1),
+        ("18", "OFMT1", "input", "B", 40.64),
+    ], "Asynchronous sample rate converter, both ports slave, 24-bit I2S in and out (TI SBFS022C)"),
+    "OSC": from_kicad("Oscillator", "ASE-xxxMHz"),
+    "COAX": from_kicad("Connector", "Conn_Coaxial"),
     "CONN_I2S": ic("Conn_I2S", "J", 15.24, 17.78, [
         ("1", "MCLK", "passive", "L", 2.54), ("2", "BCLK", "passive", "L", 5.08),
         ("3", "LRCK", "passive", "L", 7.62), ("4", "DOUT", "passive", "L", 10.16),
@@ -494,10 +538,11 @@ class Sheet:
         body = "\n".join(self.items)
         path.write_text(
             f'(kicad_sch (version 20231120) (generator "gen_listener") '
-            f'(generator_version "10.0") (uuid "{uid("root")}") (paper "A3")\n'
+            f'(generator_version "10.0") (uuid "{uid("root")}") (paper "A2")\n'
             f'(title_block (title "MOST25 to AUDIO: listener board") (date "2026-09-26") '
             f'(rev "0.2") (comment 1 "Generated by listener_hw/gen_listener.py") '
-            f'(comment 2 "Repeater with regeneration and a bypass watchdog; FPGA; ESP32 host; TDM, UART, I2S out"))\n'
+            f'(comment 2 "Repeater with regeneration and a bypass watchdog; FPGA; ESP32 host; TDM, UART, I2S out; '
+            f'S/PDIF in and out"))\n'
             f'(lib_symbols\n{libs}\n)\n{body}\n'
             f'(sheet_instances (path "/" (page "1")))\n)\n', encoding="utf-8")
 
@@ -664,7 +709,7 @@ def power_block(sh):
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
     sh.text("Захист: F1 запобіжник, D1 від переполюсовки, D2 TVS (26 В: провідність від ~29 В - див. README, пункт про load dump).", 17.78, 87.63, 1.27)
     sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
-    sh.text("5V_SW (U6) вмикає WAKE: модуль FPGA. VOUT = 1.0 В x (1 + R4/R5) = 5.31 В; після D3 ~5.0 В.", 17.78, 95.25, 1.27)
+    sh.text("5V_SW (U6) вмикає WAKE: модуль FPGA, з його 3V3 (3V3_SW) - блок 9 (~0.1 А). VOUT = 1.0 В x (1 + R4/R5) = 5.31 В; після D3 ~5.0 В.", 17.78, 95.25, 1.27)
     sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
@@ -944,7 +989,7 @@ def fpga_block(sh):
     # that takes the whole IOB6 pair, so pad 11 (pin 26) stays unconnected
     left = {"1": "UART_RX_F", "2": "I2S_BCLK_F", "3": "I2S_LRCK_F", "4": "I2S_MCLK_F",
             "5": "CLK_1024", "8": "RX_IN", "9": "TX_PRE", "10": "TX_FB",
-            "12": "SI_SCL", "13": "SI_SDA"}
+            "12": "SI_SCL", "13": "SI_SDA", "14": "SPDIF_F"}
     for n in map(str, range(1, 21)):
         p = m1.p(n)
         if n in left:
@@ -955,7 +1000,7 @@ def fpga_block(sh):
             sh.wire(p, (p[0] - 5.08, p[1])); sh.gnd((p[0] - 5.08, p[1]))
         else:
             sh.nc(p)
-    right = {"23": "I2S_DOUT_F", "24": "SD1_F", "25": "BCLK_F", "26": "FS_F", "30": "SD0_F",
+    right = {"23": "I2S_DOUT_F", "24": "SD1_F", "25": "BCLK_F", "26": "FS_F", "28": "I2S_DIN2_F", "30": "SD0_F",
              "32": "LOCK", "33": "I2S_DIN_F", "37": "UART_TX_F", "38": "MCLK_F"}
     for n in map(str, range(21, 41)):
         p = m1.p(n)
@@ -981,7 +1026,7 @@ def fpga_block(sh):
         else:
             sh.nc(p)
     sh.text("Контакти 1..20 / 21..40 згори вниз, від USB-C; назва = вивід GW2AR + що на ньому на платі (datasheet v1.3).", 279.4, 184.15, 1.27)
-    sh.text("Кільце і Si514 - лише на виводах LCD (порожній роз'єм). На HSPI і TF (80, 85) - лише UART, MCLK, I2S, SD1.", 279.4, 187.96, 1.27)
+    sh.text("Кільце і Si514 - лише на виводах LCD (порожній роз'єм); S/PDIF на 31 (LCD_B3). HSPI, TF (80, 85), 54 (I2S_DIN вбудованого ЦАП): UART, MCLK, I2S, SD1, DIN2.", 279.4, 187.96, 1.27)
     sh.text("CLK_1024 (Si514) -> 77 (GCLKT_1). TX_FB -> 25 через IDES8 (1.26 нс); він займає пару, тому 26 не підключено.", 279.4, 191.77, 1.27)
     sh.text("D3: USB і 5V_SW разом не з'єднуються; U6 дає 5.3 В, на модулі ~5.0 В.", 279.4, 195.58, 1.27)
 
@@ -1111,7 +1156,7 @@ def output_block(sh):
     for line in (
         "J2 SD0/SD1: байти кадру 0..31 / 32..63, кадр TDM = кадр MOST.",
         "J2 UART_TX: сирі керувальні блоки (ті самі, що читає M2).",
-        "J3: I2S, BCLK 64 Fs, слоти 32 біт, 24 біт з регулюваннями ГУ.",
+        "J3: I2S, BCLK 64 Fs, слоти 32 біт, 24 біт з регулюваннями ГУ; те саме S/PDIF - J6, J7 (блок 9).",
         "Входів на J2 і J3 немає: хост один - M2 (блок 8).",
         "RN1, RN2, R18..R21 (33 Ом) - біля виводів FPGA.",
         "MCLK на J2 і J3 - з окремих виводів FPGA, без відгалуження.",
@@ -1124,7 +1169,7 @@ def host_block(sh):
     sh.frame(335.28, 12.7, 406.4, 101.6, "8. ХОСТ   M2 = ESP32-DevKitC-VIE")
     m2 = sh.add("DEVKITC", "M2", "ESP32-DevKitC-VIE", 375.92, 50.8, fp="")
     # from the FPGA: the ring-locked I2S clocks and the raw control blocks
-    for pad, name in (("5", "I2S_BCLK_F"), ("6", "I2S_LRCK_F"), ("8", "UART_TX_F")):
+    for pad, name in (("5", "I2S_BCLK_F"), ("6", "I2S_LRCK_F"), ("7", "OPT_ERR"), ("8", "UART_TX_F")):
         sh.lbl(name, m2.p(pad), 12.7, "L")
     # into the FPGA: host commands and our audio, each through 33R at the FPGA
     # pin; the texts go below, onto the unused row
@@ -1143,7 +1188,7 @@ def host_block(sh):
         sh.wire(m2.p(pad), (gx, m2.p(pad)[1]))
     sh.wire((gx, m2.p("20")[1]), (gx, m2.p("26")[1]))
     sh.gnd((gx, m2.p("26")[1]), 2.54)
-    used = {"5", "6", "8", "9", "11", "14", "19", "20", "26"}
+    used = {"5", "6", "7", "8", "9", "11", "14", "19", "20", "26"}
     for n in map(str, range(1, 39)):
         if n not in used:
             sh.nc(m2.p(n))
@@ -1154,9 +1199,149 @@ def host_block(sh):
         "Гнізда 2 x 1x19, крок 2.54, між рядами 25.40 мм.",
         "5V_HOST -> 5V; USB модуля - через його діод.",
         "UART 3 Мбод: IO33 <- UART_TX, IO25 -> UART_RX.",
-        "I2S slave: IO34/35 <- BCLK/LRCK, IO27 -> DIN.",
+        "I2S slave: IO34/35 <- BCLK/LRCK, IO27 -> DIN; IO32 <- OPT_ERR.",
     ):
         sh.text(line, 337.82, y, 1.27)
+        y += 3.81
+
+
+
+def digital_audio_block(sh):
+    sh.frame(12.7, 289.56, 406.4, 391.16,
+             "9. ЦИФРОВЕ АУДІО   J5 TOSLINK IN -> U12 DIR9001 -> U13 SRC4192 -> I2S_DIN2_F;   SPDIF_F -> J6 TOSLINK OUT і J7 коаксіал")
+    # ---- TOSLINK in: J5 -> R25 (damping, DIR9001 data sheet 8.3.1) -> U12.RXIN
+    u12 = sh.add("DIR9001", "U12", "DIR9001", 109.22, 340.36, fp="Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm",
+                 ref_at=(88.9, 317.5), val_at=(86.36, 360.68), fjust=("left bottom", "right bottom"))
+    rxin, rst12, err, filt, xto = u12.p("20"), u12.p("21"), u12.p("27"), u12.p("22"), u12.p("7")
+    j5 = sh.at_pin("TOSLINK_RX", "J5", "PLR135/T10", "1", (63.5, rxin[1]), fp="",
+                   ref_at=(45.72, 323.85), val_at=(63.5, 336.55), fjust=("left bottom", "left bottom"))
+    r25 = sh.at_pin("R", "R25", "100", "1", (71.12, rxin[1]), r=90, fp=SMD["R"])
+    sh.wire(j5.p("1"), r25.p("1")); sh.wire(r25.p("2"), rxin)
+    # J5's supply: a ferrite and 100n within 2 cm of the module (its data sheet, layout notes)
+    vcc5 = j5.p("3")
+    n5 = (vcc5[0], round(vcc5[1] - 6.35, 3))
+    sh.wire(vcc5, n5)
+    fb3 = sh.at_pin("FB", "FB3", "600R", "1", (n5[0] + 2.54, n5[1]), r=90, fp="Inductor_SMD:L_0603_1608Metric")
+    sh.wire(n5, fb3.p("1")); sh.up("3V3_SW", fb3.p("2"), 2.54)
+    c30 = sh.at_pin("C", "C30", "100n", "1", (n5[0] - 10.16, n5[1]), fp=SMD["C"])
+    sh.wire(n5, c30.p("1")); sh.gnd(c30.p("2"))
+    sh.flag(c30.p("1"), dx=0)                          # fed through FB3: driven
+    sh.gnd(j5.p("2"), 2.54)
+    # reset (shared with U13, RC below right), the lock flag to the host, the PLL loop filter
+    sh.lbl("RST_AIN", rst12, 5.08, "L")
+    sh.lbl("OPT_ERR", err, 5.08, "L")
+    f0 = (round(filt[0] - 10.16, 3), filt[1]); f1 = (f0[0], round(f0[1] + 5.08, 3))
+    sh.wire(filt, f0, f1)
+    c28 = sh.at_pin("C", "C28", "4n7", "1", f1, fp=SMD["C"]); sh.gnd(c28.p("2"))
+    r24 = sh.at_pin("R", "R24", "680", "2", f1, r=90, fp=SMD["R"])
+    c27 = sh.at_pin("C", "C27", "68n", "1", r24.p("1"), fp=SMD["C"],
+                    ref_at=(r24.p("1")[0] - 5.08, f1[1] + 2.54), val_at=(r24.p("1")[0] - 5.08, f1[1] + 5.08),
+                    fjust=("right", "right"))
+    sh.gnd(c27.p("2"))
+    sh.nc(xto)
+    # top: VDD, VCC and the two format straps (24-bit I2S) on 3V3_SW; bottom: grounds and
+    # every strap that is low (PSCK = 00: SCKO unused, CKSEL = L: PLL clock, RSV, XTI unused)
+    top = [u12.p(n) for n in ("5", "24", "26", "25")]
+    yb = round(top[0][1] - 2.54, 3)
+    for p in top:
+        sh.wire(p, (p[0], yb))
+    sh.wire((top[0][0], yb), (top[-1][0], yb))
+    sh.up("3V3_SW", (u12.x, yb), 2.54)
+    bot = [u12.p(n) for n in ("6", "23", "14", "13", "28", "19", "8")]
+    yg = round(bot[0][1] + 2.54, 3)
+    for p in bot:
+        sh.wire(p, (p[0], yg))
+    sh.wire((bot[0][0], yg), (bot[-1][0], yg))
+    sh.gnd((u12.x, yg))
+    for n in ("4", "1", "17", "2", "3", "18", "9", "15", "16"):
+        sh.nc(u12.p(n))
+
+    # ---- U13: the receiver's I2S, on the receiver's clock, onto the FPGA's BCLK/LRCK
+    u13 = sh.add("SRC4192", "U13", "SRC4192", 190.5, 340.36, fp="Package_SO:SSOP-28_5.3x10.2mm_P0.65mm",
+                 ref_at=(167.64, 317.5), val_at=(165.1, 360.68), fjust=("left bottom", "right bottom"))
+    for a, b in (("11", "5"), ("10", "6"), ("12", "4")):       # BCKO -> BCKI, LRCKO -> LRCKI, DOUT -> SDIN
+        sh.wire(u12.p(a), u13.p(b))
+    top = [u13.p(n) for n in ("22", "7", "10", "19")]          # VDD VIO IFMT0 OFMT0 (I2S in and out)
+    yb = round(top[0][1] - 2.54, 3)
+    for p in top:
+        sh.wire(p, (p[0], yb))
+    sh.wire((top[0][0], yb), (top[-1][0], yb))
+    sh.up("3V3_SW", (u13.x, yb), 2.54)
+    bot = [u13.p(n) for n in ("8", "21", "11", "12", "26", "27", "28", "1", "9", "14", "20", "17", "16", "18")]
+    yg = round(bot[0][1] + 2.54, 3)
+    for p in bot:
+        sh.wire(p, (p[0], yg))
+    sh.wire((bot[0][0], yg), (bot[-1][0], yg))
+    sh.gnd((u13.x, yg))
+    # X1: the rate estimator's reference clock, asynchronous to both ports
+    rcki = u13.p("2")
+    x1 = sh.add("OSC", "X1", "24.576MHz", 149.86, 344.17, fp="Oscillator:Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm",
+                ref_at=(143.51, 339.09), val_at=(156.21, 349.25), fjust=("left bottom", "left bottom"))
+    out, en, vdd, g = x1.p("3"), x1.p("1"), x1.p("4"), x1.p("2")
+    sh.wire(out, (out[0], rcki[1]), rcki)
+    sh.wire(en, (en[0] - 2.54, en[1]), (en[0] - 2.54, vdd[1]), vdd)
+    sh.up("3V3_SW", vdd, 0)
+    sh.gnd(g, 2.54)
+    # output port, slave on the FPGA's I2S clocks; data to the FPGA through 33R
+    sdout, bcko13, lrcko13, rdy, rst13, nc3 = (u13.p(n) for n in ("23", "25", "24", "15", "13", "3"))
+    r29 = sh.at_pin("R", "R29", "33", "1", (sdout[0] + 7.62, sdout[1]), r=90, fp=SMD["R"],
+                    ref_at=(sdout[0] + 7.62, sdout[1] - 3.81), val_at=(sdout[0] + 13.97, sdout[1] - 3.81))
+    sh.wire(sdout, r29.p("1")); sh.lbl("I2S_DIN2_F", r29.p("2"), 5.08, "R")
+    sh.lbl("I2S_BCLK_F", bcko13, 10.16, "R"); sh.lbl("I2S_LRCK_F", lrcko13, 10.16, "R")
+    sh.nc(rdy); sh.nc(nc3)
+    sh.lbl("RST_AIN", rst13, 10.16, "R")
+
+    # ---- S/PDIF out: one FPGA pin (DRIVE 16) into the TOSLINK transmitter and the coax divider
+    n1 = (271.78, 323.85)
+    sh.label("SPDIF_F", (264.16, n1[1]), "L"); sh.wire((264.16, n1[1]), n1)
+    r28 = sh.at_pin("R", "R28", "33", "1", (n1[0] + 2.54, n1[1]), r=90, fp=SMD["R"])
+    sh.wire(n1, r28.p("1"))
+    j6 = sh.at_pin("TOSLINK_TX", "J6", "PLT133/T10W", "1", (r28.p("2")[0] + 7.62, n1[1]), fp="",
+                   ref_at=(292.1, 318.77), val_at=(309.88, 331.47), fjust=("left bottom", "left bottom"))
+    sh.wire(r28.p("2"), j6.p("1"))
+    sh.up("3V3_SW", j6.p("2"), 6.35); sh.gnd(j6.p("3"), 2.54); sh.nc(j6.p("4")); sh.nc(j6.p("5"))
+    n2 = (n1[0], 346.71)
+    sh.wire(n1, n2)
+    r26 = sh.at_pin("R", "R26", "240", "1", (n2[0] + 2.54, n2[1]), r=90, fp=SMD["R"])
+    sh.wire(n2, r26.p("1"))
+    nd = r26.p("2")
+    r27 = sh.at_pin("R", "R27", "110", "1", nd, fp=SMD["R"]); sh.gnd(r27.p("2"))
+    c29 = sh.at_pin("C", "C29", "100n", "1", (nd[0] + 7.62, nd[1]), r=90, fp=SMD["C"])
+    sh.wire(nd, c29.p("1"))
+    j7 = sh.at_pin("COAX", "J7", "RCA 75R", "1", (c29.p("2")[0] + 5.08, nd[1]), fp="",
+                   ref_at=(307.34, 342.9), val_at=(312.42, 346.71), fjust=(None, "left"))
+    sh.wire(c29.p("2"), j7.p("1")); sh.gnd(j7.p("2"), 2.54)
+
+    # ---- the shared reset: 10 ms after 3V3_SW, when X1 already runs (the SRC4192 has no
+    # power-on reset and wants RCKI alive during RST); and the decoupling, drawn as a row
+    r30 = sh.at_pin("R", "R30", "10k", "2", (317.5, 365.76), fp=SMD["R"],
+                    ref_at=(314.96, 360.68), val_at=(314.96, 363.22), fjust=("right", "right"))
+    sh.up("3V3_SW", r30.p("1"), 2.54)
+    c40 = sh.at_pin("C", "C40", "1u", "1", r30.p("2"), fp=SMD["C"]); sh.gnd(c40.p("2"))
+    sh.wire(r30.p("2"), (312.42, 365.76)); sh.label("RST_AIN", (312.42, 365.76), "L")
+    caps = [("C31", "100n", SMD["C"]), ("C32", "100n", SMD["C"]), ("C33", "10u", "Capacitor_SMD:C_0805_2012Metric"),
+            ("C34", "100n", SMD["C"]), ("C35", "10u", "Capacitor_SMD:C_0805_2012Metric"),
+            ("C36", "100n", SMD["C"]), ("C37", "10u", "Capacitor_SMD:C_0805_2012Metric"),
+            ("C38", "100n", SMD["C"]), ("C39", "100n", SMD["C"])]
+    ys = 365.76
+    xs = [round(325.12 + 8.89 * i, 3) for i in range(len(caps))]
+    for x, (ref, val, fp) in zip(xs, caps):
+        c = sh.at_pin("C", ref, val, "1", (x, ys), fp=fp)
+        sh.gnd(c.p("2"))
+    sh.wire((xs[0], ys), (xs[-1], ys))
+    sh.up("3V3_SW", (xs[4], ys), 2.54)
+    sh.text("C31 J6; C32/C33 U12 VDD; C34/C35 U12 VCC;", 325.12, 381.0, 1.27)
+    sh.text("C36/C37 U13 VDD; C38 U13 VIO; C39 X1: біля виводів.", 325.12, 384.81, 1.27)
+
+    y = 373.38
+    for line in (
+        "J5 TOSLINK IN -> R25 -> U12 DIR9001: PLL відновлює такт із сигналу, вихід I2S 24 біт (FMT1 FMT0 = HH), CKSEL = L. XTI на землю: кварц не потрібен.",
+        "U13 SRC4192: обидва порти slave (MODE = 000); вхід I2S 24 біт (IFMT = 001) від U12; вихід I2S 24 біт (OFMT = 01, OWL = 00) на тактах FPGA -> I2S_DIN2_F.",
+        "X1 24.576 МГц: опорний такт оцінювача швидкості SRC4192 (RCKI), асинхронний до обох портів. RST_AIN: R30/C40 = 10 мс, коли X1 уже іде (SRC4192 без POR).",
+        "OPT_ERR (U12 ERROR) -> M2 IO32: 1 = TOSLINK без сигналу або помилка парності; хост тоді не інжектує. Джерело для інжекції: команда 02, біт M[2].",
+        "S/PDIF OUT: SPDIF_F (FPGA 31) -> R28 -> J6 PLT133; R26/R27: 0.5 В на 75 Ом, вихідний опір 75 Ом; C29 без постійної -> J7 RCA. Той самий потік, що й на J3.",
+    ):
+        sh.text(line, 17.78, y, 1.27)
         y += 3.81
 
 
@@ -1170,6 +1355,7 @@ def build():
     clock_block(sh)
     output_block(sh)
     host_block(sh)
+    digital_audio_block(sh)
     return sh
 
 
