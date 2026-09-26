@@ -36,7 +36,9 @@ def check_si514(d):
     change outside +/-1000 ppm of the calibrated centre, reg 132's reserved
     bit kept (read-modify-write) and the output on, HS_DIV for the ring's
     rate, the final frequency 1024 x Fs of the ring within 20 ppm, and LOCK
-    switched on."""
+    switched on. Nothing in the ring domain moves before the centring: MCLK's
+    and BCLK's first edges come after the loop reports it, whatever frequency
+    the part started at (tb SI_START_HZ)."""
     import json
     meta = json.loads((d / "meta.json").read_text())
     w = (d / "out_si514.txt").read_text().split()
@@ -48,15 +50,19 @@ def check_si514(d):
     reg132 = int(kv["reg132"], 16)
     locked = "lock=1" in (d / "out_lock.txt").read_text()
     addr, found, probes = int(kv["addr"], 16), int(kv["found"], 16), int(kv["probes"])
+    t_cen, t_mclk, t_bclk = float(kv["centred"]), float(kv["first_mclk"]), float(kv["first_bclk"])
+    quiet = t_cen > 0 and t_mclk >= t_cen and t_bclk >= t_cen
     ok = (found == addr and probes == addr - 0x08
           and int(kv["fcal"]) == 1 and int(kv["bad_small"]) == 0 and int(kv["bad_rmw"]) == 0
           and int(kv["nack"]) == 0 and int(kv["hs"]) == want_hs and abs(ppm) < 20
-          and reg132 & 0x84 == 0x84 and locked)
+          and reg132 & 0x84 == 0x84 and locked and quiet)
     print(f"SI  : {'PASS' if ok else 'FAIL'}  address 0x{found:02x} found for 0x{addr:02x} after "
           f"{probes} probes, fcal {kv['fcal']}, {kv['small']} small changes "
           f"(outside window {kv['bad_small']}), reserved bit lost {kv['bad_rmw']}, nack {kv['nack']}, "
           f"HS_DIV {kv['hs']} (want {want_hs}), clk_r {f / 1e6:.6f} MHz = ring {ppm:+.2f} ppm, "
-          f"reg132 {reg132:02x}, LOCK {'on' if locked else 'NEVER'}")
+          f"reg132 {reg132:02x}, LOCK {'on' if locked else 'NEVER'}; started at "
+          f"{float(kv['start_hz']) / 1e6:.3f} MHz, centred at {t_cen / 1e6:.2f} ms, first MCLK edge "
+          f"{(t_mclk - t_cen) / 1e3:+.1f} us and first BCLK edge {(t_bclk - t_cen) / 1e3:+.1f} us after it")
     return ok
 
 

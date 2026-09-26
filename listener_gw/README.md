@@ -140,7 +140,11 @@ Skyworks Si514, an I2C-programmable oscillator that the FPGA steers itself
 1. Once the receiver is locked, 64 ring frames are counted on the 792 Msps
    time base. That picks 44.1 or 48 kHz and the ring's offset from nominal.
 2. The Si514 is centred on that rate: a "large change" (output off, FCAL,
-   up to 10 ms). This is the only time clk_r stops; LOCK is off then.
+   up to 10 ms). This is the only time clk_r stops; LOCK is off then. Until
+   this first centring the whole ring-clock domain (regenerator, TDM, J3,
+   injection, MCLK) is held in reset: a part off the shelf powers up at
+   whatever frequency the factory set, anything to 250 MHz, and that domain
+   is built for 50.
 3. Our own TX comes back through a second IDES8 (TX_FB). Each TX preamble
    minus the same preamble on RX_IN, to 1.26 ns, is the regenerator's delay.
    A PI loop holds that delay constant by writing the Si514's M as "small
@@ -156,7 +160,8 @@ oscillator's sub-picosecond jitter, not the FPGA's output jitter.
 Any Si514 off the shelf fits, as long as its output is 3.3 V CMOS: the
 letter after "514" in its part number is C, M or N. Nothing else in the part
 number matters. Start-up frequency and stability are overwritten by the
-centring. The I2C address is found: before the first centring the FPGA
+centring, and nothing runs on the start-up frequency (corner `si_start`
+powers the model up at 250 MHz). The I2C address is found: before the first centring the FPGA
 probes 0x08..0x77 and takes the address that answers. U7's footprint carries
 all three packages (5x7, 3.2x5, 2.5x3.2), and one of them is soldered.
 
@@ -213,7 +218,8 @@ sim/  make_stim.py  frames from virtual_most_source, distorted to the SP4 limits
       run_rx.py     receiver regression, 10 corners and 4 noise bursts
       dpll_model.py frame-level model of the clock loop, used to pick the gains
       si514_model.v behavioural Si514 from its data sheet: I2C registers, small
-                    and large changes, FCAL, and checks of how it is driven
+                    and large changes, FCAL, the factory start-up frequency, and
+                    checks of how it is driven
       tb_dpll.v + run_dpll.py     the loop against the Si514 model and a
                     frame-level ring, 150-200 ms per corner, 9 corners
       sweep_core.py the whole-core test over random rings: rate, pulse width,
@@ -238,6 +244,7 @@ sim/  make_stim.py  frames from virtual_most_source, distorted to the SP4 limits
 | Preamble shape | `run_core.py` corner `pre2`: core48 with S/PDIF-like preambles, 3-3-1-1 and 3-1-1-3 for a block start | every check passes, LOCK at 1.5 ms as with the placeholder. As first written, tx_pre stamped every 3-UI run and the loop saw two events per frame (LOCK came at 4.4 ms in this test, with twice the corrections), and inject.v took the preamble's second 3-UI run for a lost frame and never injected (0 of 34 frames); the stimulus and its test had only ever produced one 3-UI run per preamble, and asserted it |
 | Random rings | `python sim/sweep_core.py --jobs 1`, twice (seeds 1000 and 2000, 32 cases each): per case the rate, PWD -0.15..+0.316 UI, jitter 0.1..0.195 UI, ring -1000..+1000 ppm, the Si514's own error -100..+100 ppm and its I2C address 0x08..0x77 are drawn; ~30 % send "inject" before the Si514 is centred; every third kills the line for 5..50 us 2 ms after LOCK | 64/64: all eight checks (or the dead-line checks) pass; LOCK after 1.3-8.4 ms of simulated loop, dead lines dropped LOCK in 0.07-1.5 us and it came back 71-83 frames later without re-centring. The first draft of the sweep (360-frame rings, the Si514 within 50 ppm, the dead line at a fixed time) failed 6 of 32 cases, none of them in the design: LOCK came at 6.7-6.8 ms, because the centring cannot see the Si514's own crystal error and the simulated loop has to pull it in, so the test ended, or the line died, before the host's commands were through. One later case failed on the TX check itself: 400 runs taken from a frame's zero bytes matched the ring in several places; windows now grow until they match in exactly one. Rerun after the receiver's guards and the TX_FB check (seed 1000, one case at a time, `--jobs 1`): 32/32, dead lines dropped LOCK in 0.07-1.5 us and it came back 71-83 frames later, as before |
 | MCLK | `check_core.py` | exactly 512 MCLK periods per TDM frame under LOCK, 44.1 and 48 kHz |
+| A shelf part's start-up frequency | `run_core.py` corner `si_start`: core48 with the Si514 model powering up at 250 MHz, the top of its range; every corner also logs the first MCLK and BCLK edges against the moment the loop reports the centring | every check passes; MCLK's and BCLK's first edges come after the centring in every corner (before: the ring domain ran on the start-up frequency until then, MCLK on J2/J3 with it - out of timing above 78 MHz, and with a model that always started at 49.152 MHz nothing saw it) |
 | Clock dead, the board's watchdog | `run_core.py` corner `clk_stop`: core48, clk_s stops for good 300 us after LOCK; tb_core.v models U11 (TX_SEL = LOCK and a TX rising edge within 10 us). Every core corner also checks that the model never dropped TX_SEL while LOCK was on | LOCK stays on - no clk_s logic can help; TX's last edge 1.3 us after the stop (the FIFO runs dry), TX_SEL - bypass - 11.4 us after. 0 false drops in all seven corners (commands, injection on and off, a dead line, dead feedback) |
 | One bad bit on the line | `run_core.py` corner `bit_err`: core48 without injection, one edge of the line removed in frame 120 (two runs merge into a 3-UI run inside the data, 1 ms after LOCK) | LOCK stays on to the end of the stimulus; every regenerated run equals the ring's, the wrong one included; TDM loses exactly frame 120 (frame 119 once more, then 121) and is right and in order otherwise; the damaged block's packet is withheld and good ones follow. Before: the framer unlocked on the first error, the regenerator's FIFO was emptied, LOCK fell and stayed off for HOLD_RE - two phase steps on the ring and two mutes of the amplifier, from one bit |
 | TX feedback lost | `run_core.py` corner `fb_dead`: core48, TX_FB forced dead 200 us after LOCK and kept dead (what the FPGA sees if U9's output sticks) | LOCK drops 3.4 frames after it and stays off. Before, it stayed on until the ring input itself ended, 3.3 ms later: nothing in LOCK looked at TX_FB |
@@ -312,7 +319,7 @@ is why the check runs on every build.
    edges is ~0.15 us) to far below MOST's 60 ms of tolerated unlock works.
 6. **Nothing here has run on hardware.** The Si514 is a behavioural model
    written from its data sheet (Rev 1.2): register map, small and large
-   changes, FCAL, the address it answers to. The IDES8 inputs have only been
+   changes, FCAL, the address it answers to, the start-up frequency. The IDES8 inputs have only been
    checked in Gowin's simulation model. The ring's real wander has not been through the loop: the gains
    assume wander the 2 Hz tracking loop can follow within the FIFO's +/-600
    samples (+/-760 ns); a ring that wanders more would show as FIFO restarts.

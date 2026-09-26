@@ -132,10 +132,13 @@ module listener_core #(
                .scl_o(i2c_scl_o), .sda_o(i2c_sda_o), .sda_i(i2c_sda_i));
 
     // ------------------------------------------------ ring-clock domain reset
-    // Held while the Si514 output is off (centring: clk_r stops or is
-    // undefined for up to 10 ms); released 3 clk_r after it runs again.
-    wire rr_hold = rst_s | si_off;
-    reg [2:0] rr;
+    // Held until the Si514 has been centred once and while its output is off
+    // (centring: clk_r stops or is undefined for up to 10 ms); released 3 clk_r
+    // after it runs again. Until the first centring a part off the shelf runs
+    // at its factory start-up frequency, anything to 250 MHz, and this domain
+    // is built for 50: nothing in it may run before the clock is ours.
+    wire rr_hold = rst_s | si_off | ~si_centred;
+    reg [2:0] rr = 3'b111;                  // in reset from power-up, before any clk_r edge
     always @(posedge clk_r or posedge rr_hold)
         if (rr_hold) rr <= 3'b111; else rr <= {rr[1:0], 1'b0};
     wire rst_r = rr[2];
@@ -178,9 +181,11 @@ module listener_core #(
     // ------------------------------------------------------------------ MCLK
     // 512 Fs from the ring-locked clock: the receiver's master clock, at
     // 512 Fs for a 44.1/48 kHz system or 256 Fs for one at 88.2/96 kHz. It
-    // stops with clk_r, i.e. while the Si514 is being centred.
+    // stops with clk_r, i.e. while the Si514 is being centred, and is held
+    // low until the first centring (a shelf part's start-up frequency is not
+    // a clock for anything on J2 or J3).
     initial mclk = 1'b0;
-    always @(posedge clk_r) mclk <= ~mclk;
+    always @(posedge clk_r) mclk <= rst_r ? 1'b0 : ~mclk;
 
     // ------------------------------------------------------------ UART out
     ctrl_uart u_ua (.clk(clk_s), .rst(rst_s), .byte_we(bwe), .byte_addr(ba), .byte_data(bd),

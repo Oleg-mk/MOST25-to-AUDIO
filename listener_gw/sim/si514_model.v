@@ -18,6 +18,10 @@
 // Reg 132 starts as 0x84: bit 7 is a reserved bit set to 1 on purpose, so a
 // write that does not preserve it (no read-modify-write) is counted in
 // `bad_rmw`. Everything is observable hierarchically (freq, fcentre, counters).
+// START_HZ is the frequency the part runs at from power-up, as the factory
+// set it (any 3.3 V CMOS Si514 off the shelf, 100 kHz to 250 MHz); the
+// registers' start-up content is not modelled beyond the 49.152 MHz defaults
+// - the first large change overwrites all of it.
 `timescale 1ns/1ps
 module si514_model #(
     parameter [6:0] ADDR      = 7'h55,
@@ -58,6 +62,7 @@ module si514_model #(
         regs[9] = 8'h08; regs[10] = 8'd44; regs[11] = 8'h00;
         m_now = mval(0);
         freq = FXO * (1.0 + DSI_PPM * 1e-6) * m_now / hsval(0);
+        if (START_HZ > 0.0) freq = START_HZ;                      // the factory start-up frequency
         fcentre = freq; oe = 1'b1; cal_busy = 1'b0;
         n_small = 0; n_fcal = 0; bad_small = 0; bad_rmw = 0; n_nack = 0; n_probe = 0; n_glitch = 0;
         seen_ours = 1'b0; sda_low = 1'b0;

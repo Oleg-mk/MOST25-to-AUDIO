@@ -25,6 +25,11 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              LOCK stays on - no clk_s logic can help - and the board's watchdog
              (U11, modelled in tb_core.v) must take the ring to bypass: TX
              stops toggling within 3 us, TX_SEL falls within 13 us
+  si_start   core48 with a Si514 that powers up at 250 MHz, the top of its range
+             (a shelf part starts at whatever the factory set): every check must
+             pass, and MCLK and BCLK must not move before the centring. As first
+             written the ring domain ran on the start-up frequency until then,
+             out of timing above 78 MHz
   bit_err    core48 without injection, one edge of the line removed in frame
              120 (two runs merge into one of a wrong length, 1 ms after LOCK):
              LOCK must stay on to the end, the regenerated line must equal the
@@ -73,6 +78,8 @@ CORNERS = [
                    "--ppm", "0", "--seed", "7"], ["-Ptb_core.CLKS_STOP_AFTER_LOCK_US=300"]),
     ("bit_err",   ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
                    "--ppm", "0", "--seed", "7", "--kill-edge-frame", "120"], ["-Ptb_core.NO_INJECT=1"]),
+    ("si_start",  ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
+                   "--ppm", "0", "--seed", "7"], ["-Ptb_core.SI_START_HZ=250000000.0"]),
 ]
 
 

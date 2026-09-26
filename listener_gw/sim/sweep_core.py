@@ -8,8 +8,9 @@ here draws its own case:
   rate 48 or 44.1 kHz (alternating), pulse-width distortion -0.15..+0.316 UI
   (the SP4 limits), edge jitter 0.1..0.195 UI, ring offset -1000..+1000 ppm,
   the Si514's own crystal error -100..+100 ppm (the widest stability grade
-  on the shelf), its I2C address 0x08..0x77, the preamble's run pattern (the
-  placeholder or the S/PDIF-like set with two 3-UI runs),
+  on the shelf), its I2C address 0x08..0x77 and its start-up frequency (10 to
+  250 MHz), the preamble's run pattern (the placeholder or the S/PDIF-like set
+  with two 3-UI runs),
   whether "inject" is sent before the Si514 is centred, and a fresh seed.
 Every third run also kills the line for 5..50 us, 2 ms after LOCK.
 
@@ -55,6 +56,7 @@ def case(i, base):
         addr=r.randrange(0x08, 0x78),
         early=r.random() < 0.3,
         pre=r.choice(["default", "spdif"]),
+        start_hz=r.choice([49.152e6, 10e6, 100e6, 156.25e6, 250e6]),
         seed=r.randrange(1, 10 ** 6),
         gap_us=round(r.uniform(5.0, 50.0), 1) if i % 3 == 2 else 0.0,
     )
@@ -72,7 +74,8 @@ def run(c, work):
                    cwd=HERE, check=True, capture_output=True)
     nclk = len((d / "samples.hex").read_text().split())
     opts = [f"-Ptb_core.MAXCLK={nclk + 1000}", f"-Ptb_core.SI_ADDR={c['addr']}",
-            f"-Ptb_core.SI_PPM={c['si_ppm']}", f"-Ptb_core.INJ_EARLY={int(c['early'])}"]
+            f"-Ptb_core.SI_PPM={c['si_ppm']}", f"-Ptb_core.INJ_EARLY={int(c['early'])}",
+            f"-Ptb_core.SI_START_HZ={c['start_hz']:.1f}"]
     if c["gap_us"]:
         opts += ["-Ptb_core.GAP_AFTER_LOCK_US=2000", f"-Ptb_core.GAP_US={c['gap_us']}"]
     subprocess.run(["iverilog", "-g2012", "-o", str(d / "tb.vvp"), "-s", "tb_core", f"-I{RTL}"] + opts + SRC,

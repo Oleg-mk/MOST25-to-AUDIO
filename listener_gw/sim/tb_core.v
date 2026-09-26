@@ -10,6 +10,7 @@ module tb_core;
     parameter MAXCLK = 700000;
     parameter [6:0] SI_ADDR = 7'h6A;                 // the model's I2C address: not 0x55, the core must find it
     parameter real  SI_PPM  = 0.0;                   // the model's own crystal error
+    parameter real  SI_START_HZ = 49.152e6;          // the model's factory start-up frequency
     parameter       INJ_EARLY = 0;                   // 1: "inject" sent before the Si514 is centred
     parameter       NO_INJECT = 0;                   // 1: never inject (the line must stay as it came)
     parameter real  GAP_AFTER_LOCK_US = -1.0;        // > 0: the line dies this long after LOCK...
@@ -56,7 +57,8 @@ module tb_core;
     wire scl_o, sda_o, sda_low;
     wire scl = scl_o;
     wire sda = sda_o & ~sda_low;
-    si514_model #(.ADDR(SI_ADDR), .DSI_PPM(SI_PPM), .FCAL_NS(15000.0), .SETTLE_NS(2000.0))
+    si514_model #(.ADDR(SI_ADDR), .DSI_PPM(SI_PPM), .FCAL_NS(15000.0), .SETTLE_NS(2000.0),
+                  .START_HZ(SI_START_HZ))
         u_dev (.scl(scl), .sda(sda), .sda_low(sda_low));
     // clk_r from the model's frequency. Each edge is scheduled at an exact
     // real time; only the individual delay is rounded to the 1 ps time step,
@@ -109,6 +111,12 @@ module tb_core;
 
     // ------------------------------------------------------------ loggers
     integer ftx, ftdm, fua, flk, fsi;
+    // the ring domain must not move before the Si514 is centred: first edges of
+    // its outputs against the moment the loop reports the centring
+    real t_cen = -1.0, t_mclk1 = -1.0, t_bclk1 = -1.0;
+    always @(posedge dut.u_pll.centred) if (t_cen < 0.0) t_cen = $realtime;
+    always @(posedge mclk) if (t_mclk1 < 0.0) t_mclk1 = $realtime;
+    always @(posedge bclk) if (t_bclk1 < 0.0) t_bclk1 = $realtime;
 
     // The board's bypass watchdog U11 (74LVC1G123): retriggered by TX's rising
     // edges (TX_REGEN), cleared by LOCK; its Q, TX_SEL, is U2's select.
@@ -286,10 +294,11 @@ module tb_core;
         $display("clocks=%0d status=%b lock=%0d fs_late=%0d", nclk, status, lock, fs_late);
         $fclose(ftx); $fclose(ftdm); $fclose(fua); $fclose(flk); $fclose(fmc); $fclose(fi2s); $fclose(fcfg);
         fsi = $fopen("out_si514.txt", "w");
-        $fwrite(fsi, "addr %0h found %0h probes %0d fcal %0d small %0d bad_small %0d bad_rmw %0d nack %0d hs %0d freq %0.3f reg132 %0h\n",
+        $fwrite(fsi, "addr %0h found %0h probes %0d fcal %0d small %0d bad_small %0d bad_rmw %0d nack %0d hs %0d freq %0.3f reg132 %0h centred %0.3f first_mclk %0.3f first_bclk %0.3f start_hz %0.1f\n",
                 SI_ADDR, dut.u_si.addr, u_dev.n_probe,
                 u_dev.n_fcal, u_dev.n_small, u_dev.bad_small, u_dev.bad_rmw, u_dev.n_nack,
-                {u_dev.regs[11][1:0], u_dev.regs[10]}, u_dev.freq, u_dev.regs[132]);
+                {u_dev.regs[11][1:0], u_dev.regs[10]}, u_dev.freq, u_dev.regs[132],
+                t_cen, t_mclk1, t_bclk1, SI_START_HZ);
         $fclose(fsi);
         $fwrite(ffs, "late %0d\n", fs_late); $fclose(ffs);
         fcs = $fopen("out_wd.txt", "w");                  // the watchdog model over the whole run
