@@ -43,12 +43,47 @@ python check_all.py --sweep    plus the whole core over 32 random rings (~1 h mo
 ```
 
 It runs the steps strictly one after another and stops at nothing: each
-prints PASS or FAIL, and the summary lists them. Tools it expects
+prints PASS or FAIL, and the summary lists them. The simulation scripts
+themselves run one simulation at a time too (several at once have frozen
+this machine). Tools it expects
 (override with environment variables, see the script's header):
 OSS CAD Suite in `~/toolchains/oss-cad-suite`, Gowin EDA in
 `C:\Gowin\Gowin_V1.9.12.03_x64`, ESP-IDF v6.1 in `~/toolchains/esp-idf`
 (tools in `~/toolchains/espressif`), MinGW gcc in `~/toolchains/mingw64`,
 KiCad 10.
+
+## Limits, by design
+
+- **Only the light tells the host what plays.** The listener never sends a
+  word, so the host learns which frame bytes carry the AUX source, and
+  whether the amplifier plays them, only from the telegrams it happens to
+  hear. At a cold start the ring, the FPGA and the ESP32 wake together
+  (WAKE); if the head unit connects the amplifier to AUX before the host is
+  listening, the phone is not injected until the head unit next changes a
+  source. Asking (a SourceInfo.Get on the control channel) would end the
+  listener's silence, so this stays as it is.
+- **Cars whose AUX is not a MOST source** - mixed inside the head unit - have
+  no AUX bytes to replace; the phone cannot be injected there. Listening
+  (J2, J3) works everywhere.
+- **The per-car scales** - volume and tone, which sinks carry navigation and
+  phone - are placeholders until a real ring is recorded.
+
+## Bring-up, in this order
+
+1. **Bypass only.** U2 left on the fibre's own signal (LOCK held low), the
+   FPGA listening: J2's TDM and UART, and a dump of the run lengths, from a
+   real ring. This settles what the simulations could only assume - the
+   preamble pattern, the block-start marker, the parity rule - and shows the
+   control telegrams the host decodes.
+2. **Regeneration**, on the bench with a loop of fibre, then in the car.
+3. **Injection**, then J3's sound and the per-car scales.
+
+One decision is still open on the board: D2, the TVS on the battery input
+(SMBJ26CA), conducts from about 29 V. A suppressed load dump (35 V for
+hundreds of milliseconds) would destroy it, while the buck behind it is rated
+for 36 V and rides it out; a higher TVS in turn clamps fast pulses above the
+buck's absolute maximum. Decide it with the chosen ISO 7637 / ISO 16750
+profile and the buck's data sheet before the board goes out.
 
 ## Status
 

@@ -106,7 +106,10 @@ channels out anew, and a model that kept the old ones could put our audio into
 another source's bytes before the new Allocate is seen; so the model starts
 over and both commands go off. What that costs: if the ESP32 starts while the
 ring is already up, it knows nothing until the head unit next connects a
-source (it will not ask: the listener has no address).
+source (it will not ask: the listener has no address). That is the ordinary
+cold start, not an exception: the ESP32 is powered with the ring (WAKE), and
+whether it is listening before the head unit's first Connect is a race the
+head unit usually loses by a few seconds, but not always.
 
 **J3's sound** (`sound`, `dsp_img`). What the amplifier gets on the ring is
 the source before any volume; the head unit tells the amplifier the rest.
