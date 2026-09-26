@@ -37,7 +37,10 @@ module top_tangnano20k (
     output wire i2s_lrck,        // pin 75 HSPI_DIR
     output wire i2s_dout,        // pin 76 HSPI_DAT
     output wire i2s_mclk,        // pin 85 SDIO_D1    MCLK again, for J3 (TF slot left empty)
-    input  wire i2s_din,         // pin 86 HSPI_CSN   audio in, injected into the ring
+    input  wire i2s_din,         // pin 86 HSPI_CSN   audio in from the host, injected into the ring
+    input  wire i2s_din2,        // pin 54 I2S_DIN    audio in from the S/PDIF receiver's ASRC (the onboard
+                                 //                   audio DAC's data input; its amplifier stays disabled)
+    output wire spdif,           // pin 31 LCD_B3     J3's L R as S/PDIF: TOSLINK transmitter and coax
     output wire [5:0] led_n      // pins 15 16 17 18 19 20, onboard, active low
 );
     // ------------------------------------------------------------- clocks
@@ -98,7 +101,7 @@ module top_tangnano20k (
         .tdm_bclk(tdm_bclk), .tdm_fs(tdm_fs), .tdm_sd0(tdm_sd0), .tdm_sd1(tdm_sd1),
         .uart_tx(uart_tx), .mclk(mclk), .uart_rx(uart_rx),
         .i2s_bclk(i2s_bclk), .i2s_lrck(i2s_lrck), .i2s_dout(i2s_dout),
-        .i2s_din(i2s_din), .inj_active(),
+        .i2s_din(i2s_din), .i2s_din2(i2s_din2), .spdif(spdif), .inj_active(),
         .i2c_scl_o(scl_o), .i2c_sda_o(sda_o), .i2c_sda_i(si_sda),
         .status(status));
 

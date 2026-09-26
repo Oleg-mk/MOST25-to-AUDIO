@@ -36,8 +36,8 @@ module tb_dsp;
     amp_out dut (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(cmd_ok), .cmd(cmd), .cmd_p(cmd_p),
                  .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fdone),
                  .clk_r(clk_r), .rst_r(rst_r), .phase_n(phn), .run(run),
-                 .sub_on(1'b0), .sub_w3(1'b0), .sub_pos(36'd0), .sub_val(48'd0),
-                 .bclk(bclk), .lrck(lrck), .sd(sd), .overrun(overrun));
+                 .sub_on(1'b0), .sub_w3(1'b0), .sub_pos(36'd0), .sub_val(48'd0), .rate48(1'b1),
+                 .bclk(bclk), .lrck(lrck), .sd(sd), .spdif(), .overrun(overrun));
 
     // ------------------------------------------------- frames in (clk_s)
     reg [7:0] fb [0:NFRAMES*64-1];

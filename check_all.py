@@ -70,6 +70,7 @@ def main():
          [py, str(ROOT / "tools" / "test_capture_analyse.py")], ROOT)
     step("receiver (run_rx.py)", [py, "run_rx.py"], SIM, sim_env, need=iverilog)
     step("J3 engine (run_dsp.py)", [py, "run_dsp.py"], SIM, sim_env, need=iverilog)
+    step("S/PDIF output (run_spdif.py)", [py, "run_spdif.py"], SIM, sim_env, need=iverilog)
     sys.path.insert(0, str(SIM))
     import run_core                                            # corner names only
     for name, _, _ in run_core.CORNERS:

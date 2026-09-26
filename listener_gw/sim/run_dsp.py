@@ -37,7 +37,7 @@ import dsp_asm as da
 
 HERE = Path(__file__).resolve().parent
 RTL = HERE.parent / "rtl"
-SRC = ["tb_dsp.v", str(RTL / "amp_out.v"), str(RTL / "dsp_core.v")]
+SRC = ["tb_dsp.v", str(RTL / "amp_out.v"), str(RTL / "dsp_core.v"), str(RTL / "spdif_tx.v")]
 GAP = 1500                  # clk_s between commands (15 us; the UART's is 37 us)
 
 

@@ -5,12 +5,13 @@
 //                                         (inject: our audio into chosen bytes)
 //        rx_framer   -> tdm_out (clk_r) -> BCLK FS SD0 SD1  every frame byte, as it left us
 //        rx_framer   -> ctrl_uart       -> uart_tx          raw control blocks
-//        rx_framer   -> amp_out (clk_r) -> I2S              up to 3 sources, tone, volume,
+//        rx_framer   -> amp_out (clk_r) -> I2S, S/PDIF      up to 3 sources, tone, volume,
 //                                                          balance: L R, as they left us
 //        uart_rx -> host_cmd -> amp_out, inject, capture    host picks bytes, sets coefficients,
 //                                                          asks for a capture or a dump
 //        rx_runlen   -> capture -> ctrl_uart                the line's run lengths, on request
-//        I2S_DIN -> inject                                 audio in, on our own BCLK/LRCK
+//        I2S_DIN / I2S_DIN2 -> inject                      audio in (the host M2 / the S/PDIF
+//                                                          receiver's ASRC), on our own BCLK/LRCK
 //        clk_r = 1024 Fs comes from a Si514 (I2C programmable XO) that this
 //        FPGA steers itself (dpll.v): the regenerated TX is fed back (fb_samp),
 //        its preambles are stamped like the ring's (tx_pre.v), and the delay
@@ -84,7 +85,9 @@ module listener_core #(
     output wire       uart_tx,
     input  wire       uart_rx,              // host commands, same baud as uart_tx
     output wire       i2s_bclk, i2s_lrck, i2s_dout,
-    input  wire       i2s_din,              // audio in, for injection
+    input  wire       i2s_din,              // audio in, for injection (the host M2)
+    input  wire       i2s_din2,             // audio in from the S/PDIF receiver's ASRC (command 02, M[2])
+    output wire       spdif,                // J3's L R as S/PDIF: TOSLINK transmitter and coax
     output wire       inj_active,           // clk_r: our audio is on the ring this frame
     output wire       i2c_scl_o, i2c_sda_o,
     input  wire       i2c_sda_i,
@@ -167,17 +170,23 @@ module listener_core #(
     uart_rx    u_urx (.clk(clk_s), .rst(rst_s), .rxd(uart_rx), .valid(cv), .data(cdat));
     host_cmd   u_hc  (.clk(clk_s), .rst(rst_s), .rx_valid(cv), .rx_data(cdat),
                       .ok(hok), .cmd(hcmd), .p(hp));
+    // the ring's rate, for the S/PDIF channel status: a UI under 16.8 samples is
+    // 48 kHz (16.11 there, 17.53 at 44.1); a level, two flip-flops into clk_r
+    reg       r48_s;
+    reg [1:0] r48;
+    always @(posedge clk_s) r48_s <= ui_q < 16'h10CC;
+    always @(posedge clk_r) r48 <= {r48[0], r48_s};
     amp_out    u_amp (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(hok), .cmd(hcmd), .cmd_p(hp),
                       .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                       .clk_r(clk_r), .rst_r(rst_r), .phase_n(tdm_n), .run(tdm_valid),
-                      .sub_on(ij_on), .sub_w3(ij_w3), .sub_pos(ij_pos), .sub_val(ij_val),
-                      .bclk(i2s_bclk), .lrck(i2s_lrck), .sd(i2s_dout),
+                      .sub_on(ij_on), .sub_w3(ij_w3), .sub_pos(ij_pos), .sub_val(ij_val), .rate48(r48[1]),
+                      .bclk(i2s_bclk), .lrck(i2s_lrck), .sd(i2s_dout), .spdif(spdif),
                       .overrun());
 
     // ------------------------------------------------- audio into the ring
     inject     u_inj (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(hok), .cmd(hcmd), .cmd_p(hp),
                       .clk_r(clk_r), .rst_r(rst_r), .st(rg_st), .st_len(rg_len),
-                      .phase_n(tdm_n), .i2s_run(tdm_valid), .din(i2s_din),
+                      .phase_n(tdm_n), .i2s_run(tdm_valid), .din(i2s_din), .din2(i2s_din2),
                       .tx(tx_regen), .active(inj_active),
                       .prev_on(ij_on), .prev_w3(ij_w3), .prev_pos(ij_pos), .prev_val(ij_val));
 

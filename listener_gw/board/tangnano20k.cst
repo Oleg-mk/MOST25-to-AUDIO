@@ -48,6 +48,12 @@ IO_PORT "uart_rx" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
 // stereo I2S (J3): out, and DIN = audio in for injection
 IO_LOC "i2s_din" 86;               // HSPI_CSN; pulled down: nothing plugged in reads as silence
 IO_PORT "i2s_din" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC "i2s_din2" 54;              // I2S_DIN of the onboard audio DAC (its amplifier is never enabled)
+IO_PORT "i2s_din2" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+
+// S/PDIF out: the TOSLINK transmitter's input and the coax divider (~12 mA) on one pin
+IO_LOC "spdif" 31;                 // LCD_B3, the last free LCD-only pin
+IO_PORT "spdif" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;
 IO_LOC "i2s_bclk" 74;              // HSPI_DIN3
 IO_PORT "i2s_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 IO_LOC "i2s_lrck" 75;              // HSPI_DIR

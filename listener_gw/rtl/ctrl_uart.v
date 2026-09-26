@@ -109,26 +109,36 @@ module ctrl_uart #(
 
     // Timing: picking the byte (a subtract, a RAM read, a 42-way choice and,
     // for a capture packet, a 40-way one) was the slowest path in the whole
-    // clk_s domain, yet a byte is needed only once per 330 ns. So the two
-    // candidates are registered a clock after idx settles (prep), the chosen
-    // one a clock later (prep2), and only then loaded. The bits then leave
-    // through a plain shift register, not a variable bit select.
-    reg [7:0] ctl_q, cap_q, cur_q;
+    // clk_s domain, yet a byte is needed only once per 330 ns. So the byte is
+    // picked in stages, one register each, once idx has settled: the capture
+    // packet's 8-byte lane around idx (prep), the byte in that lane and the
+    // control byte (prep2), the one of the two that goes out (prep3), then the
+    // load. The bits then leave through a plain shift register, not a
+    // variable bit select. (The 40-way pick in one clock took 9.2 of the
+    // 10.1 ns once the S/PDIF encoder had moved the placement.)
+    reg [7:0]    ctl_q, cap_q, cur_q;
+    reg [63:0]   lane_q;
+    reg [2:0]    lo_q;
+    reg          x_q;
+    wire [383:0] cap_ext = {64'd0, cap_pkt};        // idx 40 (the XOR) reads lane 5: zeros, unused
     always @(posedge clk) begin
-        ctl_q <= cur;
-        cap_q <= (idx == 6'd40) ? xsum : cap_pkt[8 * idx +: 8];
-        cur_q <= cap_mode ? cap_q : ctl_q;
+        lane_q <= cap_ext[64 * idx[5:3] +: 64];
+        lo_q   <= idx[2:0];
+        x_q    <= (idx == 6'd40);
+        ctl_q  <= cur;
+        cap_q  <= x_q ? xsum : lane_q[8 * lo_q +: 8];
+        cur_q  <= cap_mode ? cap_q : ctl_q;
     end
 
     reg [9:0] sh;                           // stop, data[7:0], start; sh[0] is on the line
     reg [3:0] bitpos;                       // bit on the line, 0 = start .. 9 = stop
     reg [7:0] tick;
-    reg       prep, prep2, load;
+    reg       prep, prep2, prep3, load;
     always @(posedge clk) begin
         ctl_ack <= 1'b0; cap_take <= 1'b0; cap_done <= 1'b0;
         if (rst) begin
             busy <= 1'b0; cap_mode <= 1'b0; txd <= 1'b1; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b0; prep2 <= 1'b0;
-            load <= 1'b0; bitpos <= 4'd0; tick <= 8'd0; sh <= 10'h3FF;
+            prep3 <= 1'b0; load <= 1'b0; bitpos <= 4'd0; tick <= 8'd0; sh <= 10'h3FF;
         end else if (!busy) begin
             txd <= 1'b1;
             if (ctl_pend) begin                              // control first
@@ -137,9 +147,11 @@ module ctrl_uart #(
                 busy <= 1'b1; cap_mode <= 1'b1; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b1; cap_take <= 1'b1;
             end
         end else if (prep) begin
-            prep <= 1'b0; prep2 <= 1'b1;    // ctl_q / cap_q catch idx at this edge
+            prep <= 1'b0; prep2 <= 1'b1;    // lane_q, lo_q, x_q and ctl_q catch idx at this edge
         end else if (prep2) begin
-            prep2 <= 1'b0; load <= 1'b1;    // cur_q catches the chosen one at this edge
+            prep2 <= 1'b0; prep3 <= 1'b1;   // cap_q catches the byte of the lane at this edge
+        end else if (prep3) begin
+            prep3 <= 1'b0; load <= 1'b1;    // cur_q catches the chosen one at this edge
         end else if (load) begin
             sh     <= {1'b1, cur_q, 1'b0};
             xsum   <= xsum ^ cur_q;

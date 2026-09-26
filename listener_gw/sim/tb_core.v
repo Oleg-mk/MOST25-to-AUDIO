@@ -98,7 +98,7 @@ module tb_core;
 
     // ---------------------------------------------------------------- DUT
     wire lock, bclk, fs, sd0, sd1, utx, mclk; wire [7:0] status;
-    wire ibclk, ilrck, isd, injact;
+    wire ibclk, ilrck, isd, injact, spdif;
     reg  urx = 1'b1;                                 // host command line, idle high
     reg  idin = 1'b0;                                // audio in, from the DSP model
     listener_core #(.HOLD(8), .HOLD_RE(24), .SI_QDIV(4), .SI_FCAL(24'd2000),
@@ -111,7 +111,7 @@ module tb_core;
         .fs_word(fs_word), .fs_late(fs_late), .tx_regen(tx), .lock(lock),
         .tdm_bclk(bclk), .tdm_fs(fs), .tdm_sd0(sd0), .tdm_sd1(sd1), .uart_tx(utx), .mclk(mclk),
         .uart_rx(urx), .i2s_bclk(ibclk), .i2s_lrck(ilrck), .i2s_dout(isd),
-        .i2s_din(idin), .inj_active(injact),
+        .i2s_din(idin), .i2s_din2(1'b0), .spdif(spdif), .inj_active(injact),
         .i2c_scl_o(scl_o), .i2c_sda_o(sda_o), .i2c_sda_i(sda), .status(status));
 
     // ------------------------------------------------------------ loggers
@@ -197,6 +197,17 @@ module tb_core;
     // I2S: LRCK and data at every rising BCLK
     integer fi2s, fcfg;
     always @(posedge ibclk) $fwrite(fi2s, "%0d%0d\n", ilrck, isd);
+    // S/PDIF: the level of every half-cell, one line per frame (the encoder's
+    // tick and half-cell index read before the edge, the line after it)
+    integer fsp; reg sp_t; reg [6:0] sp_h;
+    always @(posedge clk_r) begin
+        sp_t = dut.u_amp.u_sp.tick; sp_h = dut.u_amp.u_sp.h;
+        #1;
+        if (sp_t) begin
+            if (sp_h == 7'd0) $fwrite(fsp, "\n");
+            $fwrite(fsp, "%0d", spdif);
+        end
+    end
 
     // host commands, 8N1 at 3 Mbaud = 33 clk_s per bit
     task send_byte(input [7:0] b);
@@ -296,6 +307,7 @@ module tb_core;
         fua = $fopen("out_uart.txt", "w");
         flk = $fopen("out_lock.txt", "w"); fmc = $fopen("out_mclk.txt", "w");
         fi2s = $fopen("out_i2s.txt", "w"); fcfg = $fopen("out_cfg.txt", "w");
+        fsp = $fopen("out_spdif.txt", "w");
         ffs = $fopen("out_fs.txt", "w");
         repeat (4) @(posedge clk_s);
         rst = 0;
@@ -304,6 +316,7 @@ module tb_core;
         repeat (200) @(posedge clk_s);
         $display("clocks=%0d status=%b lock=%0d fs_late=%0d", nclk, status, lock, fs_late);
         $fclose(ftx); $fclose(ftdm); $fclose(fua); $fclose(flk); $fclose(fmc); $fclose(fi2s); $fclose(fcfg);
+        $fclose(fsp);
         fsi = $fopen("out_si514.txt", "w");
         $fwrite(fsi, "addr %0h found %0h probes %0d fcal %0d small %0d bad_small %0d bad_rmw %0d nack %0d hs %0d freq %0.3f reg132 %0h centred %0.3f first_mclk %0.3f first_bclk %0.3f start_hz %0.1f\n",
                 SI_ADDR, dut.u_si.addr, u_dev.n_probe,

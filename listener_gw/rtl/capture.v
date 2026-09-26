@@ -57,6 +57,9 @@ module capture #(
                      S_TRAIL = 3'd4, S_TSEND = 3'd5;
     reg  [2:0]    st;
     reg  [AW-5:0] rpkt, npkt;               // packet being loaded / sent; packets to send
+    reg           lastp;                    // rpkt is the last one (registered: rpkt and npkt hold
+                                            // still all through S_SEND, where it is used)
+    always @(posedge clk) lastp <= (rpkt + 1'b1 == npkt);
     reg  [5:0]    ld;                       // loading: 0 header, then the runs' data (q2 with ld2 = 1..32)
     always @(posedge clk) begin q2 <= q; ld2 <= ld; end   // the read once more, before the 40-way write into pkt
     wire          full  = wptr[AW];
@@ -109,7 +112,7 @@ module capture #(
             end
             S_READY: if (take) begin req <= 1'b0; st <= S_SEND; end
             S_SEND: if (done) begin
-                if (rpkt + 1'b1 == npkt) st <= S_TRAIL;
+                if (lastp) st <= S_TRAIL;
                 else begin
                     rpkt <= rpkt + 1'b1; ld <= 6'd0; raddr <= {rpkt + 1'b1, 5'd0}; st <= S_LOAD;
                 end

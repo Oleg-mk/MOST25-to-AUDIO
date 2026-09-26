@@ -21,7 +21,10 @@
         in, with the parity XOR kept
 Exit 0 only if all of them hold.
 """
+import json
 import sys
+
+import spdif_dec
 from pathlib import Path
 
 BIT_NS = 1e9 / 3e6 * 1.0          # UART bit time: 33 clk_s at 99 MHz = 333.33 ns
@@ -464,6 +467,48 @@ def check_mclk(d):
     return ok
 
 
+def i2s_frames(d):
+    """J3's I2S frames as (L slot, R slot), 32-bit words: LRCK low = left, MSB one
+    BCLK after the edge, from the log of every rising BCLK."""
+    rows = [l.strip() for l in (d / "out_i2s.txt").read_text().splitlines()]
+    rows = [r for r in rows if "x" not in r and "z" not in r]
+    frames = []
+    for i in range(1, len(rows) - 64):
+        if rows[i - 1][0] == "1" and rows[i][0] == "0":           # LRCK fell: slot 0
+            f = rows[i:i + 64]
+            if all(f[s][0] == ("0" if s < 32 else "1") for s in range(64)):
+                bits = [int(f[s][1]) for s in range(1, 64)] + [0]  # slots 1..63, then next slot 0
+                frames.append((int("".join(map(str, bits[:32])), 2), int("".join(map(str, bits[32:])), 2)))
+    return frames
+
+
+def check_spdif(d, fs):
+    """The S/PDIF line carries the very pairs J3's I2S carries, frame for frame, in
+    the form spdif_dec.check demands (preambles, cell edges, parity, channel
+    status with the ring's rate)."""
+    lines = spdif_dec.frames_of((d / "out_spdif.txt").read_text())
+    sp = [(l["sample"], r["sample"]) for l, r in spdif_dec.decode(lines)]
+    i2s = [(l >> 8, r >> 8) for l, r in i2s_frames(d)]              # the 24-bit pairs
+    ok_form, summary = spdif_dec.check(lines, None, fs == 48000, log=lambda *a: None)
+    start = next((k for k, p in enumerate(sp) if p != (0, 0)), None)
+    same = bad = 0
+    if start is not None and sp[start] in i2s:
+        j = i2s.index(sp[start])
+        for a, b in zip(sp[start:], i2s[j:]):
+            if a == b:
+                same += 1
+            else:
+                bad += 1
+                if bad <= 3:
+                    print(f"      S/PDIF L R {a[0]:06x} {a[1]:06x}, I2S {b[0]:06x} {b[1]:06x}")
+    else:
+        bad = len(sp)
+    ok = ok_form and start is not None and bad == 0 and same >= len(sp) - start - 2 and same >= 8
+    print(f"SPDF: {'PASS' if ok else 'FAIL'}  {len(sp)} frames, {same} equal to J3's I2S pairs from the first "
+          f"sound on, {bad} differ; {summary}")
+    return ok
+
+
 def check_i2s(d, truth):
     """J3 carries exactly the bytes the host asked for, through amp_out, frame after
     frame - from the frames as they left the listener (as_left).
@@ -480,15 +525,7 @@ def check_i2s(d, truth):
         t, c, bad, w, *pos = map(int, l.split())
         if c == 1 and not bad:
             cfgs.append((w, pos))
-    rows = [l.strip() for l in (d / "out_i2s.txt").read_text().splitlines()]
-    rows = [r for r in rows if "x" not in r and "z" not in r]
-    frames = []
-    for i in range(1, len(rows) - 64):
-        if rows[i - 1][0] == "1" and rows[i][0] == "0":           # LRCK fell: slot 0
-            f = rows[i:i + 64]
-            if all(f[s][0] == ("0" if s < 32 else "1") for s in range(64)):
-                bits = [int(f[s][1]) for s in range(1, 64)] + [0]  # slots 1..63, then next slot 0
-                frames.append((int("".join(map(str, bits[:32])), 2), int("".join(map(str, bits[32:])), 2)))
+    frames = i2s_frames(d)
 
     def s24(v):
         return v - (1 << 24) if v >> 23 else v
@@ -816,8 +853,9 @@ def main(d):
     runs = [int(x, 16) for x in (d / "runs.hex").read_text().split()]
     d_truth_ref = truth
     left = as_left(d, truth)
+    fs = json.loads((d / "meta.json").read_text())["fs"]
     res = [check_si514(d), check_tx(d, runs), check_tdm(d, left), check_uart(d, truth),
-           check_mclk(d), check_i2s(d, left), check_inject(d, truth), check_fs(d)]
+           check_mclk(d), check_i2s(d, left), check_spdif(d, fs), check_inject(d, truth), check_fs(d)]
     print("PASS" if all(res) else "FAIL")
     return 0 if all(res) else 1
 

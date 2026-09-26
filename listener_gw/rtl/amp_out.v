@@ -7,9 +7,11 @@
 // 64 BCLK per frame (BCLK = 64 Fs = clk_r / 16), 32-bit slots, LRCK low =
 // left, MSB one BCLK after the LRCK edge, 24 data bits left-justified,
 // changing on the falling BCLK edge. The same BCLK/LRCK clock the host's
-// audio input (inject.v). There is no front and rear here: the fader is left
-// to whatever follows J3. A sample leaves one frame after the frame it came
-// in; the whole delay from the ring is about two frames.
+// audio input (inject.v). The same L and R leave once more as S/PDIF
+// (spdif_tx.v), for the TOSLINK transmitter and the coaxial output. There is
+// no front and rear here: the fader is left to whatever follows J3. A sample
+// leaves one frame after the frame it came in; the whole delay from the ring
+// is about two frames.
 //
 // Host commands (packet format in host_cmd.v):
 //
@@ -63,9 +65,11 @@ module amp_out (
     input  wire        sub_w3,              // ...24 bit
     input  wire [35:0] sub_pos,             // ...into these frame bytes
     input  wire [47:0] sub_val,             // ...with these
+    input  wire        rate48,              // clk_r: the ring runs at 48 kHz (S/PDIF channel status)
     output reg         bclk,
     output reg         lrck,
     output reg         sd,                  // L R
+    output wire        spdif,               // the same L R as S/PDIF (spdif_tx.v)
     output wire        overrun              // clk_r: the engine missed a frame (sticky)
 );
     integer k, s;
@@ -244,4 +248,8 @@ module amp_out (
                 sd <= (sl == 6'd0) ? 1'b0 : w[6'd0 - sl];     // 64 - sl, mod 64
         end
     end
+
+    // ------------------------------------------------ S/PDIF out (clk_r)
+    // the same pair, latched at the same phase_n 0
+    spdif_tx u_sp (.clk(clk_r), .run(run), .phase_n(phase_n), .lr(out_w), .rate48(rate48), .out(spdif));
 endmodule

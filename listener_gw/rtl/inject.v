@@ -22,6 +22,8 @@
 // Host command (packet format in host_cmd.v):
 //   A5 5A 02  M  L0 L1 L2  R0 R1 R2  X
 //     M[1:0]  0 = off, 2 = 16 bit, 3 = 24 bit;  M[7] = 1: leave bit 511 alone
+//     M[2]    the source: 0 = DIN (the host M2), 1 = DIN2 (the S/PDIF receiver
+//             through its ASRC, on the same BCLK/LRCK)
 //     L0..R2  frame byte index of each sample byte, MSB first. Only 1..60 are
 //             accepted (the synchronous area): a command naming byte 0 or the
 //             control/frame-control bytes 61..63 is refused as a whole.
@@ -65,7 +67,8 @@ module inject #(
     input  wire [3:0]  st_len,              // the run's length in UI
     input  wire [9:0]  phase_n,             // I2S / TDM frame counter (value it takes next)
     input  wire        i2s_run,             // that counter runs
-    input  wire        din,                 // I2S_DIN, audio in
+    input  wire        din,                 // I2S_DIN, audio in from the host
+    input  wire        din2,                // I2S_DIN2, audio in from the S/PDIF receiver (M[2] = 1)
     output reg         tx,                  // line to the ring
     output reg         active,              // injecting in this frame (clk_r)
     output reg         prev_on,             // the frame just ended was injected...
@@ -102,7 +105,7 @@ module inject #(
     reg [35:0] w02_p;
     always @(posedge clk_s) begin
         w02_off <= ok_q && cmd_q == 8'h02 && m_in[1:0] == 2'd0;
-        w02_on  <= ok_q && cmd_q == 8'h02 && (m_in[1:0] == 2'd2 || m_in[1:0] == 2'd3) && m_in[6:2] == 5'd0 && good_pos;
+        w02_on  <= ok_q && cmd_q == 8'h02 && (m_in[1:0] == 2'd2 || m_in[1:0] == 2'd3) && m_in[6:3] == 4'd0 && good_pos;
         w02_m   <= m_in;
         for (k = 0; k < 6; k = k + 1) w02_p[6 * k +: 6] <= p_q[45 - 8 * k -: 6];
     end
@@ -141,11 +144,12 @@ module inject #(
     // ------------------------------------------------- audio in (clk_r)
     // amp_out raises BCLK on the clock where phase_n[3:0] = 8; the sender
     // changes DIN after the falling edge, so DIN is taken there, mid-bit.
+    // Which DIN is the command's M[2] (r_m, the ring-domain copy).
     reg        din_q;
     reg [63:0] sr;                          // sr[63 - s] = slot s
     reg [23:0] in_l, in_r;                  // last complete pair
     always @(posedge clk_r) begin
-        din_q <= din;
+        din_q <= r_m[2] ? din2 : din;
         if (phase_n[3:0] == 4'd8) sr <= {sr[62:0], din_q};
         if (phase_n == 10'd1017) begin      // slot 63 has just been taken
             in_l <= sr[62:39];              // slots 1..24

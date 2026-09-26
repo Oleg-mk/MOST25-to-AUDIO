@@ -16,6 +16,7 @@ add_file ../rtl/uart_rx.v
 add_file ../rtl/host_cmd.v
 add_file ../rtl/dsp_core.v
 add_file ../rtl/amp_out.v
+add_file ../rtl/spdif_tx.v
 add_file ../rtl/inject.v
 add_file ../rtl/listener_core.v
 add_file top_tangnano20k.v

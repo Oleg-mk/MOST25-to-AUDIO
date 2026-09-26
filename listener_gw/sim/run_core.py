@@ -48,6 +48,7 @@ The corners run one after another (about a minute each); --only NAME runs one.
 Usage: python run_core.py [--only NAME]      needs oss-cad-suite on PATH
 """
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -58,7 +59,8 @@ HERE = Path(__file__).resolve().parent
 RTL = HERE.parent / "rtl"
 SRC = ["tb_core.v", "si514_model.v"] + [str(RTL / f) for f in (
     "rx_runlen.v", "rx_classify.v", "rx_framer.v", "fs_fine.v", "regen.v", "tdm_out.v",
-    "capture.v", "ctrl_uart.v", "uart_rx.v", "host_cmd.v", "dsp_core.v", "amp_out.v", "inject.v", "i2c_master.v",
+    "capture.v", "ctrl_uart.v", "uart_rx.v", "host_cmd.v", "dsp_core.v", "amp_out.v", "spdif_tx.v", "inject.v",
+    "i2c_master.v",
     "si514_ctrl.v", "tx_pre.v", "dpll.v", "listener_core.v")]
 
 CORNERS = [
@@ -106,9 +108,10 @@ def full_checks(d):
     runs = [int(x, 16) for x in (d / "runs.hex").read_text().split()]
     cc.d_truth_ref = truth
     left = cc.as_left(d, truth)                      # the frames as they left us: J2/J3's truth
-    names = ["SI", "TX", "TDM", "UART", "MCLK", "I2S", "INJ", "FS", "WD"]
+    fs = json.loads((d / "meta.json").read_text())["fs"]
+    names = ["SI", "TX", "TDM", "UART", "MCLK", "I2S", "SPDF", "INJ", "FS", "WD"]
     res = [cc.check_si514(d), cc.check_tx(d, runs), cc.check_tdm(d, left),
-           cc.check_uart(d, truth), cc.check_mclk(d), cc.check_i2s(d, left),
+           cc.check_uart(d, truth), cc.check_mclk(d), cc.check_i2s(d, left), cc.check_spdif(d, fs),
            cc.check_inject(d, truth), cc.check_fs(d), cc.check_wd(d)]
     return dict(zip(names, res))
 

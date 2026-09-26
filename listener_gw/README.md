@@ -23,12 +23,21 @@ repeater, never sends a message of its own, and puts out:
   (section J3). BCLK 64 Fs, 32-bit slots, 24-bit data, MCLK 512 Fs. The
   sources are taken from the frame as it leaves the listener: while our audio
   replaces the AUX source's bytes, J3 carries our audio, as the factory
-  amplifier after us does.
+  amplifier after us does;
+- **the same L and R as S/PDIF** (`rtl/spdif_tx.v`), for the board's TOSLINK
+  transmitter and coaxial jack: IEC 60958-3 consumer format, 24 bit, at the
+  ring's rate (44.1 or 48 kHz, said so in the channel status), biphase mark
+  clocked from the ring clock itself (128 Fs = clk_r / 8) - nothing is
+  resampled, and nothing has to lock but the receiver's own PLL. The pair is
+  latched at the same instant as the I2S pair, so the optical output and J3
+  carry the same frame.
 
-- **audio into the ring** (optional, DIN from the host M2): the host names up
-  to six frame bytes (e.g. the AUX source's channels) and our own samples
-  replace them on the way out. Everything else - preambles, other bytes, the
-  control channel - leaves edge for edge as it came in.
+- **audio into the ring** (optional; DIN from the host M2, or DIN2 from the
+  board's S/PDIF receiver through its sample-rate converter, chosen by
+  command 02): the host names up to six frame bytes (e.g. the AUX source's
+  channels) and the samples replace them on the way out. Everything else -
+  preambles, other bytes, the control channel - leaves edge for edge as it
+  came in.
 
 Host command 01, where a source is in the frame (UART_RX, 3 Mbaud 8N1;
 packet format in `rtl/host_cmd.v`):
@@ -86,6 +95,8 @@ Host command 02, audio in:
 ```text
 A5 5A 02  M  L0 L1 L2  R0 R1 R2  X
   M[1:0]  0 = off, 2 = 16 bit, 3 = 24 bit;  M[7] = 1: do not touch the parity bit
+  M[2]    the source: 0 = DIN (the host M2), 1 = DIN2 (the board's S/PDIF receiver
+          through its ASRC, on the same BCLK/LRCK)
   L0..R2  frame byte index of each sample byte, MSB first; only 1..60 accepted -
           a command naming byte 0 or 61..63 is refused as a whole
 ```
@@ -117,8 +128,9 @@ volume: the amplifier applies what the head unit tells it. A listener that
 feeds speakers of its own has to do the same, so J3 carries L and R as the
 factory amplifier would play them - volume, balance, bass, treble, with
 navigation and phone mixed in - but digitally, for a DAC, a DSP or an
-amplifier of the owner's choice (through an I2S-to-optical converter, any
-car DSP with an optical input). There is no front and rear: the head unit's
+amplifier of the owner's choice: on I2S, or as S/PDIF straight into any car
+DSP or amplifier with an optical or coaxial input (next section). There is
+no front and rear: the head unit's
 fader is left to whatever follows J3, which splits front, rear and sub
 itself anyway.
 
@@ -153,6 +165,24 @@ commits with the last word; the engine switches only between two runs of
 its program, so no frame is computed from half a set. Nothing is cleared by
 a reset: after power-up everything is zero and J3 is silent until the host
 has written a set.
+
+## S/PDIF: the same stereo, for a cable
+
+`rtl/spdif_tx.v` sends J3's L and R once more as S/PDIF (IEC 60958-3): two
+subframes of 32 slots per ring frame, biphase mark at 128 Fs, which is the
+ring clock divided by 8. The stream is synchronous to the ring, nothing is
+resampled, and a receiver's PLL locks to it at 44.1 or 48 kHz as the ring
+runs. Slots 4..27 carry the 24-bit sample LSB first, 28 validity (0 = valid),
+29 user data (0), 30 channel status, 31 even parity over slots 4..31; the
+preambles are X before a left sample, Y before a right one, Z before the left
+sample that opens a 192-frame channel-status block. Channel status, both
+channels alike: consumer, PCM, no copyright asserted (byte 0 = 04), category
+general, the ring's rate (byte 3 = 00 for 44.1 kHz, 02 for 48), 24-bit words
+(byte 4 = 0B), the rest zero. The pair is latched at the same phase_n 0 as
+the I2S pair. The line stays low while the ring domain does not run (before
+the Si514 is centred, ring gone), and the block counter starts anew with the
+first whole frame, so a receiver meets Z first. One FPGA pin (DRIVE 16) feeds
+the board's TOSLINK transmitter and the coaxial divider (listener_hw, block 9).
 
 ## Ring clock
 
@@ -217,10 +247,14 @@ rtl/  rx_runlen    run lengths from 8 samples per clock (IDES8, 792 Msps), and e
       host_cmd     11-byte command packets, XOR checked
       amp_out      J3: picks up to 3 sources out of every frame (as it left us: the
                    injected bytes in place of the ring's), coefficient banks
-                   (commands 01, 03), dsp_core, two I2S lines on the TDM frame count
+                   (commands 01, 03), dsp_core, two I2S lines on the TDM frame count,
+                   and the same pair into spdif_tx
+      spdif_tx     J3's L R as S/PDIF (IEC 60958-3), biphase mark at clk_r / 8: the
+                   TOSLINK transmitter and the coaxial jack
       dsp_core     the multiply-accumulate engine; its program is dsp_prog.vh,
                    generated by sim/dsp_asm.py
-      inject       re-draws the regenerated line and swaps chosen bytes for DIN samples
+      inject       re-draws the regenerated line and swaps chosen bytes for the samples
+                   on DIN (the host) or DIN2 (the S/PDIF receiver's ASRC), command 02 M[2]
       tx_pre       time-stamps the preambles of our own TX, fed back (TX_FB): one
                    per frame, the first 3-UI run at least 1016 UI after the last
       dpll         the ring clock loop: rate measurement, Si514 centring, then
@@ -236,7 +270,9 @@ board/ top_tangnano20k.v  rPLL 396 MHz, CLKDIV 99 MHz, two IDES8 (RX_IN, TX_FB);
        empty LCD connector; the BL616 HSPI lines and the TF slot lines 80, 85
        carry only the host UART, MCLK, I2S and TDM SD1. TX_FB comes in through
        IDES8 on pin 25; an 8:1 deserialiser takes the whole IOB pair, so pin 26
-       stays unused
+       stays unused. S/PDIF leaves on pin 31 (LCD_B3, the last free LCD-only
+       pin); DIN2, the S/PDIF receiver's ASRC, comes in on pin 54, the onboard
+       audio DAC's data input (that amplifier is never enabled)
        tangnano20k.cst / .sdc / build.tcl   Gowin EDA batch build
 sim/  make_stim.py  frames from virtual_most_source, distorted to the SP4 limits, sampled at
                     792 Msps; the preamble's run pattern is a parameter (--preamble)
@@ -256,6 +292,9 @@ sim/  make_stim.py  frames from virtual_most_source, distorted to the SP4 limits
                     (and the firmware's dsp_map.h), a bit-exact model and the
                     coefficient words for a setting
       tb_dsp.v + run_dsp.py   amp_out alone against that model, bit for bit
+      tb_spdif.v + run_spdif.py + spdif_dec.py   the S/PDIF encoder alone, decoded back
+                    half-cell by half-cell (preambles, cell edges, parity, channel
+                    status, samples); the decoder also serves check_core.py
 ```
 
 ## Verified, and how
@@ -280,12 +319,15 @@ sim/  make_stim.py  frames from virtual_most_source, distorted to the SP4 limits
 | Frame-rate output for an external clock multiplier (fs_fine) at 1.26 ns | `tb_core.v` rebuilds the edges from the 8-bit words; `check_core.py` finds every frame's UI 0 and UI 512 edge in the stimulus itself (pulse-width corrected, 1024 UI apart) | 48 kHz: 235 rising and 235 falling edges, 44.1 kHz: 236 / 236, each exactly 192 samples after its ring edge, spread 0. Drawn on the 99 MHz clock (the old fs_sq) the same edges spread 4 and 7 samples (5-9 ns); that grid lets up to ~10 ns of wander through any PLL (report [docs/research/regen_clock/report.md](../docs/research/regen_clock/report.md)) |
 | Audio into the ring | `tb_core.v`: DSP model on DIN (L = 5A n, R = C3 n+1234h, n + 1 per frame); inject into bytes 1..6 - the bytes J3's two configurations pick from; mid-run a command naming byte 61 (must be refused); later injection off. `check_core.py` decodes the regenerated line back into frames | 48 kHz: 134 frames unchanged, 34 injected; 44.1 kHz: 131 / 31. Unchanged frames equal the ring's bit for bit; injected ones differ only in bytes 1..6 (consecutive samples) and bit 511, with the XOR of bits 4..511 kept; back to pass-through after "off". TDM and J3 carry the injected bytes in exactly those 34 / 31 frames (their truth is built from the regenerated line: the frame as it left us); before, they carried the received bytes. Mutation check (`run_core.py` corner `mut_nofix`): with the parity fix turned off (M = 83h) 14 of 34 injected frames fail and nothing else does, so the test does see parity |
 | IDES8 bit order (Q0 = earliest) | Gowin's own `prim_sim.v` model, asymmetric pattern | confirmed |
-| Synthesis, place and route, timing | `gw_sh board/build.tcl` (Gowin EDA 1.9.12) | 33 % logic, 34 % registers, 8 of 24 DSP, 42 of 46 BSRAM (32 of them the capture buffer); clk_s 117.3 MHz (needs 99), clk_1024 68.9 MHz (needs 50: 49.152 MHz steered up to ~0.2 % above); setup and hold TNS 0, the TX_PRE output constrained against U9's setup and hold on the next Si514 edge (sdc). The clock loop's arithmetic is pipelined, one adder or multiplier per clock (unpipelined it reached 46.6 MHz). rx_framer registers its inputs once more: its decode, started from rx_classify's output register, had drifted to 108 MHz (below the 10 % rule) as the placement moved. J3's engine moved the placement again, and two old paths fell below the rule: the loop's state decode (the enables of u and integ, 80 flip-flops, from a 3-bit state: 99.8 MHz) and the reset, one net from the power-on counter across the chip (104.5 MHz). The loop's state machine is now one-hot, with S_CEN's two tests registered (exact: their inputs have settled during S_PIPE's 8 clocks), and the reset is registered in the top. The slowest paths were then ordinary loop and tx_pre logic. With the one-error policy and the outputs carrying the outgoing frame the logic grew from 21 to 33 %, and eight builds in a row each showed a different path under the rule as the placement moved: the classifier's 16 length comparisons and count in one clock; the framer's strike compare, its 32-bit frame-edge times, its block bookkeeping and its position compares inside the decode; the host command decoded from host_cmd's registers across the chip (amp_out and inject now each keep a copy, syn_preserve keeps the synthesizer from merging them, and the writes run off a decoded strobe); tx_pre's guard subtract; the loop's gain mux in front of the multipliers and its integrator; tdm_out's counter-to-RAM-to-SD read; amp_out's substitution and sample assembly into the engine. Each is now a register stage earlier, and none of it changes what leaves: every corner, the receiver and the J3 regressions pass unchanged. |
+| S/PDIF encoder | `python sim/run_spdif.py`: `tb_spdif.v` drives spdif_tx with a frame counter like tdm_out's and a known pair per frame (full scale both ways, zero, +-1 LSB, patterns changing every frame), 600 frames at 48 and at 44.1 kHz; `spdif_dec.py` decodes the line half-cell by half-cell | 601 frames per rate: X or Z before every left sample and Y before every right one, Z at the first whole frame and every 192 after it, a transition opening every bit cell, even parity, V = U = 0, channel status 04 00 00 (00 / 02) 0B and zeros over 3 whole blocks, every sample equal to the pair given. As first written the block counter also counted the partial frame the stream may start in, so Z came a frame late; the check sees that |
+| S/PDIF in the whole core | every `run_core.py` corner logs the S/PDIF line; `check_core.py` decodes it (SPDF) and holds it against J3's I2S frames and the corner's rate | in every corner the S/PDIF pairs equal J3's I2S pairs frame for frame from the first sound on (core48: 142 of 209 frames, the 67 before the first command silent on both), the channel status says the corner's rate, and a stream that restarts after the ring domain's reset opens with Z again |
+| Synthesis, place and route, timing | `gw_sh board/build.tcl` (Gowin EDA 1.9.12) | 34 % logic, 34 % registers, 8 of 24 DSP, 42 of 46 BSRAM (32 of them the capture buffer); clk_s 118.2 MHz (needs 99), clk_1024 74.5 MHz (needs 50: 49.152 MHz steered up to ~0.2 % above); setup and hold TNS 0, the TX_PRE output constrained against U9's setup and hold on the next Si514 edge (sdc). The clock loop's arithmetic is pipelined, one adder or multiplier per clock (unpipelined it reached 46.6 MHz). rx_framer registers its inputs once more: its decode, started from rx_classify's output register, had drifted to 108 MHz (below the 10 % rule) as the placement moved. J3's engine moved the placement again, and two old paths fell below the rule: the loop's state decode (the enables of u and integ, 80 flip-flops, from a 3-bit state: 99.8 MHz) and the reset, one net from the power-on counter across the chip (104.5 MHz). The loop's state machine is now one-hot, with S_CEN's two tests registered (exact: their inputs have settled during S_PIPE's 8 clocks), and the reset is registered in the top. The slowest paths were then ordinary loop and tx_pre logic. With the one-error policy and the outputs carrying the outgoing frame the logic grew from 21 to 33 %, and eight builds in a row each showed a different path under the rule as the placement moved: the classifier's 16 length comparisons and count in one clock; the framer's strike compare, its 32-bit frame-edge times, its block bookkeeping and its position compares inside the decode; the host command decoded from host_cmd's registers across the chip (amp_out and inject now each keep a copy, syn_preserve keeps the synthesizer from merging them, and the writes run off a decoded strobe); tx_pre's guard subtract; the loop's gain mux in front of the multipliers and its integrator; tdm_out's counter-to-RAM-to-SD read; amp_out's substitution and sample assembly into the engine. Each is now a register stage earlier, and none of it changes what leaves: every corner, the receiver and the J3 regressions pass unchanged. The S/PDIF encoder (all of it in clk_1024) moved the placement once more, and the UART's 40-way pick of a capture packet's byte fell to 9.2 ns (9.8 % margin): it now takes the 8-byte lane around the index first and the byte a clock later, one more clock per byte on a 3.3 us byte; the capture's last-packet compare is registered too. |
 
 Simulate: put `~/toolchains/oss-cad-suite/bin` and `lib` on PATH, then
 `cd sim` and `python run_rx.py` (receiver), `python run_dpll.py` (clock loop,
 about 10 minutes), `python run_core.py` (whole core, a few minutes),
 `python run_dsp.py` (J3's engine against its model, about a minute),
+`python run_spdif.py` (the S/PDIF encoder decoded back, seconds),
 `python sweep_core.py` (the whole core over 32 random rings, about an hour).
 Build: `cd board && python build.py` - it runs `gw_sh build.tcl`, then `check_timing.py`, and fails if any clock misses
 timing (TNS not 0) or keeps less than 10 % above its constraint. The
