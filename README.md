@@ -84,12 +84,16 @@ KiCad 10.
 3. **Injection**, from the phone and from the TOSLINK input, then J3's sound
    and the per-car scales.
 
-One decision is still open on the board: D2, the TVS on the battery input
-(SMBJ26CA), conducts from about 29 V. A suppressed load dump (35 V for
-hundreds of milliseconds) would destroy it, while the buck behind it is rated
-for 36 V and rides it out; a higher TVS in turn clamps fast pulses above the
-buck's absolute maximum. Decide it with the chosen ISO 7637 / ISO 16750
-profile and the buck's data sheet before the board goes out.
+The battery input is built for ISO 16750-2 test B (a suppressed load dump,
+35 V for up to 400 ms) and ISO 7637-2 pulses 1, 2a, 3a and 3b: the buck is an
+LMR38020 (80 V in, 85 V absolute maximum), the TVS an SMBJ36A in front of the
+reverse-polarity diode (silent at 35 V, clamping the fast pulses around
+50 V, shunting negative ones through its forward diode), the fuse a slow-blow
+2 A. The unsuppressed load dump (test A, 80..100 V) is not covered: it would
+take a 6.6 kW TVS, and cars of the MOST era have avalanche alternators. The
+first D2, an SMBJ26CA behind the diode, would have burnt in a 35 V load dump
+that the buck itself survives, and a negative pulse would have broken the
+diode before the TVS clamped it.
 
 ## Status
 

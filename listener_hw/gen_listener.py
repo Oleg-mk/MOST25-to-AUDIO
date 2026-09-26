@@ -12,7 +12,9 @@ Every pinout below was checked against the maker's data sheet:
   74LVC1G79                                        - Nexperia data sheets
   Si514 (6-pin: 1 SDA, 2 SCL, 3 GND, 4 CLK+,
          5 CLK-, 6 VDD)                            - Skyworks Si514 data sheet Rev 1.2
-  TPS7B8133DRV, LMR33630ADDA, LP5907MFX            - KiCad 10 library symbols
+  TPS7B8133DRV, LP5907MFX                          - KiCad 10 library symbols
+  LMR38020 (HSOIC-8, DDA)                          - TI SNVSC40E: Table 6-1 (pins),
+                                                     8-1 (RT), 9-1 (L, COUT), 9.2.2.6 (CIN)
   TPS2553DBV (1 IN, 2 GND, 3 EN, 4 FAULT, 5 ILIM,
               6 OUT)                               - TI SLVS841F
   ESP32-DevKitC V4 headers (J2 = pads 1..19,
@@ -203,13 +205,14 @@ S = {
         ("3", "GND", "power_in", "B", 3.81), ("4", "GND", "passive", "B", 7.62),
         ("7", "PAD", "passive", "B", 11.43),
     ], "40 V, 150 mA, 2.7 uA Iq automotive LDO, 3.3 V fixed"),
-    "BUCK": ic("LMR33630ADDA", "U", 17.78, 17.78, [
-        ("2", "VIN", "power_in", "L", 2.54), ("3", "EN", "input", "L", 15.24),
+    "BUCK": ic("LMR38020DDA", "U", 17.78, 17.78, [
+        ("3", "VIN", "power_in", "L", 2.54), ("4", "RT/SYNC", "input", "L", 8.89),
+        ("2", "EN", "input", "L", 15.24),
         ("7", "BOOT", "passive", "R", 2.54), ("8", "SW", "power_out", "R", 10.16),
-        ("5", "FB", "input", "R", 12.7), ("4", "PG", "open_collector", "R", 15.24),
+        ("5", "FB", "input", "R", 12.7), ("6", "PG", "open_collector", "R", 15.24),
         ("1", "GND", "power_in", "B", 3.81), ("9", "EP", "passive", "B", 7.62),
-        ("6", "VCC", "power_out", "B", 13.97),
-    ], "3.8-36 V, 3 A synchronous buck, 400 kHz"),
+    ], "4.2-80 V, 2 A synchronous buck, 400 kHz set by RT, forced PWM (F)"),
+    "DZ": from_kicad("Device", "D_Zener"),
     "SW_ILIM": ic("TPS2553DBV", "U", 20.32, 10.16, [
         ("1", "IN", "power_in", "L", 2.54), ("3", "EN", "input", "L", 7.62),
         ("6", "OUT", "power_out", "R", 2.54),
@@ -687,7 +690,7 @@ def power_block(sh):
     j4 = sh.add("CONN2", "J4", "VBAT_IN", 25.4, 45.72,
                 fp="Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical")
     y = j4.p("1")[1]
-    f1 = sh.at_pin("F", "F1", "1A", "1", (38.1, y), r=90, fp="Fuse:Fuse_1206_3216Metric")
+    f1 = sh.at_pin("F", "F1", "2A T", "1", (38.1, y), r=90, fp="Fuse:Fuse_1206_3216Metric")
     d1 = sh.at_pin("DS", "D1", "SS34", "2", (53.34, y), r=180, fp="Diode_SMD:D_SMA",
                    ref_at=(53.34, y - 3.81), val_at=(53.34, y + 3.81))
     sh.wire(j4.p("1"), f1.p("1"))
@@ -700,16 +703,21 @@ def power_block(sh):
     sh.flag((33.02, 55.88))
     sh.up("VBAT_P", node, 5.08)
     sh.flag((78.74, y))
-    d2 = sh.at_pin("TVS", "D2", "SMBJ26CA", "1", (68.58, y + 5.08), r=270, fp="Diode_SMD:D_SMB",
-                   ref_at=(66.04, y + 7.62), val_at=(66.04, y + 10.16), fjust=("right", "right"))
-    sh.wire(node, d2.p("1")); sh.gnd(d2.p("2"))
-    c1 = sh.at_pin("C", "C1", "10u 50V", "1", (86.36, y + 5.08), fp="Capacitor_SMD:C_1210_3225Metric")
-    c2 = sh.at_pin("C", "C2", "100n 50V", "1", (99.06, y + 5.08), fp=SMD["C"])
+    # D2 in front of D1, unidirectional: silent at the 35 V of a suppressed load dump
+    # (ISO 16750-2 test B), clamps the fast ISO 7637-2 pulses around 50 V - nothing
+    # to an 80 V buck - and shunts negative ones through its forward diode, so D1
+    # never sees more than its own drop plus the battery. Behind D1 (where it was,
+    # as an SMBJ26CA) a negative pulse broke D1 first, and 35 V burnt the TVS.
+    d2 = sh.at_pin("DZ", "D2", "SMBJ36A", "1", (48.26, y + 5.08), r=270, fp="Diode_SMD:D_SMB",
+                   ref_at=(45.72, y + 7.62), val_at=(45.72, y + 10.16), fjust=("right", "right"))
+    sh.wire((48.26, y), d2.p("1")); sh.gnd(d2.p("2"))
+    c1 = sh.at_pin("C", "C1", "10u 100V", "1", (86.36, y + 5.08), fp="Capacitor_SMD:C_1210_3225Metric")
+    c2 = sh.at_pin("C", "C2", "100n 100V", "1", (99.06, y + 5.08), fp=SMD["C"])
     sh.wire((86.36, y), c1.p("1")); sh.wire((99.06, y), c2.p("1"))
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
-    sh.text("Захист: F1 запобіжник, D1 від переполюсовки, D2 TVS (26 В: провідність від ~29 В - див. README, пункт про load dump).", 17.78, 87.63, 1.27)
+    sh.text("Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В, негативні - прямим діодом.", 17.78, 87.63, 1.27)
     sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
-    sh.text("5V_SW (U6) вмикає WAKE: модуль FPGA, з його 3V3 (3V3_SW) - блок 9 (~0.1 А). VOUT = 1.0 В x (1 + R4/R5) = 5.31 В; після D3 ~5.0 В.", 17.78, 95.25, 1.27)
+    sh.text("5V_SW (U6 LMR38020: до 80 В, 400 кГц від R31) вмикає WAKE: модуль FPGA, з його 3V3 - блок 9 (~0.1 А). VOUT = 1 В x (1 + R4/R5) = 5.31 В.", 17.78, 95.25, 1.27)
     sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
@@ -731,25 +739,36 @@ def power_block(sh):
     sh.wire((137.16, out[1]), c3.p("1")); sh.gnd(c3.p("2"))
     sh.up("3V3_AON", (137.16, out[1]), 5.08)
 
-    # Buck: VBAT_P -> 5V_SW for the FPGA module, enabled by WAKE
-    u6 = sh.add("BUCK", "U6", "LMR33630ADDA", 142.24, 69.85,
+    # Buck: VBAT_P -> 5V_SW for the FPGA module, enabled by WAKE. An 80 V part
+    # (LMR38020, 85 V absolute maximum): whatever D2 lets through is within its
+    # rating, and a 35 V load dump is ordinary input. 400 kHz from R31 (Table
+    # 8-1), forced PWM so the frequency never drops into the audio band at light
+    # load; L and COUT per Table 9-1 for 5 V at 2 A, CIN per 9.2.2.6 (100 V parts).
+    u6 = sh.add("BUCK", "U6", "LMR38020F", 142.24, 69.85,
                 fp="Package_SO:Texas_HSOP-8-1EP_3.9x4.9mm_P1.27mm_ThermalVias")
-    vin = u6.p("2")
+    vin = u6.p("3")
     vn = (vin[0] - 7.62, vin[1])
     sh.wire(vn, vin)
     sh.up("VBAT_P", vn, 5.08)
-    c4 = sh.at_pin("C", "C4", "10u 50V", "1", (vn[0] - 10.16, vin[1]), fp="Capacitor_SMD:C_1210_3225Metric")
-    sh.wire(vn, c4.p("1")); sh.gnd(c4.p("2"))
-    sh.lbl("WAKE", u6.p("3"), 20.32, "L")
+    c4 = sh.at_pin("C", "C4", "4u7 100V", "1", (vn[0] - 10.16, vin[1]), fp="Capacitor_SMD:C_1210_3225Metric",
+                   ref_at=(vn[0] - 12.7, vin[1] + 2.54), val_at=(vn[0] - 12.7, vin[1] + 5.08), fjust=("right", "right"))
+    c43 = sh.at_pin("C", "C43", "100n 100V", "1", (vn[0] - 20.32, vin[1]), fp=SMD["C"],
+                    ref_at=(vn[0] - 22.86, vin[1] + 2.54), val_at=(vn[0] - 22.86, vin[1] + 5.08),
+                    fjust=("right", "right"))
+    sh.wire(vn, c4.p("1"), c43.p("1")); sh.gnd(c4.p("2")); sh.gnd(c43.p("2"))
+    sh.lbl("WAKE", u6.p("2"), 20.32, "L")
     b = u6.p("1")[1] + 2.54
     sh.wire(u6.p("1"), (u6.p("1")[0], b)); sh.wire(u6.p("9"), (u6.p("9")[0], b))
     sh.wire((u6.p("1")[0], b), (u6.p("9")[0], b)); sh.gnd((u6.p("1")[0], b))
-    c5 = sh.at_pin("C", "C5", "1u", "1", u6.p("6"), fp=SMD["C"])
-    sh.gnd(c5.p("2"))
+    rt = u6.p("4")
+    r31 = sh.at_pin("R", "R31", "64k9 1%", "2", rt, r=90, fp=SMD["R"],
+                    ref_at=(rt[0] - 6.35, rt[1] - 3.81), val_at=(rt[0] - 6.35, rt[1] - 1.27),
+                    fjust=("left", "left"))
+    sh.gnd(r31.p("1"))
     boot, sw = u6.p("7"), u6.p("8")
     c6 = sh.at_pin("C", "C6", "100n", "1", (boot[0] + 5.08, boot[1]), fp=SMD["C"])
     sh.wire(boot, c6.p("1")); sh.wire(sw, c6.p("2"))
-    l1 = sh.at_pin("L", "L1", "10u", "1", (boot[0] + 12.7, sw[1]), r=90,
+    l1 = sh.at_pin("L", "L1", "15u", "1", (boot[0] + 12.7, sw[1]), r=90,
                    fp="Inductor_SMD:L_Bourns_SRN6045TA", ref_at=(boot[0] + 16.51, sw[1] - 2.54),
                    val_at=(boot[0] + 16.51, sw[1] + 2.54))
     sh.wire(c6.p("2"), l1.p("1"))
@@ -758,7 +777,7 @@ def power_block(sh):
     sh.wire(l1.p("2"), o, oc)
     sh.up("5V_SW", o, 5.08)
     sh.flag(oc)
-    c7 = sh.at_pin("C", "C7", "22u", "1", (oc[0], sw[1] + 5.08), fp="Capacitor_SMD:C_1206_3216Metric")
+    c7 = sh.at_pin("C", "C7", "47u 10V", "1", (oc[0], sw[1] + 5.08), fp="Capacitor_SMD:C_1210_3225Metric")
     sh.wire(oc, c7.p("1")); sh.gnd(c7.p("2"))
     r4 = sh.at_pin("R", "R4", "100k", "1", (o[0], sw[1] + 2.54), fp=SMD["R"])
     sh.wire(o, r4.p("1"))
@@ -767,7 +786,7 @@ def power_block(sh):
     sh.wire(r4.p("2"), fbn, r5.p("1")); sh.gnd(r5.p("2"))
     fb = u6.p("5")
     sh.wire(fb, (fb[0] + 2.54, fb[1]), (fb[0] + 2.54, fbn[1]), fbn)
-    sh.nc(u6.p("4"))
+    sh.nc(u6.p("6"))
 
     # Switch: 5V_SW -> 5V_HOST, the supply of the host module M2 (ESP32). The
     # FPGA sits in the ring and lives on 5V_SW, so a fault on M2 must not pull
