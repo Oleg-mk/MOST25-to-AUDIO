@@ -68,6 +68,8 @@ module rx_framer #(
 );
     reg        in_frame;
     reg [10:0] pos;                   // UI position inside the frame
+    reg        at_end;                // pos == 1024, set with pos (the compare was in the decode)
+    reg        in_pre;                // pos < 8
     reg        half;                  // first half of a '1' seen
     reg [7:0]  sh;                    // bit shift register
     reg        par;
@@ -75,32 +77,62 @@ module rx_framer #(
     reg [11:0] sig, last_sig, common_sig;
     reg        common_ok;
     reg [2:0]  good;
+    reg        pre_done;              // a preamble completed in the last clock: block bookkeeping now
+    reg [11:0] sig_q;                 // ... with this run pattern
+    reg        ev_start, ev_mid;      // a frame started / UI 512 passed in this clock (times leave a clock later)
+    reg [31:0] prev_q, symt_q;
+    wire [31:0] f0_now;               // UI 0 of the frame in progress, also in the clock right after start
     reg        bad;                   // one strike used: the next frame must open on time
     reg [31:0] f0_t;                  // sample time of UI 0 of the frame in progress
     reg [31:0] exp_t;                 // where UI 0 of the next frame is due (while bad)
-    reg [17:0] flen, win;             // 1024 UI and 4 UI in whole samples, from ui_q
+    // (syn_preserve: shared with rx_classify's threshold registers by the
+    // synthesizer, win's bits were read from across the chip)
+    reg [17:0] flen /* synthesis syn_preserve = 1 */;   // 1024 UI in whole samples, from ui_q
+    reg [17:0] win  /* synthesis syn_preserve = 1 */;   // 4 UI
     always @(posedge clk) begin
         flen <= {2'b0, ui_q} << 2;                  // ui_q x 1024 / 256
         win  <= {2'b0, ui_q} >> 6;                  // ui_q x 4 / 256
     end
-    // this run's start (prev_t) against the due time, modulo 2^18 samples (16 frames)
-    wire signed [17:0] d_exp = prev_t[17:0] - exp_t[17:0];
-    wire signed [17:0] w_s   = win;
-    wire ontime = d_exp >= -w_s && d_exp <= w_s;
+    // A run's start against the due time, modulo 2^18 samples (16 frames):
+    // subtracted as the run enters (stage A), compared a clock later (stage B),
+    // used by the decision a clock after that - the subtract and the compares
+    // in the decision itself made prev_t -> good clk_s's slowest path. Both
+    // stages see exp_t as it was when the run entered, so the two runs already
+    // in the pipeline when a strike is called carry stale values: they are the
+    // runs right after the failing one, a few UI later, and are ignored (fresh).
+    reg  [31:0] prev_a;               // start of the run entering now
+    reg signed [17:0] d_a;            // its start against the due time, with sv_a
+    reg         sv_a;
+    reg  [1:0]  sym_a;
+    reg  [31:0] t_a;
+    reg         ontime_b, late_b;     // with sym_valid (stage B)
+    wire signed [17:0] w_s = win;
     reg  [13:0] strike;               // clocks the strike has been open
-    wire late   = d_exp > w_s || strike == STRIKE_MAX[13:0];
-    always @(posedge clk) strike <= (rst || !bad || in_frame) ? 14'd0 : (strike == STRIKE_MAX[13:0]) ? strike : strike + 14'd1;
+    reg         expired;              // ... too many of them
+    reg  [1:0]  fresh;                // runs after a strike whose stage A/B values predate it
+    always @(posedge clk) begin
+        sv_a <= sym_valid_i & ~rst; sym_a <= sym_i; t_a <= sym_t_i;
+        if (sym_valid_i) prev_a <= sym_t_i;
+        d_a  <= prev_a[17:0] - exp_t[17:0];
+        ontime_b <= d_a >= -w_s && d_a <= w_s;
+        late_b   <= d_a > w_s;
+        strike  <= (rst || !bad || in_frame) ? 14'd0 : expired ? strike : strike + 14'd1;
+        expired <= !rst && bad && !in_frame && (strike == STRIKE_MAX[13:0] - 14'd1 || expired);
+    end
+    assign f0_now = ev_start ? prev_q : f0_t;   // a strike called the clock after a start reads prev_q
+    wire ontime = ontime_b && fresh == 2'd0 && !expired;
+    wire late   = (late_b && fresh == 2'd0) || expired;
 
-    // The inputs are registered once more here. The decode below reaches most
-    // of this block's registers; started from rx_classify's output register
-    // (which synthesis shares with that block's own pipeline) it had become
-    // clk_s's slowest path. The clk_s of latency changes nothing downstream:
-    // every edge carries its own sample time.
+    // The inputs are registered twice here (stages A and B above). The decode
+    // below reaches most of this block's registers; started from rx_classify's
+    // output register (which synthesis shares with that block's own pipeline) it
+    // had become clk_s's slowest path. The clk_s of latency change nothing
+    // downstream: every edge carries its own sample time.
     reg        sym_valid;
     reg [1:0]  sym;
     reg [31:0] sym_t;
     always @(posedge clk) begin
-        sym_valid <= sym_valid_i & ~rst; sym <= sym_i; sym_t <= sym_t_i;
+        sym_valid <= sv_a & ~rst; sym <= sym_a; sym_t <= t_a;
     end
 
     wire [8:0] k = pos[9:1];          // bit index of a bit that starts at pos
@@ -130,7 +162,8 @@ module rx_framer #(
                 // is due one frame after this one's UI 0 - two, if the run that
                 // failed was already the next frame's first
                 bad       <= 1'b1;
-                exp_t     <= f0_t + ((pos == 11'd1024) ? {13'd0, flen, 1'b0} : {14'd0, flen});
+                fresh     <= 2'd2;
+                exp_t     <= f0_now + (at_end ? {13'd0, flen, 1'b0} : {14'd0, flen});
                 blk_known <= 1'b0;
             end else begin
                 locked <= 1'b0; good <= 3'd0; bad <= 1'b0;
@@ -141,42 +174,72 @@ module rx_framer #(
     // start a frame on a 3-UI run; the frame began where that run began
     task start;
         begin
-            in_frame <= 1'b1; pos <= 11'd3; half <= 1'b0; par <= 1'b0;
+            in_frame <= 1'b1; pos <= 11'd3; at_end <= 1'b0; in_pre <= 1'b1; half <= 1'b0; par <= 1'b0;
             sig <= {10'd0, 2'd3};
-            f0_t <= prev_t;
-            fe_valid <= 1'b1; fe_rise <= 1'b1; fe_t <= prev_t;
+            ev_start <= 1'b1;
         end
     endtask
 
     // the run that ends here ends exactly at UI 512
     task mid;
         begin
-            fe_valid <= 1'b1; fe_rise <= 1'b0; fe_t <= sym_t;
+            ev_mid <= 1'b1;
         end
     endtask
 
+    // The frame edges' times leave a clock after the decision that found them:
+    // fed straight from the decode, the 32-bit fe_t and f0_t were clk_s's
+    // slowest path. prev_q / symt_q hold the times as they were at that
+    // decision (prev_t itself moves on at the same edge).
     always @(posedge clk) begin
-        byte_we <= 1'b0; frame_done <= 1'b0; err <= 1'b0; fe_valid <= 1'b0;
+        prev_q <= prev_t; symt_q <= sym_t;
+        fe_valid <= (ev_start | ev_mid) & ~rst;
+        fe_rise  <= ev_start;
+        if (rst) begin fe_t <= 32'd0; f0_t <= 32'd0; end
+        else if (ev_start) begin fe_t <= prev_q; f0_t <= prev_q; end
+        else if (ev_mid) fe_t <= symt_q;
+    end
+
+    always @(posedge clk) begin
+        byte_we <= 1'b0; frame_done <= 1'b0; err <= 1'b0; ev_start <= 1'b0; ev_mid <= 1'b0; pre_done <= 1'b0;
         if (rst) begin
-            in_frame <= 1'b0; pos <= 11'd0; half <= 1'b0; sh <= 8'd0; par <= 1'b0;
+            in_frame <= 1'b0; pos <= 11'd0; at_end <= 1'b0; in_pre <= 1'b0; half <= 1'b0; sh <= 8'd0; par <= 1'b0;
             sig <= 12'd0; last_sig <= 12'd0; common_sig <= 12'd0; common_ok <= 1'b0;
             blk_idx <= 4'd0; blk_known <= 1'b0; locked <= 1'b0; good <= 3'd0;
             frame_par <= 1'b0; byte_addr <= 6'd0; byte_data <= 8'd0;
-            prev_t <= 32'd0; fe_rise <= 1'b0; fe_t <= 32'd0;
-            bad <= 1'b0; f0_t <= 32'd0; exp_t <= 32'd0;
-        end else if (sym_valid) begin
+            prev_t <= 32'd0;
+            bad <= 1'b0; exp_t <= 32'd0; fresh <= 2'd0; sig_q <= 12'd0;
+        end else begin
+          // block bookkeeping, a clock after the preamble completed: its 12-bit
+          // pattern compares inside the decode were clk_s's slowest path. Byte 0,
+          // the first to carry blk_idx, is 4 runs away; a strike called in this
+          // clock (below) overrides blk_known.
+          if (pre_done) begin
+              last_sig <= sig_q;
+              if (last_sig == sig_q) begin
+                  common_sig <= sig_q;
+                  common_ok  <= 1'b1;
+              end
+              if (common_ok && sig_q != common_sig) begin
+                  blk_idx <= 4'd0; blk_known <= 1'b1;
+              end else begin
+                  blk_idx <= blk_idx + 4'd1;
+              end
+          end
+          if (sym_valid) begin
             prev_t <= sym_t;
+            if (fresh != 2'd0) fresh <= fresh - 2'd1;
             if (!in_frame) begin
                 if (bad) begin
                     // after a strike: a 3-UI run where the next frame is due keeps
                     // the lock; nothing on time is the second invalid preamble
-                    if (sym == 2'd3 && ontime && strike != STRIKE_MAX[13:0]) start;
+                    if (sym == 2'd3 && ontime) start;
                     else if (late) begin
                         locked <= 1'b0; good <= 3'd0; bad <= 1'b0;
                         if (sym == 2'd3) start;
                     end
                 end else if (sym == 2'd3) start;
-            end else if (pos == 11'd1024) begin
+            end else if (at_end) begin
                 // previous frame finished cleanly; the next run must open a preamble
                 if (sym == 2'd3) begin
                     start;
@@ -184,25 +247,17 @@ module rx_framer #(
                     if (good != 3'd7) good <= good + 3'd1;
                     if (good >= 3'd3) locked <= 1'b1;
                 end else fail;
-            end else if (pos < 11'd8) begin
+            end else if (in_pre) begin
                 // preamble: collect the run pattern, must end exactly at 8 UI
+                // (pos is 3..7 here: 4-bit arithmetic)
                 if (sym == 2'd0) fail;
-                else if (pos + {9'd0, sym} > 11'd8) fail;
+                else if (pos[3:0] + {2'd0, sym} > 4'd8) fail;
                 else begin
                     pos <= pos + {9'd0, sym};
+                    in_pre <= (pos[3:0] + {2'd0, sym}) < 4'd8;
                     sig <= {sig[9:0], sym};
-                    if (pos + {9'd0, sym} == 11'd8) begin
-                        // block bookkeeping, once per frame
-                        last_sig <= {sig[9:0], sym};
-                        if (last_sig == {sig[9:0], sym}) begin
-                            common_sig <= {sig[9:0], sym};
-                            common_ok  <= 1'b1;
-                        end
-                        if (common_ok && ({sig[9:0], sym} != common_sig)) begin
-                            blk_idx <= 4'd0; blk_known <= 1'b1;
-                        end else begin
-                            blk_idx <= blk_idx + 4'd1;
-                        end
+                    if (pos[3:0] + {2'd0, sym} == 4'd8) begin
+                        pre_done <= 1'b1; sig_q <= {sig[9:0], sym};     // bookkeeping next clock
                     end
                 end
             end else begin
@@ -210,20 +265,21 @@ module rx_framer #(
                 case (sym)
                     2'd2: if (half) fail;
                           else begin
-                              put_bit(1'b0); pos <= pos + 11'd2;
-                              if (pos + 11'd2 == 11'd512) mid;
+                              put_bit(1'b0); pos <= pos + 11'd2; at_end <= (pos == 11'd1022);
+                              if (pos == 11'd510) mid;               // ends exactly at UI 512
                           end
                     2'd1: if (!half) begin half <= 1'b1; pos <= pos + 11'd1; end
                           else begin
-                              half <= 1'b0; put_bit(1'b1); pos <= pos + 11'd1;
-                              if (pos + 11'd1 == 11'd512) mid;
+                              half <= 1'b0; put_bit(1'b1); pos <= pos + 11'd1; at_end <= (pos == 11'd1023);
+                              if (pos == 11'd511) mid;
                           end
                     default: fail;
                 endcase
             end
+          end
         end
         // frame end: bit 511 has just been shifted in
-        if (in_frame && pos == 11'd1024 && !frame_done && byte_we && byte_addr == 6'd63) begin
+        if (in_frame && at_end && !frame_done && byte_we && byte_addr == 6'd63) begin
             frame_done <= 1'b1;
             frame_par  <= par;
         end

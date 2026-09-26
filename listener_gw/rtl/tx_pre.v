@@ -42,13 +42,17 @@ module tx_pre (
 
     reg [31:0] prev_t;                      // end of the previous run = start of this one
     reg        have;                        // a preamble has been accepted since reset
-    wire [31:0] since = prev_t - ev_t;      // this run's start after the last preamble's
+    // this run's start after the last preamble's, registered: TX runs are whole
+    // UIs, at least 2 clocks apart, so the value is current when a run ends
+    reg [31:0] since;
+    always @(posedge clk) since <= prev_t - ev_t;
+    wire        far = since[31:18] != 14'd0 || since[17:0] >= guard;
     always @(posedge clk) begin
         ev <= 1'b0;
         if (rst) begin
             prev_t <= 32'd0; ev_t <= 32'd0; have <= 1'b0;
         end else if (rv) begin
-            if (r > t25 && r < t35 && (!have || since >= {14'd0, guard})) begin
+            if (r > t25 && r < t35 && (!have || far)) begin
                 ev <= 1'b1; ev_t <= prev_t; have <= 1'b1;
             end
             prev_t <= rt;

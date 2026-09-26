@@ -4,6 +4,10 @@
 // The loop runs with short simulation parameters (8-frame rate measurement,
 // an update every 4 frames, fn 150/30 Hz) so it locks within the stimulus; the
 // real parameters are proven over hundreds of ms by tb_dpll.v / run_dpll.py.
+// The gear shift's threshold is a sum of 4 errors here against 24 in the real
+// loop: for the same measurement noise, 8 (the real 48 scaled by 4/24) is
+// 2.5x as strict, and whether the shift came within the 5 ms stimulus once
+// depended on the first error sums. 16 is the real strictness.
 // Everything observable is logged for check_core.py.
 `timescale 1ns/1ps
 module tb_core;
@@ -99,7 +103,7 @@ module tb_core;
     listener_core #(.HOLD(8), .HOLD_RE(24), .SI_QDIV(4), .SI_FCAL(24'd2000),
                     .L_FRAMES(8), .LN48(22'd132000), .LN44(22'd143673), .LSPLIT(22'd137836),
                     .LDEV(22'd175), .K48(20'd275050), .K44(20'd253277),
-                    .UPD(4), .LOCK_N(4), .SHIFT_ACC(8), .LOCK_ACC(32), .UNLOCK_ACC(256),
+                    .UPD(4), .LOCK_N(4), .SHIFT_ACC(16), .LOCK_ACC(32), .UNLOCK_ACC(256),
                     .KP_A(40'sd5530205), .KI_A(40'sd217171),
                     .KP_T(40'sd1106041), .KI_T(40'sd8687)) dut (
         .clk_s(clk_s), .rst_s(rst), .samp(samp), .fb_samp(fb_samp), .clk_r(clk_r),

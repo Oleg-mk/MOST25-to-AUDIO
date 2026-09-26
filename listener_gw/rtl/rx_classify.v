@@ -27,10 +27,11 @@
 //
 // Pipeline (runs can arrive on consecutive clocks, so it takes one per clock):
 //   1  r = run -/+ b                         thresholds registered from ui
-//   2  class from r              -> sym out
-//   3  error of r against its class, rounded and scaled
-//   4  ui += , b +=/-=  (held to what a MOST25 line can be; see there)
-// The loops see their own correction 3 runs late. With steps of 1/64 and
+//   2  r against every threshold (16 comparisons, registered)
+//   3  length and class from those           -> sym out
+//   4  error of r against its class, rounded and scaled
+//   5  ui += , b +=/-=  (held to what a MOST25 line can be; see there)
+// The loops see their own correction 4 runs late. With steps of 1/64 and
 // 1/128 that changes nothing; the regression (sim/run_rx.py) is the proof.
 //
 // The loops train on every run, framed or not, so noise trains them too. A
@@ -91,27 +92,38 @@ module rx_classify #(
         r1 <= run_level ? raw - b : raw + b;
     end
 
-    // ---- stage 2: length in whole UI (0..15), then the class
-    reg [3:0] n;
+    // ---- stage 2: r against every threshold, registered (16 comparators
+    // and a 16-way count in one clock were clk_s's slowest path)
+    reg [15:0]        ge;                   // ge[k]: r >= (k + 0.5) UI
+    reg               v1b, l1b, g1b;
+    reg signed [17:0] r1b;
+    reg        [31:0] t1b;
     integer k;
+    always @(posedge clk) begin
+        ge[0] <= r1 >= t05; ge[1] <= r1 >= t15; ge[2] <= r1 >= t25;
+        for (k = 3; k <= 14; k = k + 1) ge[k] <= r1 >= th[k];
+        ge[15] <= 1'b0;
+        v1b <= v1 & ~rst; l1b <= l1; g1b <= g1; r1b <= r1; t1b <= t1;
+    end
+
+    // ---- stage 3: length in whole UI (0..15), then the class
+    reg [3:0] n;
+    integer m;
     always @* begin
         n = 4'd0;
-        if (r1 >= t05) n = 4'd1;
-        if (r1 >= t15) n = 4'd2;
-        if (r1 >= t25) n = 4'd3;
-        for (k = 3; k <= 14; k = k + 1)
-            if (r1 >= th[k]) n = k[3:0] + 4'd1;
+        for (m = 0; m <= 14; m = m + 1)
+            if (ge[m]) n = m[3:0] + 4'd1;
     end
-    wire [1:0] c = (g1 || n == 4'd0 || n > 4'd3) ? 2'd0 : n[1:0];
+    wire [1:0] c = (g1b || n == 4'd0 || n > 4'd3) ? 2'd0 : n[1:0];
     reg               v2, l2;
     reg [1:0]         c2;
     reg signed [17:0] r2;
     always @(posedge clk) begin
-        v2 <= v1 & ~rst; l2 <= l1; c2 <= c; r2 <= r1;
-        sym_valid <= v1 & ~rst; sym <= c; sym_len <= n; sym_level <= l1; sym_t <= t1;
+        v2 <= v1b & ~rst; l2 <= l1b; c2 <= c; r2 <= r1b;
+        sym_valid <= v1b & ~rst; sym <= c; sym_len <= n; sym_level <= l1b; sym_t <= t1b;
     end
 
-    // ---- stage 3: rounded, scaled error. Shifts sit in their own signed
+    // ---- stage 4: rounded, scaled error. Shifts sit in their own signed
     // registers: inside an expression with the unsigned ui_q, >>> would
     // silently turn into a logical shift. Rounded, not floored: a floor
     // biases ui low by half an LSB per step.
@@ -125,7 +137,7 @@ module rx_classify #(
         e7 <= (e + 18'sd64) >>> 7;
     end
 
-    // ---- stage 4: loop update, held to what a MOST25 line can be:
+    // ---- stage 5: loop update, held to what a MOST25 line can be:
     // ui  44.1/48 kHz +-0.1 % is 16.10..17.56 samples; kept in 15.5..18.25
     // b   SP4 allows +0.40 / -0.257 UI of pulse-width distortion, under
     //     7 samples; kept within +-7.5

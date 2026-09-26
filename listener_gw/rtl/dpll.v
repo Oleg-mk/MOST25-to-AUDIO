@@ -128,10 +128,16 @@ module dpll #(
     reg signed [19:0] a1;
     reg        [19:0] aa1;
     reg               p1, p2, p3, p4, p5, upd_pend;
+    reg               shift_q;                                  // p3's shift, for the integrator at p4
     reg signed [39:0] pp, pi, ppt, s1, bump, mnx;
     reg               gnow, unl, orng;
-    wire signed [23:0] kp = gear ? KP_T[23:0] : KP_A[23:0];     // gains fit 24 bits
-    wire signed [23:0] ki = gear ? KI_T[23:0] : KI_A[23:0];
+    // the gear's gains, registered: the mux sat in front of the multipliers'
+    // inputs; gear changes at p3, the next p1 is a full UPD later
+    reg signed [23:0] kp, ki;                                   // gains fit 24 bits
+    always @(posedge clk) begin
+        kp <= gear ? KP_T[23:0] : KP_A[23:0];
+        ki <= gear ? KI_T[23:0] : KI_A[23:0];
+    end
     // shifting early leaves a residual frequency error the 2 Hz tracking gear
     // takes hundreds of ms to remove (~9 ns of wander in the model); at 2
     // samples it is about halved and the lock comes ~10 ms later
@@ -142,7 +148,7 @@ module dpll #(
         do_centre <= 1'b0; do_update <= 1'b0;
         ok_d <= regen_ok;
         ev2 <= 1'b0;
-        p1 <= 1'b0; p2 <= p1; p3 <= p2; p4 <= p3; p5 <= p4;
+        p1 <= 1'b0; p2 <= p1; p3 <= p2; p4 <= p3; p5 <= p4; shift_q <= shift;
         if (rst) begin
             st <= S_IDLE; nf <= 7'd0; t0 <= 32'd0; lmeas <= 32'd0; cls48 <= 1'b1; cur48 <= 1'b1;
             mc <= 38'd0; integ <= 40'sd0; u <= 40'sd0; bo <= 24'd0; seen_busy <= 1'b0;
@@ -237,7 +243,6 @@ module dpll #(
                     end
                     if (p3) begin                                   // new u, gears, lock
                         u     <= s1 + pp;
-                        integ <= s1 + (shift ? bump : 40'sd0);      // bumpless
                         if (gnow) begin
                             if (good == LOCK_N - 1) begin
                                 good <= 5'd0;
@@ -249,6 +254,9 @@ module dpll #(
                         end
                     end
                     if (p4) begin
+                        // the integrator a clock after u: bumpless when the gear shifted at p3
+                        // (s1 and bump hold until the next p2; a re-centring at p5 clears it after)
+                        integ <= s1 + (shift_q ? bump : 40'sd0);
                         mnx  <= $signed({2'b0, mc}) + ul;
                         orng <= ul > ULIM || ul < -ULIM;
                     end

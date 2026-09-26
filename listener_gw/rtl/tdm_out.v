@@ -96,6 +96,18 @@ module tdm_out (
             end
     end
 
+    // The byte, its substitute and the bit index for position n are registered
+    // (stage 1) and put on the lines a clock later (stage 2): counter -> RAM read
+    // -> bit and substitute muxes -> SD in one clock was clk_1024's slowest path.
+    // Every output is delayed alike, BCLK and FS included.
+    reg [7:0] y0_q, y1_q, v0_q, v1_q;
+    reg       h0_q, h1_q, bclk_p, fs_p;
+    reg [2:0] bi_q;
+    always @(posedge clk_r) begin
+        y0_q <= y0; y1_q <= y1; v0_q <= v0; v1_q <= v1; h0_q <= h0; h1_q <= h1; bi_q <= bi;
+        bclk_p <= n[1]; fs_p <= (b == 8'd0);
+    end
+
     always @(posedge clk_r) begin
         if (rst_r || !e[1]) begin
             cnt <= 10'd0; synced <= 1'b0; rbank <= 1'b0; have <= 1'b0; valid <= 1'b0;
@@ -121,10 +133,10 @@ module tdm_out (
                 valid <= have & synced;
                 s_on <= sub_on; s_w3 <= sub_w3; s_pos <= sub_pos; s_val <= sub_val;
             end
-            bclk <= n[1];
-            fs   <= (b == 8'd0);
-            sd0  <= h0 ? v0[bi] : y0[bi];
-            sd1  <= h1 ? v1[bi] : y1[bi];
+            bclk <= bclk_p;
+            fs   <= fs_p;
+            sd0  <= h0_q ? v0_q[bi_q] : y0_q[bi_q];
+            sd1  <= h1_q ? v1_q[bi_q] : y1_q[bi_q];
         end
     end
 endmodule

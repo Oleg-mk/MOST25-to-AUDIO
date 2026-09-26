@@ -94,8 +94,8 @@ module tb_dsp;
     reg run_d = 1'b0, bank_d = 1'b1;
     always @(posedge clk_s) begin
         if (dut.w_ok)
-            $fwrite(slog, "W %0d %0d %0d %0d %0d %0d\n", nstart, dut.bank_w, cmd_p[53:48],
-                    $signed(cmd_p[47:16]), cmd_p[8], dut.bank_r);
+            $fwrite(slog, "W %0d %0d %0d %0d %0d %0d\n", nstart, dut.bank_w, dut.p_q[53:48],
+                    $signed(dut.p_q[47:16]), dut.p_q[8], dut.bank_r);
     end
     always @(posedge clk_r) begin
         if (dut.start) begin

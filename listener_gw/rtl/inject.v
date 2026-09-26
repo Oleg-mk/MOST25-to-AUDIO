@@ -74,19 +74,37 @@ module inject #(
     output reg  [47:0] prev_val             // ...with these bytes
 );
     // --------------------------------------------- command 02 (clk_s)
+    // The packet is registered once more here (see amp_out): a packet holds
+    // for 37 us, and decoding it across the chip was a slow path.
+    // (syn_preserve: amp_out and inject each keep their own copy - merged into
+    // one, the copy sat in one of them and the other decoded across the chip)
+    reg        ok_q  /* synthesis syn_preserve = 1 */;
+    reg [7:0]  cmd_q /* synthesis syn_preserve = 1 */;
+    reg [55:0] p_q   /* synthesis syn_preserve = 1 */;
+    always @(posedge clk_s) begin ok_q <= cmd_ok & ~rst_s; cmd_q <= cmd; p_q <= cmd_p; end
     reg [7:0] c_m = 8'd0;
     reg [5:0] c_pos [0:5];
     reg       c_tgl = 1'b0;
     integer k, ki;
     initial for (ki = 0; ki < 6; ki = ki + 1) c_pos[ki] = 6'd1;
-    wire [7:0] m_in = cmd_p[55:48];
+    wire [7:0] m_in = p_q[55:48];
     reg        good_pos;
     always @* begin
         good_pos = 1'b1;
         for (k = 0; k < 6; k = k + 1)
             if ((m_in[1:0] == 2'd3 || (k != 2 && k != 5)) &&
-                (cmd_p[47 - 8 * k -: 8] == 8'd0 || cmd_p[47 - 8 * k -: 8] > 8'd60))
+                (p_q[47 - 8 * k -: 8] == 8'd0 || p_q[47 - 8 * k -: 8] > 8'd60))
                 good_pos = 1'b0;
+    end
+    // decoded once more: off, or on with good positions
+    reg        w02_off, w02_on;
+    reg [7:0]  w02_m;
+    reg [35:0] w02_p;
+    always @(posedge clk_s) begin
+        w02_off <= ok_q && cmd_q == 8'h02 && m_in[1:0] == 2'd0;
+        w02_on  <= ok_q && cmd_q == 8'h02 && (m_in[1:0] == 2'd2 || m_in[1:0] == 2'd3) && m_in[6:2] == 5'd0 && good_pos;
+        w02_m   <= m_in;
+        for (k = 0; k < 6; k = k + 1) w02_p[6 * k +: 6] <= p_q[45 - 8 * k -: 6];
     end
     always @(posedge clk_s) begin
         if (rst_s) begin
@@ -95,13 +113,11 @@ module inject #(
             if (c_m != 8'd0) c_tgl <= ~c_tgl;
             c_m <= 8'd0;
             for (k = 0; k < 6; k = k + 1) c_pos[k] <= 6'd1;
-        end else if (cmd_ok && cmd == 8'h02) begin
-            if (m_in[1:0] == 2'd0) begin
-                c_m <= 8'd0; c_tgl <= ~c_tgl;
-            end else if ((m_in[1:0] == 2'd2 || m_in[1:0] == 2'd3) && m_in[6:2] == 5'd0 && good_pos) begin
-                c_m <= m_in; c_tgl <= ~c_tgl;
-                for (k = 0; k < 6; k = k + 1) c_pos[k] <= cmd_p[45 - 8 * k -: 6];
-            end
+        end else if (w02_off) begin
+            c_m <= 8'd0; c_tgl <= ~c_tgl;
+        end else if (w02_on) begin
+            c_m <= w02_m; c_tgl <= ~c_tgl;
+            for (k = 0; k < 6; k = k + 1) c_pos[k] <= w02_p[6 * k +: 6];
         end
     end
 
