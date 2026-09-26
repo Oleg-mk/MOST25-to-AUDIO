@@ -14,6 +14,12 @@
 //   9..40          the 32 control bytes, in order
 //   41             XOR of bytes 0..40
 // At 3 Mbaud a packet takes 140 us of a 333 us block, so nothing queues up.
+//
+// The same line carries the capture dumps (capture.v): 41-byte packets, sync
+// A5 C5, sent one per gap between control packets. Control comes first: a
+// block that completes while a capture packet is on the line waits for it
+// (137 + 140 us fit in the 333 us block period), and only a block completing
+// while the previous control packet has not even started is dropped (b7).
 module ctrl_uart #(
     parameter DIV = 33                      // clk / baud: 99 MHz / 3 Mbaud
 ) (
@@ -28,7 +34,12 @@ module ctrl_uart #(
     input  wire        blk_known,
     input  wire        locked,
     input  wire [15:0] ui_q,
-    output reg         txd
+    output reg         txd,
+    // capture packets (capture.v): bytes 0..39 in cap_pkt, the XOR appended here
+    input  wire        cap_req,
+    input  wire [319:0] cap_pkt,
+    output reg         cap_take,            // pulse: sending cap_pkt now
+    output reg         cap_done             // pulse: cap_pkt has been sent
 );
     // ------------------------------------------- collect, two banks of 32
     reg [7:0]  cram [0:63];
@@ -40,33 +51,36 @@ module ctrl_uart #(
         if (byte_we && byte_addr == 6'd62) cram[{cbank, blk_idx, 1'b1}] <= byte_data;
     end
 
-    // snapshot of the header for the finished bank
-    reg        go, sbank, dropped;
+    // snapshot of the header for the finished bank; ctl_pend asks the sender
+    // for a control packet and is cleared by its ctl_ack
+    reg        ctl_pend, ctl_ack, sbank, dropped;
     reg [31:0] h_cnt;
     reg [7:0]  h_stat;
     reg [15:0] h_ui;
-    reg        busy;
+    reg        busy, cap_mode;
     always @(posedge clk) begin
-        go <= 1'b0;
         if (rst) begin
-            cbank <= 1'b0; fcnt <= 32'd0; pones <= 5'd0; dropped <= 1'b0;
+            cbank <= 1'b0; fcnt <= 32'd0; pones <= 5'd0; dropped <= 1'b0; ctl_pend <= 1'b0;
             sbank <= 1'b0; h_cnt <= 32'd0; h_stat <= 8'd0; h_ui <= 16'd0;
-        end else if (frame_done) begin
-            fcnt  <= fcnt + 32'd1;
-            if (blk_idx == 4'd15 && blk_known && locked) begin
-                if (busy) dropped <= 1'b1;
-                else begin
-                    go     <= 1'b1;
-                    sbank  <= cbank;
-                    h_cnt  <= fcnt - 32'd15;
-                    h_stat <= {dropped, pones + {4'd0, frame_par}, blk_known, locked};
-                    h_ui   <= ui_q;
-                    dropped <= 1'b0;
+        end else begin
+            if (ctl_ack) ctl_pend <= 1'b0;
+            if (frame_done) begin
+                fcnt  <= fcnt + 32'd1;
+                if (blk_idx == 4'd15 && blk_known && locked) begin
+                    if (ctl_pend && !ctl_ack) dropped <= 1'b1;   // the last one has not even started
+                    else begin
+                        ctl_pend <= 1'b1;
+                        sbank  <= cbank;
+                        h_cnt  <= fcnt - 32'd15;
+                        h_stat <= {dropped, pones + {4'd0, frame_par}, blk_known, locked};
+                        h_ui   <= ui_q;
+                        dropped <= 1'b0;
+                    end
+                    cbank <= ~cbank;
+                    pones <= 5'd0;
+                end else begin
+                    pones <= pones + {4'd0, frame_par};
                 end
-                cbank <= ~cbank;
-                pones <= 5'd0;
-            end else begin
-                pones <= pones + {4'd0, frame_par};
             end
         end
     end
@@ -76,6 +90,7 @@ module ctrl_uart #(
     reg [7:0] xsum;
     reg [7:0] cur;
     wire [5:0] ci = idx - 6'd9;             // control byte 0..31 for idx 9..40
+    wire [5:0] last = cap_mode ? 6'd40 : 6'd41;
     always @* begin
         case (idx)
             6'd0: cur = 8'hA5;
@@ -92,27 +107,39 @@ module ctrl_uart #(
         endcase
     end
 
-    // Timing: picking the byte (a subtract, a RAM read and a 42-way choice)
-    // was the slowest path in the whole clk_s domain, yet a byte is needed
-    // only once per 330 ns. So the chosen byte is registered (cur_q) one clock
-    // before it is loaded: `prep` gives idx that clock to settle. The bits then
-    // leave through a plain shift register, not a variable bit select.
-    reg [7:0] cur_q;
-    always @(posedge clk) cur_q <= cur;
+    // Timing: picking the byte (a subtract, a RAM read, a 42-way choice and,
+    // for a capture packet, a 40-way one) was the slowest path in the whole
+    // clk_s domain, yet a byte is needed only once per 330 ns. So the two
+    // candidates are registered a clock after idx settles (prep), the chosen
+    // one a clock later (prep2), and only then loaded. The bits then leave
+    // through a plain shift register, not a variable bit select.
+    reg [7:0] ctl_q, cap_q, cur_q;
+    always @(posedge clk) begin
+        ctl_q <= cur;
+        cap_q <= (idx == 6'd40) ? xsum : cap_pkt[8 * idx +: 8];
+        cur_q <= cap_mode ? cap_q : ctl_q;
+    end
 
     reg [9:0] sh;                           // stop, data[7:0], start; sh[0] is on the line
     reg [3:0] bitpos;                       // bit on the line, 0 = start .. 9 = stop
     reg [7:0] tick;
-    reg       prep, load;
+    reg       prep, prep2, load;
     always @(posedge clk) begin
+        ctl_ack <= 1'b0; cap_take <= 1'b0; cap_done <= 1'b0;
         if (rst) begin
-            busy <= 1'b0; txd <= 1'b1; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b0; load <= 1'b0;
-            bitpos <= 4'd0; tick <= 8'd0; sh <= 10'h3FF;
+            busy <= 1'b0; cap_mode <= 1'b0; txd <= 1'b1; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b0; prep2 <= 1'b0;
+            load <= 1'b0; bitpos <= 4'd0; tick <= 8'd0; sh <= 10'h3FF;
         end else if (!busy) begin
             txd <= 1'b1;
-            if (go) begin busy <= 1'b1; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b1; end
+            if (ctl_pend) begin                              // control first
+                busy <= 1'b1; cap_mode <= 1'b0; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b1; ctl_ack <= 1'b1;
+            end else if (cap_req) begin                      // a capture packet in the gap
+                busy <= 1'b1; cap_mode <= 1'b1; idx <= 6'd0; xsum <= 8'd0; prep <= 1'b1; cap_take <= 1'b1;
+            end
         end else if (prep) begin
-            prep <= 1'b0; load <= 1'b1;     // cur_q catches cur(idx) at this edge
+            prep <= 1'b0; prep2 <= 1'b1;    // ctl_q / cap_q catch idx at this edge
+        end else if (prep2) begin
+            prep2 <= 1'b0; load <= 1'b1;    // cur_q catches the chosen one at this edge
         end else if (load) begin
             sh     <= {1'b1, cur_q, 1'b0};
             xsum   <= xsum ^ cur_q;
@@ -124,7 +151,7 @@ module ctrl_uart #(
             tick <= tick - 8'd1;
         end else if (bitpos == 4'd9) begin
             // stop bit has been on the line for a full bit time
-            if (idx == 6'd41) busy <= 1'b0;
+            if (idx == last) begin busy <= 1'b0; if (cap_mode) cap_done <= 1'b1; end
             else begin idx <= idx + 6'd1; prep <= 1'b1; end
         end else begin
             sh     <= {1'b1, sh[9:1]};

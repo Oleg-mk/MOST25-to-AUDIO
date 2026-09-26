@@ -17,6 +17,7 @@ module tb_core;
     parameter real  SI_START_HZ = 49.152e6;          // the model's factory start-up frequency
     parameter       INJ_EARLY = 0;                   // 1: "inject" sent before the Si514 is centred
     parameter       NO_INJECT = 0;                   // 1: never inject (the line must stay as it came)
+    parameter       CAPTURE = 0;                     // 1: dump the power-up capture, then capture and dump anew
     parameter real  GAP_AFTER_LOCK_US = -1.0;        // > 0: the line dies this long after LOCK...
     parameter real  GAP_US  = 20.0;                  // ...for this long (logged in out_gap.txt)
     parameter real  FB_DEAD_AFTER_LOCK_US = -1.0;    // > 0: TX_FB dies this long after LOCK, for good
@@ -105,7 +106,7 @@ module tb_core;
                     .LDEV(22'd175), .K48(20'd275050), .K44(20'd253277),
                     .UPD(4), .LOCK_N(4), .SHIFT_ACC(16), .LOCK_ACC(32), .UNLOCK_ACC(256),
                     .KP_A(40'sd5530205), .KI_A(40'sd217171),
-                    .KP_T(40'sd1106041), .KI_T(40'sd8687)) dut (
+                    .KP_T(40'sd1106041), .KI_T(40'sd8687), .CAP_AW(9)) dut (
         .clk_s(clk_s), .rst_s(rst), .samp(samp), .fb_samp(fb_samp), .clk_r(clk_r),
         .fs_word(fs_word), .fs_late(fs_late), .tx_regen(tx), .lock(lock),
         .tdm_bclk(bclk), .tdm_fs(fs), .tdm_sd0(sd0), .tdm_sd1(sd1), .uart_tx(utx), .mclk(mclk),
@@ -273,6 +274,12 @@ module tb_core;
         send_cmd(8'h01, 8'd2, 8'd1, 8'd2, 8'd0, 8'd3, 8'd4, 8'd0, 1'b0);   // B: 16 bit, bytes 1..4
         repeat (20000) @(posedge clk_s);
         send_cmd(8'h02, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);   // injection off
+        if (CAPTURE) begin
+            repeat (100000) @(posedge clk_s);
+            send_cmd(8'h04, 8'd2, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);   // dump the power-up capture
+            repeat (650000) @(posedge clk_s);                                  // 16 packets + trailer, one per block
+            send_cmd(8'h04, 8'd5, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);   // capture anew, dump when full
+        end
     end
 
     reg u_d = 1;

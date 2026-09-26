@@ -7,7 +7,9 @@
 //        rx_framer   -> ctrl_uart       -> uart_tx          raw control blocks
 //        rx_framer   -> amp_out (clk_r) -> I2S              up to 3 sources, tone, volume,
 //                                                          balance: L R, as they left us
-//        uart_rx -> host_cmd -> amp_out, inject             host picks bytes, sets coefficients
+//        uart_rx -> host_cmd -> amp_out, inject, capture    host picks bytes, sets coefficients,
+//                                                          asks for a capture or a dump
+//        rx_runlen   -> capture -> ctrl_uart                the line's run lengths, on request
 //        I2S_DIN -> inject                                 audio in, on our own BCLK/LRCK
 //        clk_r = 1024 Fs comes from a Si514 (I2C programmable XO) that this
 //        FPGA steers itself (dpll.v): the regenerated TX is fed back (fb_samp),
@@ -50,6 +52,7 @@
 module listener_core #(
     parameter HOLD      = 64,               // frames of good state before the first LOCK
     parameter HOLD_RE   = 10000,            // ... and before any later one (> 200 ms)
+    parameter CAP_AW    = 16,               // capture buffer, 2^CAP_AW runs (16 = 32 BSRAM blocks)
     parameter RELEARN   = 495000,           // clk_s without a locked frame before the receiver relearns
     // Si514 and its loop; the defaults are the real ones (sim/dpll_model.py,
     // sim/run_dpll.py), simulation of the whole core shortens them. The
@@ -187,10 +190,23 @@ module listener_core #(
     initial mclk = 1'b0;
     always @(posedge clk_r) mclk <= rst_r ? 1'b0 : ~mclk;
 
+    // ------------------------------------------------ capture (command 04)
+    // M = P0: bit 0 capture anew, bit 1 dump what was captured, bit 2 (with
+    // bit 0) dump as soon as the buffer is full. Registered decode.
+    reg        c04;
+    reg  [7:0] c04m;
+    always @(posedge clk_s) begin c04 <= hok && hcmd == 8'h04 && !rst_s; c04m <= hp[55:48]; end
+    wire cap_req, cap_take, cap_done, cap_busy; wire [319:0] cap_pkt;
+    capture #(.AW(CAP_AW)) u_cap (.clk(clk_s), .rst(rst_s), .run_valid(rv), .run_len(rlen), .glitch(gl),
+                                  .arm(c04 && c04m[0]), .auto_dump(c04m[2]), .dump(c04 && c04m[1]),
+                                  .req(cap_req), .take(cap_take), .done(cap_done), .pkt(cap_pkt),
+                                  .busy(cap_busy));
+
     // ------------------------------------------------------------ UART out
     ctrl_uart u_ua (.clk(clk_s), .rst(rst_s), .byte_we(bwe), .byte_addr(ba), .byte_data(bd),
                     .frame_done(fd), .frame_par(fpar), .blk_idx(bi), .blk_known(bk),
-                    .locked(rx_lk), .ui_q(ui_q), .txd(uart_tx));
+                    .locked(rx_lk), .ui_q(ui_q), .txd(uart_tx),
+                    .cap_req(cap_req), .cap_pkt(cap_pkt), .cap_take(cap_take), .cap_done(cap_done));
 
     // ------------------------------------------------ LOCK, decided in clk_s
     // clk_r alive: a clk_r toggle must change within 64 clk_s (0.65 us);

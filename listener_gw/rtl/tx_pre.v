@@ -31,14 +31,27 @@ module tx_pre (
     rx_runlen u_rl (.clk(clk), .rst(rst), .samp(samp), .wc(wc), .run_valid(rv), .run_len(rlen),
                     .run_level(rl), .glitch(gl), .run_t(rt));
 
-    // 2.5 and 3.5 UI in Q8.8, and 1016 UI in whole samples, re-registered every clock
-    reg  [17:0] t25, t35, guard;
+    // 2.5 and 3.5 UI in Q8.8, and 1016 UI in whole samples, re-registered every
+    // clock (syn_preserve: shared with rx_classify's threshold registers by the
+    // synthesizer, they were read from across the chip)
+    reg  [17:0] t25   /* synthesis syn_preserve = 1 */;
+    reg  [17:0] t35   /* synthesis syn_preserve = 1 */;
+    reg  [17:0] guard /* synthesis syn_preserve = 1 */;
     always @(posedge clk) begin
         t25   <= {2'b0, ui_q} + {2'b0, ui_q} + ({2'b0, ui_q} >> 1);
         t35   <= {2'b0, ui_q} + {2'b0, ui_q} + {2'b0, ui_q} + ({2'b0, ui_q} >> 1);
         guard <= ({2'b0, ui_q} << 2) - ({2'b0, ui_q} >> 5);     // (1024 - 8) x ui_q / 256
     end
     wire [17:0] r = {2'b0, rlen, 8'd0};
+
+    // the run is judged a clock after it ends: the two compares registered
+    // (rv_q, rt_q go with them), the decision itself a plain AND
+    reg        rv_q, is_pre;
+    reg [31:0] rt_q;
+    always @(posedge clk) begin
+        rv_q <= rv & ~rst; rt_q <= rt;
+        is_pre <= r > t25 && r < t35;
+    end
 
     reg [31:0] prev_t;                      // end of the previous run = start of this one
     reg        have;                        // a preamble has been accepted since reset
@@ -51,11 +64,11 @@ module tx_pre (
         ev <= 1'b0;
         if (rst) begin
             prev_t <= 32'd0; ev_t <= 32'd0; have <= 1'b0;
-        end else if (rv) begin
-            if (r > t25 && r < t35 && (!have || far)) begin
+        end else if (rv_q) begin
+            if (is_pre && (!have || far)) begin
                 ev <= 1'b1; ev_t <= prev_t; have <= 1'b1;
             end
-            prev_t <= rt;
+            prev_t <= rt_q;
         end
     end
 endmodule

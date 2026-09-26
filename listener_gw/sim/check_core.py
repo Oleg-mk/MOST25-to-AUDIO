@@ -404,16 +404,26 @@ def uart_packets(d):
     data = [v for v, s in bytes_]
     pk = []
     j = 0
-    while j + 42 <= len(data):
-        if data[j] == 0xA5 and data[j + 1] == 0x5A:
+    while j + 41 <= len(data):
+        if data[j] == 0xA5 and data[j + 1] == 0x5A and j + 42 <= len(data):
             p = data[j:j + 42]
             x = 0
             for b in p[:41]:
                 x ^= b
-            pk.append(dict(counter=p[2] | p[3] << 8 | p[4] << 16 | p[5] << 24, status=p[6],
+            pk.append(dict(kind="ctl", counter=p[2] | p[3] << 8 | p[4] << 16 | p[5] << 24, status=p[6],
                            ctrl=bytes(p[9:41]), xor_ok=(x == p[41]),
                            stop_ok=all(s for v, s in bytes_[j:j + 42])))
             j += 42
+        elif data[j] == 0xA5 and data[j + 1] == 0xC5:                 # a capture packet (capture.v)
+            p = data[j:j + 41]
+            x = 0
+            for b in p[:40]:
+                x ^= b
+            pk.append(dict(kind="cap", seq=p[2] | p[3] << 8, lens=p[4:36],
+                           glitch=[(p[36 + i // 8] >> (i % 8)) & 1 for i in range(32)],
+                           count=p[4] | p[5] << 8 | p[6] << 16 | p[7] << 24,
+                           xor_ok=(x == p[40]), stop_ok=all(s for v, s in bytes_[j:j + 41])))
+            j += 41
         else:
             j += 1
     return pk
@@ -432,6 +442,8 @@ def check_uart(d, truth):
     blocks = truth_blocks(truth)
     n_ok = n_bad = 0
     for p in uart_packets(d):
+        if p["kind"] != "ctl":
+            continue
         if p["xor_ok"] and p["stop_ok"] and p["ctrl"] in blocks:
             n_ok += 1
         else:
@@ -697,6 +709,75 @@ def check_err(d, fs):
     print(f"UART: {'PASS' if ok_after else 'FAIL'}  {len(after)} good packets after the damaged block")
     ok_mclk = check_mclk(d)
     return ok_lock and ok_tx and ok_tdm and ok_uart and ok_after and ok_mclk
+
+
+def line_runs(d):
+    """The run lengths rx_runlen measures on the stimulus: samples between
+    transitions of samples.hex (8 per word, bit 0 first), saturating at 255; the
+    first one counts from the sampler's start."""
+    words = [int(x, 16) for x in (d / "samples.hex").read_text().split()]
+    bits = [(w >> k) & 1 for w in words for k in range(8)]
+    runs, n = [], 0
+    for k in range(1, len(bits)):
+        n += 1
+        if bits[k] != bits[k - 1]:
+            runs.append(min(n, 255))
+            n = 0
+    return runs
+
+
+def check_capture(d):
+    """Two dumps on the UART (tb CAPTURE=1, buffer 512 runs): the power-up capture
+    (command 04 M=02), then a capture anew with a dump when full (M=05). Each
+    must arrive whole - packets 0..15 with good XOR and stop bits, the trailer
+    with 512 - and its runs must be the line's own: the first dump the first
+    512 runs after power-up (the very first run counts from the sampler's
+    start and is left out), the second 512 consecutive runs found somewhere
+    after the command, sample for sample as rx_runlen measures them, with no
+    glitch flagged on this clean line."""
+    truth = line_runs(d)
+    pk = [p for p in uart_packets(d) if p["kind"] == "cap"]
+    dumps, cur = [], None
+    for p in pk:
+        if not (p["xor_ok"] and p["stop_ok"]):
+            if cur is not None:
+                cur["bad"] += 1
+            continue
+        if p["seq"] == 0xFFFF:
+            if cur is not None:
+                cur["count"] = p["count"]
+                dumps.append(cur)
+            cur = None
+            continue
+        if cur is None or p["seq"] == 0:
+            cur = dict(runs={}, glitch=0, bad=0, count=None)
+        cur["runs"][p["seq"]] = p["lens"]
+        cur["glitch"] += sum(p["glitch"])
+
+    def flat(dm):
+        out = []
+        for s in range(16):
+            out += dm["runs"].get(s, [None] * 32)
+        return out
+
+    ok = len(dumps) == 2
+    notes = []
+    for i, dm in enumerate(dumps):
+        r = flat(dm)
+        whole = dm["count"] == 512 and len(dm["runs"]) == 16 and dm["bad"] == 0 and dm["glitch"] == 0
+        if i == 0:
+            same = r[1:] == truth[1:512]
+            where = "the first 512 runs after power-up"
+        else:
+            n = len(r)
+            pos = next((k for k in range(1, len(truth) - n) if truth[k:k + n] == r), None)
+            same = pos is not None
+            where = f"runs {pos}..{pos + n - 1} of the line" if pos is not None else "nowhere on the line"
+        ok &= whole and same
+        notes.append(f"dump {i + 1}: {len(dm['runs'])} packets, trailer {dm['count']}, {dm['bad']} bad, "
+                     f"{dm['glitch']} glitch flags, {'equals' if same else 'DIFFERS FROM'} {where}")
+    print(f"CAP : {'PASS' if ok else 'FAIL'}  {len(dumps)} dumps; " + "; ".join(notes))
+    return ok
 
 
 def check_wd(d):

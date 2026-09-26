@@ -66,6 +66,8 @@ def main():
     iverilog = OSS / "bin" / ("iverilog.exe" if os.name == "nt" else "iverilog")
 
     step("stimulus model: frames and line coding", [py, "-m", "virtual_most_source.tests.test_frames"], ROOT)
+    step("capture analysis against known frames (tools/test_capture_analyse.py)",
+         [py, str(ROOT / "tools" / "test_capture_analyse.py")], ROOT)
     step("receiver (run_rx.py)", [py, "run_rx.py"], SIM, sim_env, need=iverilog)
     step("J3 engine (run_dsp.py)", [py, "run_dsp.py"], SIM, sim_env, need=iverilog)
     sys.path.insert(0, str(SIM))

@@ -6,6 +6,7 @@ add_file ../rtl/rx_framer.v
 add_file ../rtl/fs_fine.v
 add_file ../rtl/regen.v
 add_file ../rtl/tdm_out.v
+add_file ../rtl/capture.v
 add_file ../rtl/ctrl_uart.v
 add_file ../rtl/i2c_master.v
 add_file ../rtl/si514_ctrl.v

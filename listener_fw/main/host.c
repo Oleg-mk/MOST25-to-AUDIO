@@ -32,6 +32,16 @@
 // Telegrams are traced to the console by a low-priority task through a
 // queue; when the console falls behind, lines are dropped and counted, never
 // the UART - 126 kB/s would fill the 8 KB receive buffer in 65 ms.
+//
+// Capture (listener_gw/rtl/capture.v): the FPGA keeps the line's first 65536
+// runs after power-up, and captures anew or dumps on command 04. Keys on the
+// console: 'c' captures now and dumps when full, 'd' dumps what was captured.
+// The dump's packets are collected here (in PSRAM), and once the trailer has
+// come the low-priority task prints them as text for tools/capture_analyse.py:
+//   CAP BEGIN runs=<n> packets=<p> missing=<m>
+//   CAP <packet> <64 hex digits: 32 run lengths> <8 hex digits: glitch flags>
+//   CAP <packet> -                                   (a packet that never came)
+//   CAP END
 #include "host.h"
 
 #include <stdio.h>
@@ -41,6 +51,7 @@
 #include "audio_out.h"
 #include "driver/uart.h"
 #include "dsp_img.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -61,6 +72,8 @@
 #define IMG_MIN_US  20000               // coefficient sets at most 50 a second
 #define SAVE_US     10000000            // settings to flash 10 s after the last change
 #define SND_MAGIC   0x534E4431u         // "SND1": the stored layout
+#define CAP_RUNS    65536u              // the FPGA's capture buffer (CAP_AW 16)
+#define CAP_PKTS    (CAP_RUNS / 32)
 
 static const char *TAG = "host";
 
@@ -78,6 +91,9 @@ static snd_t s_snd;
 static int s_img_dirty = 1, s_muted_sent = -1;
 static uint32_t s_fs_sent;
 static int64_t s_img_sent, s_save_at;
+static uint8_t *s_cap_len, *s_cap_gl, *s_cap_have;   // a dump: lengths, glitch flags, packet seen
+static volatile uint32_t s_cap_count;                // the trailer's count: the dump is complete
+static uint32_t s_cap_pkts, s_cap_dumps;
 
 static int pos_eq(const am_pos_t *x, const am_pos_t *y)
 {
@@ -201,6 +217,82 @@ static void on_block(void *ctx, const lsn_block_t *b)
     mm_block(&s_mm, b->ctl, b->frame, on_tel, NULL);
 }
 
+// ------------------------------------------------ capture dumps
+static void on_cap(void *ctx, uint16_t seq, const uint8_t lens[32], uint32_t glitch, uint32_t count)
+{
+    (void)ctx;
+    if (seq == 0xFFFF) {
+        s_cap_count = count ? count : 1;             // 1: an empty dump still prints its header
+        return;
+    }
+    if (seq >= CAP_PKTS || s_cap_count)              // beyond the buffer, or a dump still being printed
+        return;
+    memcpy(&s_cap_len[32u * seq], lens, 32);
+    for (int i = 0; i < 4; i++)
+        s_cap_gl[4u * seq + (unsigned)i] = (uint8_t)(glitch >> (8 * i));
+    s_cap_have[seq] = 1;
+    s_cap_pkts++;
+}
+
+static void cap_print(void)
+{
+    const uint32_t n = s_cap_count == 1 ? 0 : s_cap_count, np = (n + 31) / 32;
+    uint32_t missing = 0;
+    for (uint32_t p = 0; p < np; p++)
+        missing += !s_cap_have[p];
+    printf("CAP BEGIN runs=%lu packets=%lu missing=%lu\n", (unsigned long)n, (unsigned long)np,
+           (unsigned long)missing);
+    static const char hx[] = "0123456789abcdef";
+    char line[64 + 1 + 8 + 1];
+    for (uint32_t p = 0; p < np; p++) {
+        if (!s_cap_have[p]) {
+            printf("CAP %lu -\n", (unsigned long)p);
+            continue;
+        }
+        int k = 0;
+        for (int i = 0; i < 32; i++) {
+            const uint8_t v = s_cap_len[32u * p + (unsigned)i];
+            line[k++] = hx[v >> 4];
+            line[k++] = hx[v & 15];
+        }
+        line[k++] = ' ';
+        for (int i = 0; i < 4; i++) {
+            const uint8_t v = s_cap_gl[4u * p + (unsigned)i];
+            line[k++] = hx[v >> 4];
+            line[k++] = hx[v & 15];
+        }
+        line[k] = 0;
+        printf("CAP %lu %s\n", (unsigned long)p, line);
+        if ((p & 15) == 15)
+            vTaskDelay(1);                           // let the console drain
+    }
+    printf("CAP END\n");
+    memset(s_cap_have, 0, CAP_PKTS);
+    s_cap_dumps++;
+    s_cap_count = 0;
+}
+
+static void cap_key(uint8_t ch)
+{
+    uint8_t c[LSN_CMD_LEN];
+    if (!s_cap_len) {
+        ESP_LOGW(TAG, "capture: no memory for a dump (PSRAM missing?)");
+        return;
+    }
+    if (ch == 'c') {
+        lsn_cmd_capture(c, LSN_CAP_ARM | LSN_CAP_AUTO);
+        uart_write_bytes(HOST_UART, c, sizeof c);
+        ESP_LOGI(TAG, "capture: %u runs from now, the dump follows when full", (unsigned)CAP_RUNS);
+    } else if (ch == 'd') {
+        lsn_cmd_capture(c, LSN_CAP_DUMP);
+        uart_write_bytes(HOST_UART, c, sizeof c);
+        ESP_LOGI(TAG, "capture: dumping what was captured");
+    } else if (ch == 'h' || ch == '?') {
+        ESP_LOGI(TAG, "keys: c = capture %u runs now and dump when full, d = dump what was captured "
+                 "(after power-up: the ring's start-up)", (unsigned)CAP_RUNS);
+    }
+}
+
 static const char *op_name(uint8_t op)
 {
     static const char *n[16] = {"Set/Start", "Get/Abort", "SetGet/StartResult", "Inc", "Dec", "GetInterface",
@@ -215,7 +307,10 @@ static void trace_task(void *arg)
     mm_tel_t t;
     char hex[3 * MM_MAX_PAYLOAD + 1];
     for (;;) {
-        xQueueReceive(s_trace, &t, portMAX_DELAY);
+        if (s_cap_count)
+            cap_print();
+        if (xQueueReceive(s_trace, &t, pdMS_TO_TICKS(20)) != pdTRUE)
+            continue;
         int k = 0;
         for (int i = 0; i < t.len; i++)
             k += snprintf(&hex[k], sizeof hex - (size_t)k, " %02X", t.data[i]);
@@ -235,6 +330,9 @@ static void host_task(void *arg)
         const int n = uart_read_bytes(HOST_UART, buf, sizeof buf, pdMS_TO_TICKS(20));
         if (n > 0)
             lsn_rx_feed(&s_rx, buf, (size_t)n, on_block, NULL);
+        uint8_t key;
+        if (uart_read_bytes(UART_NUM_0, &key, 1, 0) == 1)
+            cap_key(key);
         decide(0);
         const int64_t now = esp_timer_get_time();
         if (!s_stale && now - s_last_locked > STALE_US) {
@@ -254,9 +352,11 @@ static void host_task(void *arg)
         }
         if (now > next_status) {
             ESP_LOGI(TAG, "packets %lu (bad %lu, lost in the FPGA %lu), telegrams %lu, refused %lu, "
-                     "segments dropped %lu, trace lost %lu", (unsigned long)s_rx.good, (unsigned long)s_rx.bad,
+                     "segments dropped %lu, trace lost %lu, capture packets %lu (bad %lu), dumps %lu",
+                     (unsigned long)s_rx.good, (unsigned long)s_rx.bad,
                      (unsigned long)s_fpga_dropped, (unsigned long)s_mm.telegrams, (unsigned long)s_mm.rejected,
-                     (unsigned long)s_mm.seg_dropped, (unsigned long)s_trace_lost);
+                     (unsigned long)s_mm.seg_dropped, (unsigned long)s_trace_lost, (unsigned long)s_rx.cap_good,
+                     (unsigned long)s_rx.cap_bad, (unsigned long)s_cap_dumps);
             next_status += STATUS_US;
         }
     }
@@ -282,6 +382,22 @@ void host_start(void)
     ESP_ERROR_CHECK(uart_driver_install(HOST_UART, 8192, 1024, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(HOST_UART, &cfg));
     ESP_ERROR_CHECK(uart_set_pin(HOST_UART, PIN_TX, PIN_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    // the console's UART, receive side only: the capture keys (its output stays the log's)
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 256, 0, 0, NULL, 0));
+    // a dump: 64 KB of lengths, 8 KB of glitch flags, the packets seen - in PSRAM if there is any
+    s_cap_len = heap_caps_malloc(CAP_RUNS, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_cap_len)
+        s_cap_len = heap_caps_malloc(CAP_RUNS, MALLOC_CAP_8BIT);
+    s_cap_gl = s_cap_len ? heap_caps_malloc(CAP_RUNS / 8, MALLOC_CAP_8BIT) : NULL;
+    s_cap_have = s_cap_gl ? heap_caps_calloc(CAP_PKTS, 1, MALLOC_CAP_8BIT) : NULL;
+    if (s_cap_have) {
+        s_rx.cap_cb = on_cap;
+        ESP_LOGI(TAG, "capture: the ring's first %u runs are kept in the FPGA; 'd' dumps them, "
+                 "'c' captures now, 'h' help", (unsigned)CAP_RUNS);
+    } else {
+        s_cap_len = NULL;
+        ESP_LOGW(TAG, "capture: no memory for a dump");
+    }
     // below Bluedroid (19-20) on core 0: the 8 KB buffer covers 65 ms of stall;
     // 6 KB of stack for the coefficient design (double) and its log line
     xTaskCreatePinnedToCore(host_task, "host", 6144, NULL, 10, NULL, 0);

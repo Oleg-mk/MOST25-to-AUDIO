@@ -30,6 +30,7 @@ the FPGA's clocks die.
 | [listener_gw](listener_gw) | FPGA (Sipeed Tang Nano 20K): receiver, regenerator on a ring-locked clock (an Si514 the FPGA steers), TDM/UART outputs, J3's DSP engine, audio injection | Gowin EDA 1.9.12; simulation: Icarus Verilog (OSS CAD Suite) |
 | [listener_fw](listener_fw) | ESP32 host (M2, ESP32-DevKitC-VIE): Bluetooth A2DP in (AAC, SBC), the phone's rate onto the ring's, MOST telegram decoding, the amplifier model, J3's coefficients | ESP-IDF v6.1; host tests: gcc |
 | [virtual_most_source](virtual_most_source) | MOST25 frames and Biphase Mark line coding - the simulations' stimulus | Python + numpy |
+| [tools](tools) | `capture_analyse.py`: what a recording of a real line says (UI and rate, preamble patterns, block marker, parity rule, frame control), with its test on known frames | Python |
 | [docs](docs) | the MOST control formats the host decodes, which cars carry audio and how they send volume, the research behind the regenerator's clock | - |
 
 Each part's README says how it works, what is verified and how.
@@ -71,10 +72,12 @@ KiCad 10.
 ## Bring-up, in this order
 
 1. **Bypass only.** U2 left on the fibre's own signal (LOCK held low), the
-   FPGA listening: J2's TDM and UART, and a dump of the run lengths, from a
-   real ring. This settles what the simulations could only assume - the
-   preamble pattern, the block-start marker, the parity rule - and shows the
-   control telegrams the host decodes.
+   FPGA listening: J2's TDM and UART, and the capture (command 04: the FPGA
+   keeps the line's first 65536 runs after power-up, the host's `d` key dumps
+   them, `c` captures anew; `tools/capture_analyse.py` reads them) from a real
+   ring. This settles what the simulations could only assume - the preamble
+   pattern, the block-start marker, the parity rule - and shows the control
+   telegrams the host decodes.
 2. **Regeneration**, on the bench with a loop of fibre, then in the car.
 3. **Injection**, then J3's sound and the per-car scales.
 

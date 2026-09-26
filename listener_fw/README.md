@@ -135,6 +135,28 @@ treble step (+-12 dB), 2 dB per balance step with the other side silent from
 10 steps, loudness +8 dB of bass at -40 dB and below. A recording of the
 car's ring while stepping each control fixes them.
 
+**Capture** (`listener_gw/rtl/capture.v`, command 04): the FPGA keeps the
+line's first 65536 runs after power-up - the ring's start-up - and captures
+anew or dumps on command. Keys on the console: `c` captures now and dumps
+when full, `d` dumps what was captured, `h` help. The dump's 41-byte packets
+(sync A5 C5) come on the same UART as the control blocks, in the gaps between
+them; `lsn_link` hands them to the host, which collects them (64 KB in PSRAM)
+and, when the trailer has come, prints them from the low-priority task:
+
+```text
+CAP BEGIN runs=65536 packets=2048 missing=0
+CAP 0 <64 hex digits: 32 run lengths in samples of 1.26 ns> <8 hex digits: glitch flags>
+CAP 1 ...
+CAP 7 -                      (a packet that never came)
+CAP END
+```
+
+`python tools/capture_analyse.py console.log` turns that into the UI and the
+ring's rate, every frame, the preamble patterns and the one that marks a
+block, the parity rule, the frame control bits, the boundary descriptor and
+the pulse-width distortion. Record the console at 921600 baud with timestamps;
+a dump takes about 2 s to print.
+
 **Trace**: every telegram goes to the console, e.g.
 `0001F2A0 0100>0180 22.01.111 SetGet/StartResult [6] 01 00 08 09 0A 0B` -
 frame, source > target, FBlock.Inst.FktID, OPType, length, data. A
@@ -171,8 +193,9 @@ make -C test
    70 ms hold every 10 s; the I2S side pulls 240-frame blocks.
 3. Events: the phone pauses for 1 s; the ring's clocks stop for 3 s.
 4. `test_lsn_link`: packets as `ctrl_uart.v` sends them, with noise between
-   them, a corrupted byte, a lost byte and A5 5A inside the payload; the
-   command packets byte for byte.
+   them, a corrupted byte, a lost byte and A5 5A inside the payload; capture
+   packets among them (one corrupted, a trailer); the command packets byte
+   for byte.
 5. `test_mostctl`: blocks built to the documented layout. Decoding: fields;
    5 kinds of block refused, system and MOST High Protocol messages skipped;
    11 bytes to a group address; a segmented message with a segment sent

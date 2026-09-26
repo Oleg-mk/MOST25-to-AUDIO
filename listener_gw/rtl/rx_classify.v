@@ -29,9 +29,10 @@
 //   1  r = run -/+ b                         thresholds registered from ui
 //   2  r against every threshold (16 comparisons, registered)
 //   3  length and class from those           -> sym out
-//   4  error of r against its class, rounded and scaled
-//   5  ui += , b +=/-=  (held to what a MOST25 line can be; see there)
-// The loops see their own correction 4 runs late. With steps of 1/64 and
+//   4  error of r against its class
+//   5  the error rounded and scaled
+//   6  ui += , b +=/-=  (held to what a MOST25 line can be; see there)
+// The loops see their own correction 5 runs late. With steps of 1/64 and
 // 1/128 that changes nothing; the regression (sim/run_rx.py) is the proof.
 //
 // The loops train on every run, framed or not, so noise trains them too. A
@@ -117,27 +118,36 @@ module rx_classify #(
     wire [1:0] c = (g1b || n == 4'd0 || n > 4'd3) ? 2'd0 : n[1:0];
     reg               v2, l2;
     reg [1:0]         c2;
-    reg signed [17:0] r2;
+    reg signed [17:0] r2, uk2;              // r, and the UI of its class (one or two)
     always @(posedge clk) begin
-        v2 <= v1b & ~rst; l2 <= l1b; c2 <= c; r2 <= r1b;
+        v2 <= v1b & ~rst; l2 <= l1b; c2 <= c; r2 <= r1b; uk2 <= (n == 4'd2) ? u2 : u1;
         sym_valid <= v1b & ~rst; sym <= c; sym_len <= n; sym_level <= l1b; sym_t <= t1b;
     end
 
-    // ---- stage 4: rounded, scaled error. Shifts sit in their own signed
+    // ---- stage 4: the error of r against its class (the subtract alone: with
+    // the class mux and the rounding adds in one clock it was clk_s's slowest path)
+    reg               v2b, l2b;
+    reg [1:0]         c2b;
+    reg signed [17:0] e;
+    always @(posedge clk) begin
+        v2b <= v2 & ~rst; l2b <= l2; c2b <= c2;
+        e <= r2 - uk2;
+    end
+
+    // ---- stage 5: rounded, scaled error. Shifts sit in their own signed
     // registers: inside an expression with the unsigned ui_q, >>> would
     // silently turn into a logical shift. Rounded, not floored: a floor
     // biases ui low by half an LSB per step.
     reg               v3, l3;
     reg [1:0]         c3;
     reg signed [17:0] e6, e7;
-    wire signed [17:0] e = r2 - ((c2 == 2'd2) ? u2 : u1);
     always @(posedge clk) begin
-        v3 <= v2 & ~rst; l3 <= l2; c3 <= c2;
+        v3 <= v2b & ~rst; l3 <= l2b; c3 <= c2b;
         e6 <= (e + 18'sd32) >>> 6;
         e7 <= (e + 18'sd64) >>> 7;
     end
 
-    // ---- stage 5: loop update, held to what a MOST25 line can be:
+    // ---- stage 6: loop update, held to what a MOST25 line can be:
     // ui  44.1/48 kHz +-0.1 % is 16.10..17.56 samples; kept in 15.5..18.25
     // b   SP4 allows +0.40 / -0.257 UI of pulse-width distortion, under
     //     7 samples; kept within +-7.5

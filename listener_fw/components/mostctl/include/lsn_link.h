@@ -19,13 +19,29 @@
 //                                first, F = 1: commit after this word)
 //   Lx/Rx are frame byte indices, most significant byte first; the FPGA takes
 //   0..63 for 01 and only 1..60 for 02.
+//   C = 04  capture (listener_gw/rtl/capture.v): M  0 0 0 0 0 0
+//           M bit 0 capture anew, bit 1 dump what was captured, bit 2 (with
+//           bit 0) dump as soon as the buffer is full
+//
+// Capture packets, on the same line as the control blocks, 41 bytes:
+//   0  A5, 1  C5        sync
+//   2..3                packet number n, little endian: runs 32 n .. 32 n + 31
+//   4..35               32 run lengths in samples of 1.26 ns (255 = 255 or more)
+//   36..39              their glitch flags, bit i of byte 36 + i / 8 for run i
+//   40                  XOR of bytes 0..39
+//   n = FFFF is the trailer: bytes 4..7 = the number of runs captured (LE).
 #pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
 #define LSN_PKT_LEN   42
+#define LSN_CAP_LEN   41
 #define LSN_CMD_LEN   11
+
+#define LSN_CAP_ARM   0x01     // command 04: capture anew
+#define LSN_CAP_DUMP  0x02     // dump what was captured
+#define LSN_CAP_AUTO  0x04     // with ARM: dump as soon as the buffer is full
 
 #define LSN_ST_LOCKED   0x01
 #define LSN_ST_BLOCK    0x02
@@ -40,10 +56,18 @@ typedef struct {
 
 typedef void (*lsn_block_cb)(void *ctx, const lsn_block_t *b);
 
+// A capture packet: seq, the 32 run lengths, their glitch flags (bit i = run i);
+// for the trailer (seq 0xFFFF) `count` is the number of runs captured.
+typedef void (*lsn_cap_cb)(void *ctx, uint16_t seq, const uint8_t lens[32], uint32_t glitch,
+                           uint32_t count);
+
 typedef struct {
     uint8_t buf[LSN_PKT_LEN];
     int n;
-    uint32_t good, bad;      // packets passed / failed the XOR
+    int kind;                // after the second byte: 1 control (42 bytes), 2 capture (41)
+    uint32_t good, bad;      // control packets passed / failed the XOR
+    uint32_t cap_good, cap_bad;
+    lsn_cap_cb cap_cb;       // NULL: capture packets are counted and dropped
 } lsn_rx_t;
 
 void lsn_rx_init(lsn_rx_t *r);
@@ -59,3 +83,4 @@ void lsn_cmd_stereo(uint8_t out[LSN_CMD_LEN], int bits, const uint8_t l[3], cons
 void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity,
                     const uint8_t l[3], const uint8_t r[3]);
 void lsn_cmd_word(uint8_t out[LSN_CMD_LEN], uint8_t addr, int32_t value, int commit);
+void lsn_cmd_capture(uint8_t out[LSN_CMD_LEN], uint8_t mode);       // LSN_CAP_* bits

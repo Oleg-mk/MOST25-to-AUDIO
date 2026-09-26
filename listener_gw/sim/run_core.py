@@ -30,6 +30,12 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              pass, and MCLK and BCLK must not move before the centring. As first
              written the ring domain ran on the start-up frequency until then,
              out of timing above 78 MHz
+  capture    core48 over 840 frames, the capture buffer 512 runs (CAP_AW 9): the host
+             dumps the power-up capture, then captures anew with a dump when full.
+             Both dumps must arrive whole (every packet, the trailer's count 512),
+             the first must be the line's first 512 runs after power-up, the
+             second 512 consecutive runs of the line, sample for sample as
+             rx_runlen measures them; the control packets must go on unbroken
   bit_err    core48 without injection, one edge of the line removed in frame
              120 (two runs merge into one of a wrong length, 1 ms after LOCK):
              LOCK must stay on to the end, the regenerated line must equal the
@@ -52,7 +58,7 @@ HERE = Path(__file__).resolve().parent
 RTL = HERE.parent / "rtl"
 SRC = ["tb_core.v", "si514_model.v"] + [str(RTL / f) for f in (
     "rx_runlen.v", "rx_classify.v", "rx_framer.v", "fs_fine.v", "regen.v", "tdm_out.v",
-    "ctrl_uart.v", "uart_rx.v", "host_cmd.v", "dsp_core.v", "amp_out.v", "inject.v", "i2c_master.v",
+    "capture.v", "ctrl_uart.v", "uart_rx.v", "host_cmd.v", "dsp_core.v", "amp_out.v", "inject.v", "i2c_master.v",
     "si514_ctrl.v", "tx_pre.v", "dpll.v", "listener_core.v")]
 
 CORNERS = [
@@ -79,6 +85,9 @@ CORNERS = [
                    "--ppm", "0", "--seed", "7", "--kill-edge-frame", "120"], ["-Ptb_core.NO_INJECT=1"]),
     ("si_start",  ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
                    "--ppm", "0", "--seed", "7"], ["-Ptb_core.SI_START_HZ=250000000.0"]),
+    ("capture",   ["--fs", "48000", "--frames", "840", "--pwd", "0.316", "--jit", "0.195",
+                   "--ppm", "0", "--seed", "7"], ["-Ptb_core.MAXCLK=1750000", "-Ptb_core.NO_INJECT=1",
+                                                  "-Ptb_core.CAPTURE=1"]),
 ]
 
 
@@ -126,6 +135,9 @@ def main():
             ok = cc.check_clkstop(d)
         elif name == "bit_err":
             ok = cc.check_err(d, 48000) & cc.check_wd(d)
+        elif name == "capture":
+            truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
+            ok = cc.check_capture(d) & cc.check_uart(d, truth) & cc.check_wd(d)
         else:
             r = full_checks(d)
             if name == "mut_nofix":

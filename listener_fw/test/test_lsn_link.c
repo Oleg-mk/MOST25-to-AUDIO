@@ -79,6 +79,79 @@ static void test_rx(void)
     CHECK(g2.n == 4, "one call: %d packets", g2.n);
 }
 
+// ------------------------------------------------ capture packets among control ones
+static void make_cap(uint8_t *p, uint16_t seq, uint8_t fill, uint32_t glitch)
+{
+    p[0] = 0xA5; p[1] = 0xC5;
+    p[2] = (uint8_t)seq; p[3] = (uint8_t)(seq >> 8);
+    for (int i = 0; i < 32; i++)
+        p[4 + i] = (uint8_t)(fill + i);
+    for (int i = 0; i < 4; i++)
+        p[36 + i] = (uint8_t)(glitch >> (8 * i));
+    uint8_t x = 0;
+    for (int i = 0; i < 40; i++)
+        x ^= p[i];
+    p[40] = x;
+}
+
+typedef struct { int n; uint16_t seq[8]; uint8_t first[8]; uint32_t glitch[8]; uint32_t count[8]; } cap_t;
+
+static void on_cap(void *ctx, uint16_t seq, const uint8_t lens[32], uint32_t glitch, uint32_t count)
+{
+    cap_t *g = ctx;
+    if (g->n < 8) {
+        g->seq[g->n] = seq; g->first[g->n] = lens[0]; g->glitch[g->n] = glitch; g->count[g->n] = count;
+    }
+    g->n++;
+}
+
+static void on_block_cap(void *ctx, const lsn_block_t *b)
+{
+    (void)b;
+    ((cap_t *)ctx)->count[7]++;          // control packets, counted apart
+}
+
+static void test_cap(void)
+{
+    static uint8_t s[1024];
+    size_t n = 0;
+    uint8_t p[LSN_PKT_LEN];
+    make(p, 2000, LSN_ST_LOCKED | LSN_ST_BLOCK, 0x10); memcpy(&s[n], p, 42); n += 42;
+    make_cap(p, 5, 0x20, 0x80000001u); memcpy(&s[n], p, 41); n += 41;          // runs 32..63, glitch on runs 0 and 31
+    make_cap(p, 6, 0x30, 0); p[20] ^= 0x10; memcpy(&s[n], p, 41); n += 41;   // corrupted: dropped
+    make(p, 2016, LSN_ST_LOCKED | LSN_ST_BLOCK, 0x40); memcpy(&s[n], p, 42); n += 42;
+    make_cap(p, 0xFFFF, 0, 0); p[4] = 0x00; p[5] = 0x00; p[6] = 0x01; p[7] = 0x00;   // trailer: 65536 runs
+    { uint8_t x = 0; for (int i = 0; i < 40; i++) x ^= p[i]; p[40] = x; }
+    memcpy(&s[n], p, 41); n += 41;
+    make_cap(p, 7, 0x50, 0); memcpy(&s[n], p, 41); n += 41;                   // A5 C5 right after a trailer
+
+    lsn_rx_t rx;
+    cap_t g = {0};
+    lsn_rx_init(&rx);
+    rx.cap_cb = on_cap;
+    for (size_t i = 0; i < n; i++)
+        lsn_rx_feed(&rx, &s[i], 1, on_block_cap, &g);
+    printf("cap: %d capture packets, %u control; good %u bad %u\n", g.n, (unsigned)g.count[7],
+           (unsigned)rx.cap_good, (unsigned)rx.cap_bad);
+    CHECK(g.n == 3 && rx.cap_good == 3 && rx.cap_bad == 1, "3 good capture packets and 1 bad, got %d / %u",
+          g.n, (unsigned)rx.cap_bad);
+    CHECK(g.count[7] == 2 && rx.good == 2 && rx.bad == 0, "both control packets, byte by byte");
+    CHECK(g.seq[0] == 5 && g.first[0] == 0x20 && g.glitch[0] == 0x80000001u, "packet 5's fields");
+    CHECK(g.seq[1] == 0xFFFF && g.count[1] == 65536u, "the trailer's count");
+    CHECK(g.seq[2] == 7 && g.first[2] == 0x50, "the packet after the trailer");
+    // the same in one call
+    cap_t g2 = {0};
+    lsn_rx_init(&rx);
+    rx.cap_cb = on_cap;
+    lsn_rx_feed(&rx, s, n, on_block_cap, &g2);
+    CHECK(g2.n == 3 && g2.count[7] == 2, "one call: %d capture, %u control", g2.n, (unsigned)g2.count[7]);
+    // without a callback capture packets are counted and dropped, control unaffected
+    cap_t g3 = {0};
+    lsn_rx_init(&rx);
+    lsn_rx_feed(&rx, s, n, on_block_cap, &g3);
+    CHECK(g3.n == 0 && g3.count[7] == 2 && rx.cap_good == 3, "no callback: counted, dropped");
+}
+
 static void test_cmd(void)
 {
     uint8_t c[LSN_CMD_LEN];
@@ -105,11 +178,15 @@ static void test_cmd(void)
     for (int i = 0; i < LSN_CMD_LEN; i++)
         x ^= c[i];
     CHECK(x == 0, "XOR of the whole packet is 0");
+    lsn_cmd_capture(c, LSN_CAP_ARM | LSN_CAP_AUTO);
+    CHECK(c[2] == 0x04 && c[3] == 0x05 && c[4] == 0 && c[9] == 0 &&
+          c[10] == (uint8_t)(0xA5 ^ 0x5A ^ 0x04 ^ 0x05), "capture command: arm and dump when full");
 }
 
 int main(void)
 {
     test_rx();
+    test_cap();
     test_cmd();
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
