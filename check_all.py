@@ -90,8 +90,10 @@ def main():
     step("schematic: ERC", [str(KICAD), "sch", "erc", "--exit-code-violations", "--output", "erc.rpt",
                             "most_listener.kicad_sch"], hw, need=KICAD)
     if shutil.which("git") and (ROOT / ".git").exists():
-        step("schematic: the generator reproduces the committed sheet",
-             ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch"], hw)
+        # everything the generator writes, not the sheet alone
+        step("schematic: the generator reproduces the committed files",
+             ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
+              "most_listener.kicad_pro", "most_listener.pretty", "fp-lib-table", "sym-lib-table"], hw)
 
     print("\n" + "=" * 60)
     for name, verdict, dt in results:

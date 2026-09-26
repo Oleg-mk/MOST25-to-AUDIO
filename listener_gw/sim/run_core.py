@@ -37,8 +37,7 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              else, the UART must carry good blocks again after the damaged one.
              As first written, the framer unlocked on the first error, the
              regenerator emptied its FIFO and LOCK fell for HOLD_RE
-The seven simulations run in parallel (a few minutes of wall time); on
-this machine run them one at a time: --only NAME.
+The corners run one after another (about a minute each); --only NAME runs one.
 
 Usage: python run_core.py [--only NAME]      needs oss-cad-suite on PATH
 """
@@ -111,12 +110,11 @@ def main():
     ap.add_argument("--work", type=Path, default=HERE / "work")
     a = ap.parse_args()
     todo = [c for c in CORNERS if not a.only or c[0] == a.only]
-    dirs = {name: prepare(name, stim, opts, a.work) for name, stim, opts in todo}
-    procs = {name: subprocess.Popen(["vvp", "-n", "tb.vvp"], cwd=d, stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL)
-             for name, d in dirs.items()}
-    for p in procs.values():
-        p.wait()
+    dirs = {}
+    for name, stim, opts in todo:                    # strictly one simulation at a time
+        dirs[name] = prepare(name, stim, opts, a.work)
+        subprocess.run(["vvp", "-n", "tb.vvp"], cwd=dirs[name], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=True)
     fails = 0
     for name, d in dirs.items():
         print(f"== {name}")

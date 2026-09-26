@@ -24,8 +24,9 @@ measurement, fn 150 Hz) takes ~7 ms to lock when the Si514's crystal is 50 ppm
 off - the centring cannot see that error - and the host's commands and the
 dead line come after LOCK.
 
-Runs go in parallel; a failing run's directory is kept whole under work/sweep/.
-Usage: python sweep_core.py [--runs 32] [--jobs 16] [--base 1000]
+Runs go one at a time (--jobs 1, the default: several vvp at once have
+frozen the machine); a failing run's directory is kept whole under work/sweep/.
+Usage: python sweep_core.py [--runs 32] [--jobs 1] [--base 1000] [--only 3 7 ...]
                             needs oss-cad-suite on PATH
 """
 import argparse
@@ -87,7 +88,7 @@ def run(c, work):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=32)
-    ap.add_argument("--jobs", type=int, default=16)
+    ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--base", type=int, default=1000)
     ap.add_argument("--only", type=int, nargs="*", help="run numbers to repeat")
     ap.add_argument("--work", type=Path, default=HERE / "work" / "sweep")
