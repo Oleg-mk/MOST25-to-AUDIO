@@ -1,0 +1,16 @@
+# python
+__pycache__/
+*.py[cod]
+
+# gateware: Gowin build and simulation outputs
+listener_gw/board/impl/
+listener_gw/board/*.gprj*
+listener_gw/sim/work/
+
+# schematic: KiCad's local UI state, backups and locks
+listener_hw/*.kicad_prl
+listener_hw/*-backups/
+listener_hw/~*.lck
+listener_hw/fp-info-cache
+
+# firmware: listener_fw/.gitignore (ESP-IDF build, fetched components, tests)

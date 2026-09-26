@@ -1,0 +1,13 @@
+build/
+managed_components/
+sdkconfig
+sdkconfig.old
+test/test_rate_match
+test/test_rate_match.exe
+test/test_lsn_link
+test/test_lsn_link.exe
+test/test_mostctl
+test/test_mostctl.exe
+test/test_sound
+test/test_sound.exe
+test/image_example.txt

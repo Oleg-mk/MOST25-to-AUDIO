@@ -1,0 +1,3 @@
+# AAC and SBC decoders (Espressif component registry)
+dependencies:
+  espressif/esp_audio_codec: "^2.6.2"

@@ -1,0 +1,23 @@
+# Bluetooth classic only: A2DP sink
+CONFIG_BT_ENABLED=y
+CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=y
+CONFIG_BT_BLUEDROID_ENABLED=y
+CONFIG_BT_CLASSIC_ENABLED=y
+CONFIG_BT_A2DP_ENABLE=y
+CONFIG_BT_BLE_ENABLED=n
+# the stack hands over AAC / SBC packets; esp_audio_codec decodes them
+CONFIG_BT_A2DP_USE_EXTERNAL_CODEC=y
+CONFIG_BT_A2DP_SEP_NUM_MAX=2
+CONFIG_BT_A2DP_CODEC_AAC_ENABLED=y
+# WROVER-IE: 8 MB PSRAM for the ring buffer; a board without it still boots
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_FREERTOS_HZ=1000
+# every WROVER-IE has at least 4 MB of flash; a 1.5 MB app leaves room for AAC
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+# the telegram trace: a faster console keeps up with bursts (UART0 on
+# GPIO1/3 as before; the rate is settable only as a "custom" console)
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600

@@ -1,0 +1,5 @@
+# Built with GNU tools on Windows; keep LF everywhere so the Makefiles, the
+# generated KiCad files and the shell snippets are the same on every side.
+* text=auto eol=lf
+*.png binary
+*.pdf binary

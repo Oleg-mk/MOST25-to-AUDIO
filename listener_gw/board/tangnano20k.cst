@@ -1,0 +1,72 @@
+// Tang Nano 20K pin constraints for top_tangnano20k.v.
+// Pin map: listener_hw/most_listener.kicad_sch block 5, against the Sipeed
+// Tang Nano 20K Datasheet v1.3 p. 5 (the corrected pinout). Every bank used is
+// VCCIO 3.3 V.
+// Rule: anything on the ring or its clock uses only pins whose sole other
+// connection on the board is the (empty) LCD FPC connector. The BL616 HSPI
+// lines (71..76, 86) and the TF slot lines 80, 85 carry only the host UART, the
+// audio and TDM SD1, none of which can touch the ring.
+IO_LOC "clk27" 4;
+IO_PORT "clk27" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
+
+// ring - LCD-only pins
+IO_LOC "rx_in" 27;                 // LCD_B7
+IO_PORT "rx_in" IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
+IO_LOC "tx_pre" 28;                // LCD_B6, to the retiming flip-flop U9
+IO_PORT "tx_pre" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "lock" 49;                  // LCD_BL
+IO_PORT "lock" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "clk_1024" 77;              // LCD_CLK, GCLKT_1
+IO_PORT "clk_1024" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+
+// Si514 I2C and the TX loopback - LCD-only pins
+IO_LOC "tx_fb" 25;                 // LCD_HS, IOB6 A: IDES8 (pin 26, IOB6 B, stays unused)
+IO_PORT "tx_fb" IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
+IO_LOC "si_scl" 29;                // LCD_B5
+IO_PORT "si_scl" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 OPEN_DRAIN=ON BANK_VCCIO=3.3;
+IO_LOC "si_sda" 30;                // LCD_B4
+IO_PORT "si_sda" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 OPEN_DRAIN=ON BANK_VCCIO=3.3;
+
+// TDM - LCD-only pins, except SD1
+IO_LOC "tdm_bclk" 42;              // LCD_R3
+IO_PORT "tdm_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "tdm_fs" 41;                // LCD_R4
+IO_PORT "tdm_fs" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "tdm_sd0" 48;               // LCD_DE
+IO_PORT "tdm_sd0" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "tdm_sd1" 80;               // SDIO_D2 (TF slot, left empty) - LCD_BL went to LOCK
+IO_PORT "tdm_sd1" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+
+// not ring-critical - BL616 HSPI lines, which Sipeed's own examples use as GPIO
+IO_LOC "uart_tx" 72;               // HSPI_DIN1
+IO_PORT "uart_tx" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "mclk" 71;                  // HSPI_DIN0
+IO_PORT "mclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "uart_rx" 73;               // HSPI_DIN2; pulled up: an unplugged host reads as idle
+IO_PORT "uart_rx" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
+
+// stereo I2S (J3): out, and DIN = audio in for injection
+IO_LOC "i2s_din" 86;               // HSPI_CSN; pulled down: nothing plugged in reads as silence
+IO_PORT "i2s_din" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC "i2s_bclk" 74;              // HSPI_DIN3
+IO_PORT "i2s_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_lrck" 75;              // HSPI_DIR
+IO_PORT "i2s_lrck" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_dout" 76;              // HSPI_DAT
+IO_PORT "i2s_dout" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_mclk" 85;              // SDIO_D1 (TF slot, left empty)
+IO_PORT "i2s_mclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+
+// onboard LEDs, active low
+IO_LOC "led_n[0]" 15;
+IO_LOC "led_n[1]" 16;
+IO_LOC "led_n[2]" 17;
+IO_LOC "led_n[3]" 18;
+IO_LOC "led_n[4]" 19;
+IO_LOC "led_n[5]" 20;
+IO_PORT "led_n[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[3]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[4]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[5]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
