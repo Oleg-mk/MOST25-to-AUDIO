@@ -662,10 +662,10 @@ def power_block(sh):
     c2 = sh.at_pin("C", "C2", "100n 50V", "1", (99.06, y + 5.08), fp=SMD["C"])
     sh.wire((86.36, y), c1.p("1")); sh.wire((99.06, y), c2.p("1"))
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
-    sh.text("Захист: F1 запобіжник, D1 від переполюсовки, D2 TVS.", 17.78, 87.63, 1.27)
+    sh.text("Захист: F1 запобіжник, D1 від переполюсовки, D2 TVS (26 В: провідність від ~29 В - див. README, пункт про load dump).", 17.78, 87.63, 1.27)
     sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
     sh.text("5V_SW (U6) вмикає WAKE: модуль FPGA. VOUT = 1.0 В x (1 + R4/R5) = 5.31 В; після D3 ~5.0 В.", 17.78, 95.25, 1.27)
-    sh.text("5V_HOST (U10): живлення M2 (ESP32), до 0.52 А (R22); 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
+    sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
     u5 = sh.add("LDO", "U5", "TPS7B8133DRV", 116.84, 31.75,
@@ -726,9 +726,13 @@ def power_block(sh):
 
     # Switch: 5V_SW -> 5V_HOST, the supply of the host module M2 (ESP32). The
     # FPGA sits in the ring and lives on 5V_SW, so a fault on M2 must not pull
-    # 5V_SW down: TPS2553 limits to 0.52 A typ (0.475-0.565 A, R22 = 49.9k) in
-    # 2 us, and blocks current back from M2's own USB when it is flashed in
-    # place (1 uA max, even with IN at 0 V). EN tied to IN: on whenever 5V_SW is.
+    # 5V_SW down: TPS2553 limits to about 1 A (R22 = 24.9k; 0.52 A typ at
+    # 49.9k per its table, the limit scales with 1/R) in 2 us, and blocks
+    # current back from M2's own USB when it is flashed in place (1 uA max,
+    # even with IN at 0 V). EN tied to IN: on whenever 5V_SW is. Espressif
+    # asks for a 500 mA supply for the module and the radio draws it in peaks;
+    # the earlier 0.52 A limit (0.475-0.565 A) sat on that line, a brown-out
+    # reset waiting to happen, and 1 uF behind it could not carry a peak.
     u10 = sh.add("SW_ILIM", "U10", "TPS2553DBVR", 177.8, 30.48, fp="Package_TO_SOT_SMD:SOT-23-6")
     vin, en = u10.p("1"), u10.p("3")
     xr = vin[0] - 5.08
@@ -742,12 +746,12 @@ def power_block(sh):
     sh.gnd(c23.p("2"))
     sh.gnd(u10.p("2"))
     sh.nc(u10.p("4"))
-    r22 = sh.at_pin("R", "R22", "49k9 1%", "1", u10.p("5"), fp=SMD["R"])
+    r22 = sh.at_pin("R", "R22", "24k9 1%", "1", u10.p("5"), fp=SMD["R"])
     sh.gnd(r22.p("2"))
     out = u10.p("6")
     node = (out[0] + 2.54, out[1])
     sh.wire(out, node)
-    c24 = sh.at_pin("C", "C24", "1u", "1", node, fp=SMD["C"])
+    c24 = sh.at_pin("C", "C24", "10u 6V3", "1", node, fp="Capacitor_SMD:C_0805_2012Metric")
     sh.gnd(c24.p("2"))
     sh.label("5V_HOST", node, "R")
 
