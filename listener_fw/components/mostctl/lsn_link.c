@@ -102,10 +102,10 @@ void lsn_cmd_stereo(uint8_t out[LSN_CMD_LEN], int bits, const uint8_t l[3], cons
     cmd(out, 0x01, width(bits), l, r);
 }
 
-void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity,
+void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity, int spdif_in,
                     const uint8_t l[3], const uint8_t r[3])
 {
-    cmd(out, 0x02, (uint8_t)(width(bits) | (keep_parity ? 0x80 : 0)), l, r);
+    cmd(out, 0x02, (uint8_t)(width(bits) | (spdif_in ? 0x04 : 0) | (keep_parity ? 0x80 : 0)), l, r);
 }
 
 void lsn_cmd_capture(uint8_t out[LSN_CMD_LEN], uint8_t mode)

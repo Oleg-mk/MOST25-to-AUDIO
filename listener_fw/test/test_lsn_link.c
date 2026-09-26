@@ -156,7 +156,7 @@ static void test_cmd(void)
 {
     uint8_t c[LSN_CMD_LEN];
     const uint8_t l[3] = {5, 6, 0}, r[3] = {7, 8, 0};
-    lsn_cmd_inject(c, 16, 0, l, r);
+    lsn_cmd_inject(c, 16, 0, 0, l, r);
     const uint8_t want[LSN_CMD_LEN] = {0xA5, 0x5A, 0x02, 0x02, 5, 6, 0, 7, 8, 0,
                                        (uint8_t)(0xA5 ^ 0x5A ^ 0x02 ^ 0x02 ^ 5 ^ 6 ^ 7 ^ 8)};
     printf("cmd 02:");
@@ -164,8 +164,10 @@ static void test_cmd(void)
         printf(" %02X", c[i]);
     printf("\n");
     CHECK(memcmp(c, want, sizeof want) == 0, "inject command bytes");
-    lsn_cmd_inject(c, 0, 1, NULL, NULL);
+    lsn_cmd_inject(c, 0, 1, 0, NULL, NULL);
     CHECK(c[2] == 0x02 && c[3] == 0x80 && c[4] == 0 && c[9] == 0, "inject off, keep parity");
+    lsn_cmd_inject(c, 24, 0, 1, l, r);
+    CHECK(c[2] == 0x02 && c[3] == 0x07 && c[4] == 5 && c[7] == 7, "inject 24 bit from the S/PDIF input");
     lsn_cmd_stereo(c, 24, l, r);
     CHECK(c[2] == 0x01 && c[3] == 0x03, "stereo 24 bit");
     lsn_cmd_word(c, 46, (int32_t)0xFF012345, 1);

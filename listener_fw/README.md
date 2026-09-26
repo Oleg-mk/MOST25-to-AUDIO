@@ -29,6 +29,12 @@ What it does now:
   frame bytes (02), the amplifier's main zone out on J3 (01) with the head
   unit's volume, mute, balance, bass, treble and loudness (03). Never a word
   on the MOST control channel: the listener has no address.
+- **The board's TOSLINK input as the source** (key `i` on the console):
+  command 02 then names DIN2 - the S/PDIF receiver's output through the
+  board's sample-rate converter, on the same ring-locked clocks - and is on
+  only while that receiver is locked (IO32 reads the DIR9001's ERROR pin;
+  pulled up, so a board without the receiver never injects from it). The next
+  `i` makes the phone the source again.
 
 Next: navigation and phone mixed into J3 (the FPGA already takes three
 sources), and the per-car scales from a recording of a real ring.
@@ -41,6 +47,7 @@ sources), and the per-car scales from a recording of a real ring.
 | IO35 | 6 | I2S_LRCK_F | in |
 | IO27 | 11 | I2S_DIN_F (through R21) | out, our audio |
 | IO33 | 8 | UART_TX_F | in, control blocks, 3 Mbaud |
+| IO32 | 7 | OPT_ERR | in, the S/PDIF receiver's ERROR: 1 = no lock or a parity error |
 | IO25 | 9 | UART_RX_F (through R20) | out, host commands, 3 Mbaud |
 
 The console (UART0, the DevKitC's USB port) runs at 921600 baud, for the
@@ -88,8 +95,9 @@ channel list that is not ascending within 0..59 is ignored.
 injection is off after a core reset; a repeated command changes nothing):
 
 - 02: our audio into the AUX source's frame bytes while an amplifier sink is
-  connected to exactly those channels and the phone is streaming (A2DP
-  started). Otherwise the car's own AUX passes untouched. The bytes are
+  connected to exactly those channels and the source is live: the phone
+  streaming (A2DP started), or, with the TOSLINK input chosen, its receiver
+  locked. Otherwise the car's own AUX passes untouched. The bytes are
   swapped on our way out, so only the nodes after the listener hear it: the
   amplifier does only if the listener sits between the AUX source and the
   amplifier, in the direction of the light - on the fiber into the
@@ -138,7 +146,8 @@ car's ring while stepping each control fixes them.
 **Capture** (`listener_gw/rtl/capture.v`, command 04): the FPGA keeps the
 line's first 65536 runs after power-up - the ring's start-up - and captures
 anew or dumps on command. Keys on the console: `c` captures now and dumps
-when full, `d` dumps what was captured, `h` help. The dump's 41-byte packets
+when full, `d` dumps what was captured, `i` switches the audio-in source
+between the phone and the TOSLINK input, `h` help. The dump's 41-byte packets
 (sync A5 C5) come on the same UART as the control blocks, in the gaps between
 them; `lsn_link` hands them to the host, which collects them (64 KB in PSRAM)
 and, when the trailer has come, prints them from the low-priority task:
@@ -195,7 +204,7 @@ make -C test
 4. `test_lsn_link`: packets as `ctrl_uart.v` sends them, with noise between
    them, a corrupted byte, a lost byte and A5 5A inside the payload; capture
    packets among them (one corrupted, a trailer); the command packets byte
-   for byte.
+   for byte, the inject command from the TOSLINK input among them.
 5. `test_mostctl`: blocks built to the documented layout. Decoding: fields;
    5 kinds of block refused, system and MOST High Protocol messages skipped;
    11 bytes to a group address; a segmented message with a segment sent
@@ -231,7 +240,7 @@ make -C test
 | Sound settings from telegrams: 4 volume sources, tone, loudness, balance | each as sent; the source order holds |
 | Shelves on the rounded words, -12..+12 dB, 44.1 and 48 kHz | full gain within 0.008 dB (15 Hz, 0.45 fs), the other band within 0.001 dB; every setting stable |
 | The firmware's set through the FPGA engine's model | L and R within 0.0002 dB of volume + balance + shelves at 50 Hz, 1 kHz, 12 kHz |
-| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, the host and J3's sound | no compiler warnings; app 948 KB of a 1.5 MB partition (4 MB flash) |
+| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, the host and J3's sound | no compiler warnings; app 956 KB of a 1.5 MB partition (4 MB flash) |
 
 Not proved: nothing has run on an ESP32 yet, and the decoder has never seen
 a real control block - which blocks the checks let through, whether the

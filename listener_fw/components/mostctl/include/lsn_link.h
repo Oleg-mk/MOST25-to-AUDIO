@@ -14,7 +14,8 @@
 //   A5 5A C P0..P6 X    X = XOR of the 10 bytes before it
 //   C = 01  a source for J3:     P  L0 L1 L2  R0 R1 R2  (P[1:0]: 0 off, 2 16-bit,
 //                                3 24-bit; P[2] mono; P[5:4] stream 0..2)
-//   C = 02  audio into the ring: M  L0 L1 L2  R0 R1 R2  (M[1:0] as W, M[7] keep bit 511)
+//   C = 02  audio into the ring: M  L0 L1 L2  R0 R1 R2  (M[1:0] as W; M[2] the source:
+//                                0 = M2's I2S, 1 = the board's S/PDIF input; M[7] keep bit 511)
 //   C = 03  a coefficient word:  A  V3 V2 V1 V0  F  0   (address 0..63, Q4.28 MSB
 //                                first, F = 1: commit after this word)
 //   Lx/Rx are frame byte indices, most significant byte first; the FPGA takes
@@ -79,8 +80,10 @@ void lsn_rx_feed(lsn_rx_t *r, const uint8_t *p, size_t n, lsn_block_cb cb, void 
 
 // Commands. bits: 0 (off), 16 or 24. l, r: the sample's frame bytes, MSB first
 // (the third one unused at 16 bits). lsn_cmd_stereo is stream 0 in stereo.
+// spdif_in: the samples come from the board's S/PDIF input (its ASRC on the
+// FPGA's DIN2) instead of M2's I2S.
 void lsn_cmd_stereo(uint8_t out[LSN_CMD_LEN], int bits, const uint8_t l[3], const uint8_t r[3]);
-void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity,
+void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity, int spdif_in,
                     const uint8_t l[3], const uint8_t r[3]);
 void lsn_cmd_word(uint8_t out[LSN_CMD_LEN], uint8_t addr, int32_t value, int commit);
 void lsn_cmd_capture(uint8_t out[LSN_CMD_LEN], uint8_t mode);       // LSN_CAP_* bits
