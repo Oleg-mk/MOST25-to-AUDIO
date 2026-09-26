@@ -31,6 +31,13 @@
 // (listener_hw, block 2, U11): U2's select is LOCK only while TX_REGEN keeps
 // toggling, and TX stops ~1 us after either clock does.
 //
+// One error on the line is not a reason to switch: the framer keeps its lock
+// through one bad frame (rx_framer.v), the regenerator sends every run on with
+// its measured length (regen.v), so `good` holds and LOCK with it. Before, a
+// single bad bit unlocked the receiver, emptied the regenerator's FIFO and
+// dropped LOCK for HOLD_RE - two phase steps for the nodes after us and a
+// brief mute of the amplifier, from one bit.
+//
 // Switching either way is a phase step on the ring, and the MOST spec treats
 // it as a normal event: "a node opens or closes its bypass" is a listed cause
 // of unlock, and only unlocks adding up to more than tUnlock (60 ms min)
@@ -87,7 +94,7 @@ module listener_core #(
     always @(posedge clk_s) wc <= rst_s ? 29'd0 : wc + 29'd1;
 
     wire rv, rl, gl; wire [7:0] rlen; wire [31:0] run_tm;
-    wire sv, sl; wire [1:0] sym; wire [15:0] ui_q; wire [31:0] sym_tm;
+    wire sv, sl; wire [1:0] sym; wire [3:0] slen; wire [15:0] ui_q; wire [31:0] sym_tm;
     wire bwe, fd, fpar, bk, rx_lk, er; wire [5:0] ba; wire [7:0] bd; wire [3:0] bi;
     wire fev, fer; wire [31:0] fet;
 
@@ -95,9 +102,9 @@ module listener_core #(
                       .run_level(rl), .glitch(gl), .run_t(run_tm));
     rx_classify #(.RELEARN(RELEARN))
                 u_cl (.clk(clk_s), .rst(rst_s), .run_valid(rv), .run_len(rlen), .run_level(rl),
-                      .run_t(run_tm), .locked(rx_lk), .sym_valid(sv), .sym(sym), .sym_level(sl),
-                      .ui_q(ui_q), .sym_t(sym_tm));
-    rx_framer   u_fr (.clk(clk_s), .rst(rst_s), .sym_valid_i(sv), .sym_i(sym), .sym_t_i(sym_tm),
+                      .glitch(gl), .run_t(run_tm), .locked(rx_lk), .sym_valid(sv), .sym(sym),
+                      .sym_len(slen), .sym_level(sl), .ui_q(ui_q), .sym_t(sym_tm));
+    rx_framer   u_fr (.clk(clk_s), .rst(rst_s), .sym_valid_i(sv), .sym_i(sym), .sym_t_i(sym_tm), .ui_q(ui_q),
                       .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                       .frame_par(fpar), .blk_idx(bi), .blk_known(bk), .locked(rx_lk),
                       .err(er), .fs_sq(), .fe_valid(fev), .fe_rise(fer), .fe_t(fet));
@@ -134,8 +141,8 @@ module listener_core #(
     wire rst_r = rr[2];
 
     // ---------------------------------------------------------- regenerator
-    wire regen_ok, rg_tx, rg_st; wire [1:0] rg_len;
-    regen u_rg (.clk_s(clk_s), .rst_s(rst_s), .sym_valid(sv), .sym(sym), .enable(rx_lk),
+    wire regen_ok, rg_tx, rg_st; wire [3:0] rg_len;
+    regen u_rg (.clk_s(clk_s), .rst_s(rst_s), .sym_valid(sv), .len(slen), .enable(rx_lk),
                 .clk_r(clk_r), .rst_r(rst_r), .tx(rg_tx), .ok(regen_ok),
                 .st(rg_st), .st_len(rg_len));
 

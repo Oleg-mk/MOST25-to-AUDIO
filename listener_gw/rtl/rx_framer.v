@@ -21,6 +21,20 @@
 //  * Parity sense. The XOR of bits 4..511 is reported raw (frame_par), not
 //    judged.
 //
+// One error is ridden through. A coding or framing error ends the frame (it
+// is not emitted) but, once locked, does not end the lock: the next frame
+// must then open with a 3-UI run where it is due - 1024 UI after this
+// frame's UI 0 (2048 if the run that failed was already the next frame's
+// first), within 4 UI - and a clean frame clears the strike. A second error
+// before that, or no preamble on time, is what unlocks; that is the rule a
+// MOST node follows too (lock after 3 valid preambles, unlock after 2 invalid
+// ones: Oasis patent EP 1333580 B1). Without it one bad bit on the line took
+// the regenerator, LOCK and the ring's bypass switch with it for HOLD_RE.
+// The lost frame may have been a block start, so the block index is
+// unknown until the next block start is seen (blk_known drops). Should no
+// run at all arrive while the strike is open (a dead line), STRIKE_MAX clocks
+// end it the same way as a late one.
+//
 // Frame edges with full timing resolution. fs_sq below changes on the clock
 // that sees an edge, so it sits on a 10.1 ns grid, and the beat between that
 // grid and the frame rate passes through any clock multiplier as up to ~10 ns
@@ -28,12 +42,15 @@
 // with the time the sampler saw them (sym_t, 1.26 ns units): the edge that
 // opens the preamble (UI 0, fe_rise = 1) and the bit-cell edge at UI 512
 // (fe_rise = 0). fs_fine.v re-draws the frame-rate square wave from these.
-module rx_framer (
+module rx_framer #(
+    parameter STRIKE_MAX = 8192       // clocks a strike may stay open (83 us: two frames and a margin)
+) (
     input  wire       clk,
     input  wire       rst,
     input  wire       sym_valid_i,
     input  wire [1:0] sym_i,
     input  wire [31:0] sym_t_i,       // sample time of the edge that ended this run
+    input  wire [15:0] ui_q,          // UI in samples, Q8.8 (rx_classify): where the next frame is due
     // frame bytes, written as they complete; byte 0 = {block index, BD}
     output reg        byte_we,
     output reg  [5:0] byte_addr,
@@ -58,6 +75,21 @@ module rx_framer (
     reg [11:0] sig, last_sig, common_sig;
     reg        common_ok;
     reg [2:0]  good;
+    reg        bad;                   // one strike used: the next frame must open on time
+    reg [31:0] f0_t;                  // sample time of UI 0 of the frame in progress
+    reg [31:0] exp_t;                 // where UI 0 of the next frame is due (while bad)
+    reg [17:0] flen, win;             // 1024 UI and 4 UI in whole samples, from ui_q
+    always @(posedge clk) begin
+        flen <= {2'b0, ui_q} << 2;                  // ui_q x 1024 / 256
+        win  <= {2'b0, ui_q} >> 6;                  // ui_q x 4 / 256
+    end
+    // this run's start (prev_t) against the due time, modulo 2^18 samples (16 frames)
+    wire signed [17:0] d_exp = prev_t[17:0] - exp_t[17:0];
+    wire signed [17:0] w_s   = win;
+    wire ontime = d_exp >= -w_s && d_exp <= w_s;
+    reg  [13:0] strike;               // clocks the strike has been open
+    wire late   = d_exp > w_s || strike == STRIKE_MAX[13:0];
+    always @(posedge clk) strike <= (rst || !bad || in_frame) ? 14'd0 : (strike == STRIKE_MAX[13:0]) ? strike : strike + 14'd1;
 
     // The inputs are registered once more here. The decode below reaches most
     // of this block's registers; started from rx_classify's output register
@@ -92,7 +124,17 @@ module rx_framer (
 
     task fail;
         begin
-            err <= 1'b1; in_frame <= 1'b0; locked <= 1'b0; good <= 3'd0; half <= 1'b0;
+            err <= 1'b1; in_frame <= 1'b0; half <= 1'b0;
+            if (locked && !bad) begin
+                // one strike: this frame is lost, the lock is kept; the next frame
+                // is due one frame after this one's UI 0 - two, if the run that
+                // failed was already the next frame's first
+                bad       <= 1'b1;
+                exp_t     <= f0_t + ((pos == 11'd1024) ? {13'd0, flen, 1'b0} : {14'd0, flen});
+                blk_known <= 1'b0;
+            end else begin
+                locked <= 1'b0; good <= 3'd0; bad <= 1'b0;
+            end
         end
     endtask
 
@@ -101,6 +143,7 @@ module rx_framer (
         begin
             in_frame <= 1'b1; pos <= 11'd3; half <= 1'b0; par <= 1'b0;
             sig <= {10'd0, 2'd3};
+            f0_t <= prev_t;
             fe_valid <= 1'b1; fe_rise <= 1'b1; fe_t <= prev_t;
         end
     endtask
@@ -120,14 +163,24 @@ module rx_framer (
             blk_idx <= 4'd0; blk_known <= 1'b0; locked <= 1'b0; good <= 3'd0;
             frame_par <= 1'b0; byte_addr <= 6'd0; byte_data <= 8'd0;
             prev_t <= 32'd0; fe_rise <= 1'b0; fe_t <= 32'd0;
+            bad <= 1'b0; f0_t <= 32'd0; exp_t <= 32'd0;
         end else if (sym_valid) begin
             prev_t <= sym_t;
             if (!in_frame) begin
-                if (sym == 2'd3) start;
+                if (bad) begin
+                    // after a strike: a 3-UI run where the next frame is due keeps
+                    // the lock; nothing on time is the second invalid preamble
+                    if (sym == 2'd3 && ontime && strike != STRIKE_MAX[13:0]) start;
+                    else if (late) begin
+                        locked <= 1'b0; good <= 3'd0; bad <= 1'b0;
+                        if (sym == 2'd3) start;
+                    end
+                end else if (sym == 2'd3) start;
             end else if (pos == 11'd1024) begin
                 // previous frame finished cleanly; the next run must open a preamble
                 if (sym == 2'd3) begin
                     start;
+                    bad <= 1'b0;
                     if (good != 3'd7) good <= good + 3'd1;
                     if (good >= 3'd3) locked <= 1'b1;
                 end else fail;

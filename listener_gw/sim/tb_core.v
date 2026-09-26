@@ -11,6 +11,7 @@ module tb_core;
     parameter [6:0] SI_ADDR = 7'h6A;                 // the model's I2C address: not 0x55, the core must find it
     parameter real  SI_PPM  = 0.0;                   // the model's own crystal error
     parameter       INJ_EARLY = 0;                   // 1: "inject" sent before the Si514 is centred
+    parameter       NO_INJECT = 0;                   // 1: never inject (the line must stay as it came)
     parameter real  GAP_AFTER_LOCK_US = -1.0;        // > 0: the line dies this long after LOCK...
     parameter real  GAP_US  = 20.0;                  // ...for this long (logged in out_gap.txt)
     parameter real  FB_DEAD_AFTER_LOCK_US = -1.0;    // > 0: TX_FB dies this long after LOCK, for good
@@ -245,7 +246,7 @@ module tb_core;
         send_cmd(8'h01, 8'd3, 8'd4, 8'd1, 8'd3, 8'd2, 8'd4, 8'd1, 1'b1);   // wrong XOR: must be ignored
         send_cmd(8'h01, 8'd3, 8'd3, 8'd4, 8'd1, 8'd2, 8'd1, 8'd4, 1'b0);   // A: 24 bit, scrambled
         repeat (50000) @(posedge clk_s);
-        if (!INJ_EARLY) begin
+        if (!INJ_EARLY && !NO_INJECT) begin
 `ifdef NOFIX
             send_cmd(8'h02, 8'h83, 8'd5, 8'd6, 8'd7, 8'd8, 8'd9, 8'd10, 1'b0); // (mutation: parity not fixed)
 `else

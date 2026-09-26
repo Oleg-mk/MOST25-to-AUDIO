@@ -25,6 +25,13 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              LOCK stays on - no clk_s logic can help - and the board's watchdog
              (U11, modelled in tb_core.v) must take the ring to bypass: TX
              stops toggling within 3 us, TX_SEL falls within 13 us
+  bit_err    core48 without injection, one edge of the line removed in frame
+             120 (two runs merge into one of a wrong length, 1 ms after LOCK):
+             LOCK must stay on to the end, the regenerated line must equal the
+             ring's fault included, TDM must lose that one frame and nothing
+             else, the UART must carry good blocks again after the damaged one.
+             As first written, the framer unlocked on the first error, the
+             regenerator emptied its FIFO and LOCK fell for HOLD_RE
 The seven simulations run in parallel (a few minutes of wall time); on
 this machine run them one at a time: --only NAME.
 
@@ -64,6 +71,8 @@ CORNERS = [
                    "--ppm", "0", "--seed", "7"], ["-Ptb_core.FB_DEAD_AFTER_LOCK_US=200"]),
     ("clk_stop",  ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
                    "--ppm", "0", "--seed", "7"], ["-Ptb_core.CLKS_STOP_AFTER_LOCK_US=300"]),
+    ("bit_err",   ["--fs", "48000", "--frames", "240", "--pwd", "0.316", "--jit", "0.195",
+                   "--ppm", "0", "--seed", "7", "--kill-edge-frame", "120"], ["-Ptb_core.NO_INJECT=1"]),
 ]
 
 
@@ -108,6 +117,8 @@ def main():
             ok = cc.check_fbdead(d, 48000) & cc.check_wd(d)
         elif name == "clk_stop":
             ok = cc.check_clkstop(d)
+        elif name == "bit_err":
+            ok = cc.check_err(d, 48000) & cc.check_wd(d)
         else:
             r = full_checks(d)
             if name == "mut_nofix":

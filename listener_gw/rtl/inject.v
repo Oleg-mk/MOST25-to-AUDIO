@@ -55,7 +55,7 @@ module inject #(
     input  wire        clk_r,
     input  wire        rst_r,
     input  wire        st,                  // from regen
-    input  wire [1:0]  st_len,
+    input  wire [3:0]  st_len,              // the run's length in UI
     input  wire [9:0]  phase_n,             // I2S / TDM frame counter (value it takes next)
     input  wire        i2s_run,             // that counter runs
     input  wire        din,                 // I2S_DIN, audio in
@@ -133,7 +133,7 @@ module inject #(
     reg        inf;                         // in a frame
     reg [10:0] nxt;                         // UI index of the UI in this clock
     reg [3:0]  good;                        // frames in a row, 1024 UI apart
-    wire       pre    = st && st_len == 2'd3;            // a 3-UI run opens here
+    wire       pre    = st && st_len == 4'd3;            // a 3-UI run opens here
     wire       inpre  = inf && nxt < 11'd8;              // ...inside the preamble: part of it
     wire       fstart = pre && !inpre;                   // ...anywhere else: a frame opens
     wire       intime = inf && nxt == 11'd1024;          // exactly one frame after the last

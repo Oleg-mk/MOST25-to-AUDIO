@@ -223,9 +223,10 @@ def check_inject(d, truth):
     return ok
 
 
-def check_tdm(d, truth):
-    """Only frames sent under LOCK count: before it the Si514 is centred once
-    and its output is off for the calibration, so clk_r and TDM stop there."""
+def tdm_frames_hex(d):
+    """The TDM frames sent under LOCK, 64 bytes each as hex (before LOCK the Si514
+    is centred once and its output is off for the calibration, so clk_r and TDM
+    stop there); the frames before the first bank was filled are left out."""
     rows = [l.strip() for l in (d / "out_tdm.txt").read_text().splitlines()]
     frames, cur = [], None
     for r in rows:
@@ -247,19 +248,24 @@ def check_tdm(d, truth):
             by[b >> 3] |= b0[b] << (7 - (b & 7))
             by[32 + (b >> 3)] |= b1[b] << (7 - (b & 7))
         out.append(by.hex())
-    live = [f for f in out if f[2:] != "0" * 126]         # skip frames before the first bank
+    return [f for f in out if f[2:] != "0" * 126]
+
+
+def tdm_indices(live, truth):
+    """Which ring frame each TDM frame is (-1: none); byte 0's block index is
+    compared only once the framer knows it."""
     tnorm = ["0" + t[1:] for t in truth]
-    matched = bad = 0
-    for f in live:
-        if f in truth:
-            matched += 1
-        elif "0" + f[1:] in tnorm:
-            matched += 1                                   # block index not yet known
-        else:
-            bad += 1
-    # consecutive order check
-    idx = [truth.index(f) if f in truth else tnorm.index("0" + f[1:]) if "0" + f[1:] in tnorm else -1
-           for f in live]
+    return [truth.index(f) if f in truth else tnorm.index("0" + f[1:]) if "0" + f[1:] in tnorm else -1
+            for f in live]
+
+
+def check_tdm(d, truth):
+    """Only frames sent under LOCK count; every one must be a ring frame, byte for
+    byte, and they must follow each other."""
+    live = tdm_frames_hex(d)
+    idx = tdm_indices(live, truth)
+    matched = sum(1 for k in idx if k >= 0)
+    bad = sum(1 for k in idx if k < 0)
     order_ok = all(b == a + 1 for a, b in zip(idx, idx[1:]) if a >= 0 and b >= 0)
     ok = bad == 0 and matched >= 8 and order_ok
     print(f"TDM : {'PASS' if ok else 'FAIL'}  {matched} frames under LOCK matched, {bad} wrong, "
@@ -267,7 +273,9 @@ def check_tdm(d, truth):
     return ok
 
 
-def check_uart(d, truth):
+def uart_packets(d):
+    """Every 42-byte packet on the UART line: frame counter, status, the 32
+    control bytes, and whether its XOR and every stop bit were right."""
     ev = []
     for l in (d / "out_uart.txt").read_text().splitlines():
         t, v = l.split()
@@ -295,26 +303,40 @@ def check_uart(d, truth):
             t_idle = t + BIT_NS * 9.8
         i += 1
     data = [v for v, s in bytes_]
-    pk, n_ok, n_bad = [], 0, 0
+    pk = []
     j = 0
-    blocks = {}
-    for s in range(0, len(truth) - 15):
-        if int(truth[s][0], 16) == 0:                      # block start frame
-            blocks[bytes(bytes.fromhex(truth[s + k])[p] for k in range(16) for p in (61, 62))] = s
     while j + 42 <= len(data):
         if data[j] == 0xA5 and data[j + 1] == 0x5A:
             p = data[j:j + 42]
             x = 0
             for b in p[:41]:
                 x ^= b
-            ctrl = bytes(p[9:41])
-            if x == p[41] and ctrl in blocks and all(s for v, s in bytes_[j:j + 42]):
-                n_ok += 1
-            else:
-                n_bad += 1
+            pk.append(dict(counter=p[2] | p[3] << 8 | p[4] << 16 | p[5] << 24, status=p[6],
+                           ctrl=bytes(p[9:41]), xor_ok=(x == p[41]),
+                           stop_ok=all(s for v, s in bytes_[j:j + 42])))
             j += 42
         else:
             j += 1
+    return pk
+
+
+def truth_blocks(truth):
+    """The 32 control bytes of every block that starts on a block-start frame -> its first frame."""
+    blocks = {}
+    for s in range(0, len(truth) - 15):
+        if int(truth[s][0], 16) == 0:                      # block start frame
+            blocks[bytes(bytes.fromhex(truth[s + k])[p] for k in range(16) for p in (61, 62))] = s
+    return blocks
+
+
+def check_uart(d, truth):
+    blocks = truth_blocks(truth)
+    n_ok = n_bad = 0
+    for p in uart_packets(d):
+        if p["xor_ok"] and p["stop_ok"] and p["ctrl"] in blocks:
+            n_ok += 1
+        else:
+            n_bad += 1
     ok = n_ok >= 1 and n_bad == 0
     print(f"UART: {'PASS' if ok else 'FAIL'}  {n_ok} packets good, {n_bad} bad")
     return ok
@@ -521,6 +543,58 @@ def check_fbdead(d, fs):
           f"{fmt(drop, lambda x: f'{(x - t0) / frame:.2f} frames')} after, "
           f"{'came back' if back is not None else 'stayed off'}")
     return ok
+
+
+def check_err(d, fs):
+    """One edge of the ring's line removed after LOCK (make_stim --kill-edge-frame;
+    meta.json kill_frame, kill_edge_ui): two runs merged into one of a wrong
+    length - a coding error in one frame's data, the fault a bad bit leaves.
+    LOCK must be on before it and never drop until the stimulus ends (the
+    receiver rides through one bad frame, the regenerator does not stop); the
+    regenerated line must equal the ring's, fault included (check_tx against
+    runs.hex, which has the merged run); TDM must lose exactly that frame -
+    the frame before it once more, then the next - and be right and in order
+    otherwise; the UART must carry good blocks again after the damaged one
+    (the framer forgets the block index until the next block start); MCLK 512
+    per frame throughout."""
+    import json
+    meta = json.loads((d / "meta.json").read_text())
+    truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
+    runs = [int(x, 16) for x in (d / "runs.hex").read_text().split()]
+    kf = meta["kill_frame"]
+    t_err = meta["kill_edge_ui"] * meta["ui_samples"] / 0.792           # ns (1.26 ns per sample)
+    t_end = meta["clocks"] * 1000.0 / 99.0                              # ns: the stimulus ends
+    ev = []
+    for l in (d / "out_lock.txt").read_text().splitlines():
+        t, lk = l.split()[0], l.split()[1]
+        if lk in ("lock=0", "lock=1"):
+            ev.append((int(t) / 1000.0, lk == "lock=1"))                # ps -> ns
+    first = next((t for t, v in ev if v), None)
+    drops = [t for t, v in ev if not v and first is not None and t > first]
+    stray = [t for t in drops if t < t_end - 100000.0]                  # a drop before the line ends
+    ok_lock = first is not None and first < t_err and not stray
+    print(f"LOCK: {'PASS' if ok_lock else 'FAIL'}  on at {first / 1e6 if first else 0:.2f} ms, the fault "
+          f"(a {meta['kill_run_ui']}-UI run in frame {kf}) at {t_err / 1e6:.2f} ms, "
+          f"{len(stray)} drops before the stimulus ended")
+    ok_tx = check_tx(d, runs)
+    live = tdm_frames_hex(d)
+    idx = tdm_indices(live, truth)
+    steps = list(zip(idx, idx[1:]))
+    unknown = sum(1 for k in idx if k < 0)
+    odd = [(a, b) for a, b in steps if a >= 0 and b >= 0 and b - a != 1]
+    ok_tdm = (unknown == 0 and kf not in idx and len(live) >= 100 and len(odd) <= 2
+              and all(b - a in (0, 2) and kf - 1 <= a <= kf + 1 for a, b in odd)
+              and sum(b - a for a, b in odd) == 2)
+    print(f"TDM : {'PASS' if ok_tdm else 'FAIL'}  {len(live)} frames under LOCK, {unknown} unknown, "
+          f"frame {kf} {'absent' if kf not in idx else 'PRESENT'}, steps other than +1 at {odd}")
+    ok_uart = check_uart(d, truth)
+    blocks = truth_blocks(truth)
+    after = [p for p in uart_packets(d)
+             if p["xor_ok"] and p["stop_ok"] and p["ctrl"] in blocks and p["counter"] > kf]
+    ok_after = len(after) >= 2
+    print(f"UART: {'PASS' if ok_after else 'FAIL'}  {len(after)} good packets after the damaged block")
+    ok_mclk = check_mclk(d)
+    return ok_lock and ok_tx and ok_tdm and ok_uart and ok_after and ok_mclk
 
 
 def check_wd(d):

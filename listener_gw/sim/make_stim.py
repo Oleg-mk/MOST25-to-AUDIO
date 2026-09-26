@@ -15,6 +15,9 @@ Distortion model, from MOST Specification of Physical Layer Rev 1.1, SP4:
   * the sampling clock is free-running and unrelated to the ring.
 The preamble run pattern is a parameter (--preamble): the specifications do
 not give it, so the listener is tested with more than one shape.
+--kill-edge-frame F removes one edge inside frame F's data: two runs merge
+into one of 3 UI or more, a coding error on the line (the frame image in
+frames.hex stays what the source sent; runs.hex has the fault).
 
 Outputs, in --out:
   samples.hex   one line per 99 MHz clock: 2 hex digits, bit 0 = earliest sample
@@ -55,6 +58,8 @@ def main():
     ap.add_argument("--ppm", type=float, default=0.0, help="ring clock offset, ppm")
     ap.add_argument("--preamble", default="default", choices=sorted(PREAMBLE_SETS),
                     help="preamble run pattern set (virtual_most_source/config.py PREAMBLE_SETS)")
+    ap.add_argument("--kill-edge-frame", type=int, default=-1,
+                    help="remove one edge in this frame's data: two runs merge into one wrong run")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
@@ -70,6 +75,18 @@ def main():
         frames.append(fb.build(l, r, rnd.randrange(256), rnd.randrange(256)))
         first.append(i % 16 == 0)
     st = encode_frames(frames, cfg.preamble_runs_frame, cfg.preamble_runs_block, first)
+    kill = {}
+    if a.kill_edge_frame >= 0:
+        lo = a.kill_edge_frame * S.UI_PER_FRAME + 64
+        hi = a.kill_edge_frame * S.UI_PER_FRAME + 960
+        e = st.edges
+        for k in range(1, len(e) - 1):
+            merged = (e[k] - e[k - 1]) + (e[k + 1] - e[k])
+            if lo <= e[k] < hi and merged >= 3:        # a run the framer must refuse
+                kill = dict(kill_frame=a.kill_edge_frame, kill_edge_ui=e[k], kill_run_ui=merged)
+                del e[k]
+                break
+        assert kill, "no edge to kill in that frame"
 
     ui_s = 1.0 / (1024 * a.fs * (1 + a.ppm * 1e-6))
     edges = np.array(st.edges, dtype=np.float64)
@@ -104,7 +121,7 @@ def main():
     (a.out / "runs.hex").write_text("\n".join("%x" % r for r in runs) + "\n")
     meta = dict(vars(a), out=str(a.out), samples=int(n_samp), clocks=int(len(vals)),
                 ui_samples=ui_s * FSAMP, preamble_frame=cfg.preamble_runs_frame,
-                preamble_block=cfg.preamble_runs_block, parity_even=cfg.parity_even)
+                preamble_block=cfg.preamble_runs_block, parity_even=cfg.parity_even, **kill)
     (a.out / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"{a.frames} frames, {len(vals)} clocks, {ui_s * FSAMP:.2f} samples/UI -> {a.out}")
 

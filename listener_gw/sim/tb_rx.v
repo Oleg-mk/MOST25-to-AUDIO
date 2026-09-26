@@ -12,16 +12,19 @@ module tb_rx;
     integer nclk, i, j, fo, fr;
     reg [7:0] samp;
 
-    wire rv, rl, gl; wire [7:0] rlen;
+    wire rv, rl, gl; wire [7:0] rlen; wire [31:0] rt, st;
     wire sv, sl; wire [1:0] sym; wire [15:0] ui_q;
     wire bwe, fd, fpar, bk, lk, er; wire [5:0] ba; wire [7:0] bd; wire [3:0] bi;
+    reg [28:0] wc;                       // the sample time base, as in listener_core
+    always @(posedge clk) wc <= rst ? 29'd0 : wc + 29'd1;
 
-    rx_runlen   u_rl (.clk(clk), .rst(rst), .samp(samp), .run_valid(rv), .run_len(rlen),
-                      .run_level(rl), .glitch(gl));
+    rx_runlen   u_rl (.clk(clk), .rst(rst), .samp(samp), .wc(wc), .run_valid(rv), .run_len(rlen),
+                      .run_level(rl), .glitch(gl), .run_t(rt));
     rx_classify #(.RELEARN(RELEARN), .CLAMP(CLAMP))
                 u_cl (.clk(clk), .rst(rst), .run_valid(rv), .run_len(rlen), .run_level(rl),
-                      .locked(lk), .sym_valid(sv), .sym(sym), .sym_level(sl), .ui_q(ui_q));
-    rx_framer   u_fr (.clk(clk), .rst(rst), .sym_valid_i(sv), .sym_i(sym),
+                      .glitch(gl), .run_t(rt), .locked(lk), .sym_valid(sv), .sym(sym), .sym_len(),
+                      .sym_level(sl), .ui_q(ui_q), .sym_t(st));
+    rx_framer   u_fr (.clk(clk), .rst(rst), .sym_valid_i(sv), .sym_i(sym), .sym_t_i(st), .ui_q(ui_q),
                       .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                       .frame_par(fpar), .blk_idx(bi), .blk_known(bk), .locked(lk), .err(er));
 
