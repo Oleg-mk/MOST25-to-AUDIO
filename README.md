@@ -10,7 +10,10 @@ carries into audio and data the owner can use:
   loudness applied, so speakers moved to an amplifier or DSP of the owner's
   choice keep the car's controls;
 - **J2: everything, raw**: every frame byte on two TDM8 lines, the control
-  channel's blocks on UART, MCLK from the ring - for an analyser or a DSP;
+  channel's blocks on UART, MCLK from the ring - for an analyser or a DSP.
+  J2 and J3 show the frame as it leaves the listener: when the phone plays
+  into the car's AUX channels, they carry the phone, as the factory
+  amplifier after the listener does;
 - **phone audio into the car**: a phone's Bluetooth stream replaces the
   bytes of the car's own AUX source while the amplifier plays them, so it is
   heard through the factory system with the factory controls.

@@ -89,9 +89,11 @@ def prepare(name, stim, opts, work):
 def full_checks(d):
     truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
     runs = [int(x, 16) for x in (d / "runs.hex").read_text().split()]
+    cc.d_truth_ref = truth
+    left = cc.as_left(d, truth)                      # the frames as they left us: J2/J3's truth
     names = ["SI", "TX", "TDM", "UART", "MCLK", "I2S", "INJ", "FS", "WD"]
-    res = [cc.check_si514(d), cc.check_tx(d, runs), cc.check_tdm(d, truth),
-           cc.check_uart(d, truth), cc.check_mclk(d), cc.check_i2s(d, truth),
+    res = [cc.check_si514(d), cc.check_tx(d, runs), cc.check_tdm(d, left),
+           cc.check_uart(d, truth), cc.check_mclk(d), cc.check_i2s(d, left),
            cc.check_inject(d, truth), cc.check_fs(d), cc.check_wd(d)]
     return dict(zip(names, res))
 

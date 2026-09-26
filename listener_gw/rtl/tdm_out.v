@@ -4,6 +4,11 @@
 // 64-byte banks. When a frame completes, its bank number is held and a toggle
 // crosses into the ring domain.
 //
+// The frame goes out as it left the listener: where our own audio replaced
+// bytes on the ring (inject.v), the same bytes replace them here, from the set
+// the injector hands over for the frame just ended (sub_*), taken when the
+// frame counter wraps.
+//
 // Ring domain clk_r = 1024 Fs. BCLK = clk_r / 4 = 256 Fs, so a TDM frame of
 // 8 slots x 32 bit lasts exactly one MOST frame:
 //   SD0 = frame bytes 0..31, SD1 = frame bytes 32..63, MSB first, byte 0 first
@@ -27,6 +32,10 @@ module tdm_out (
     input  wire       enable,            // clk_s: receiver locked
     input  wire       clk_r,
     input  wire       rst_r,
+    input  wire       sub_on,             // inject.v prev_*: the frame just ended was injected...
+    input  wire       sub_w3,             // ...24 bit
+    input  wire [35:0] sub_pos,           // ...into these bytes
+    input  wire [47:0] sub_val,           // ...with these
     output reg        bclk,
     output reg        fs,
     output reg        sd0,
@@ -71,10 +80,27 @@ module tdm_out (
     wire [7:0] y1 = ram[{rb, 1'b1, b[7:3]}];
     wire [2:0] bi = 3'd7 - b[2:0];
 
+    // the injected bytes of this frame, in place of the ring's
+    reg        s_on, s_w3;
+    reg [35:0] s_pos;
+    reg [47:0] s_val;
+    reg        h0, h1;
+    reg [7:0]  v0, v1;
+    integer    k;
+    always @* begin
+        h0 = 1'b0; h1 = 1'b0; v0 = 8'd0; v1 = 8'd0;
+        for (k = 0; k < 6; k = k + 1)
+            if (s_on && (s_w3 || (k != 2 && k != 5))) begin
+                if (s_pos[6 * k +: 6] == {1'b0, b[7:3]}) begin h0 = 1'b1; v0 = s_val[8 * k +: 8]; end
+                if (s_pos[6 * k +: 6] == {1'b1, b[7:3]}) begin h1 = 1'b1; v1 = s_val[8 * k +: 8]; end
+            end
+    end
+
     always @(posedge clk_r) begin
         if (rst_r || !e[1]) begin
             cnt <= 10'd0; synced <= 1'b0; rbank <= 1'b0; have <= 1'b0; valid <= 1'b0;
             bclk <= 1'b0; fs <= 1'b0; sd0 <= 1'b0; sd1 <= 1'b0;
+            s_on <= 1'b0; s_w3 <= 1'b0; s_pos <= 36'd0; s_val <= 48'd0;
         end else begin
             if (new_frame) begin
                 have <= 1'b1;
@@ -93,11 +119,12 @@ module tdm_out (
             if (n == 10'd0) begin
                 rbank <= done_bank;
                 valid <= have & synced;
+                s_on <= sub_on; s_w3 <= sub_w3; s_pos <= sub_pos; s_val <= sub_val;
             end
             bclk <= n[1];
             fs   <= (b == 8'd0);
-            sd0  <= y0[bi];
-            sd1  <= y1[bi];
+            sd0  <= h0 ? v0[bi] : y0[bi];
+            sd1  <= h1 ? v1[bi] : y1[bi];
         end
     end
 endmodule

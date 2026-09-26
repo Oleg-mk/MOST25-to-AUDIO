@@ -5,13 +5,15 @@
         up at 1024 x the ring's Fs; LOCK switched on
   TX    after LOCK, every regenerated run (in clk_r cycles = UI) equals the
         ring's run - the ring must not see a single wrong edge
-  TDM   under LOCK every TDM frame equals the MOST frame, byte for byte, and
-        the frames follow each other without a gap
+  TDM   under LOCK every TDM frame equals the MOST frame as it left the
+        listener (our injected bytes in place of the ring's), byte for byte,
+        and the frames follow each other without a gap
   MCLK  under LOCK exactly 512 periods per TDM frame (512 Fs, locked to the ring)
   UART  every packet has the sync, a correct XOR, and control bytes equal to
         bytes 61, 62 of 16 consecutive ring frames starting on a block start
   I2S   after each host command (UART_RX), every I2S frame holds exactly the
-        commanded bytes of consecutive ring frames; a wrong-XOR command is ignored
+        commanded bytes of consecutive ring frames as they left the listener
+        (injected bytes included); a wrong-XOR command is ignored
   FS    the frame-rate output to the clock multiplier: every edge at a constant
         offset from the ring's own frame edge, to the sample (1.26 ns)
   INJ   the regenerated line, decoded: frames unchanged before and after
@@ -159,33 +161,110 @@ def tx_frames(d):
     return frames
 
 
-def check_inject(d, truth):
-    """What the ring gets while our audio goes in (tb: bytes 5..10, 24 bit,
-    L = 5A nnnn, R = C3 (nnnn + 1234) from the DSP model, n + 1 per frame):
-      * frames before and after injection equal the ring's frames bit for bit;
-      * injected frames equal them except bytes 5..10 and the parity bit;
-        bytes 5..10 carry consecutive samples; the XOR of bits 4..511 (what
-        any XOR parity rule sees) is unchanged;
-      * frames stay consecutive, order: original, injected, original;
-      * the command naming byte 61 changed nothing (else byte 61 would move).
-    """
-    INJ = (5, 6, 7, 8, 9, 10)
+def inj_positions(d):
+    """The frame bytes the tb's accepted "inject on" command names, L0 L1 L2 R0 R1 R2
+    (24 bit) or L0 L1 R0 R1 (16 bit); () when nothing was injected."""
+    for l in (d / "out_cfg.txt").read_text().splitlines():
+        t, c, bad, w, *p = map(int, l.split())
+        if c != 2 or bad or (w & 3) not in (2, 3):
+            continue
+        pos = tuple(p) if (w & 3) == 3 else (p[0], p[1], p[3], p[4])
+        if all(1 <= x <= 60 for x in pos):
+            return pos
+    return ()
+
+
+def match_tx(d, truth, inj):
+    """The regenerated line's frames matched to the ring's: (k, frame, injected) in
+    order, k None for a frame that is no ring frame. The match leaves out the
+    injected positions and the parity bit; `injected` says whether the rest
+    differs from the ring's frame (i.e. the injected bytes or the parity do)."""
     tb = [bytes.fromhex(t) for t in truth]
-    out = tx_frames(d)
+    skip = set(inj) | {0, 63}
 
-    def key(f):                                            # bytes injection never touches
-        return f[1:5] + f[11:63] + bytes([f[63] & 0xFE, f[0] & 0x0F])
-
-    def xor_bits(f):
-        return bin(int.from_bytes(f, "big") & ((1 << 508) - 1)).count("1") & 1
+    def key(f):
+        return bytes(b for i, b in enumerate(f) if i not in skip) + bytes([f[63] & 0xFE, f[0] & 0x0F])
 
     idx = {}
     for k, f in enumerate(tb):
         idx.setdefault(key(f), []).append(k)
-    phase, last, n_inj, n_orig, bad, prev_n = 0, None, [0, 0], 0, 0, None
-    for f in out:
+    out, last = [], None
+    for f in tx_frames(d):
         ks = idx.get(key(f), [])
         k = next((k for k in ks if last is None or k == last + 1), None)
+        if k is None:
+            out.append((None, f, None))
+            continue
+        last = k
+        t = tb[k]
+        out.append((k, f, not (f[1:] == t[1:] and (f[0] & 0x0F) == (t[0] & 0x0F))))
+    return out
+
+
+left_known_from = 0        # as_left: ring frames before this one have no TX evidence (see there)
+
+
+def as_left(d, truth):
+    """The ring's frames as they left the listener: the truth, with the bytes the
+    regenerated line carried at the injected positions in every injected frame.
+    J2 (TDM) and J3 (I2S) must show these, not what came in. The TX log starts
+    at LOCK: when injection was already on then (INJ_EARLY), the frames before
+    the first one decoded from TX cannot be judged this way (left_known_from)."""
+    global left_known_from
+    inj = inj_positions(d)
+    left = list(truth)
+    left_known_from = 0
+    if not inj:
+        return left
+    m = match_tx(d, truth, inj)
+    ks = [k for k, f, i in m if k is not None]
+    if ks and inject_before_lock(d):
+        left_known_from = min(ks)
+    for k, f, injected in m:
+        if k is not None and injected:
+            t = bytearray.fromhex(truth[k])
+            for p in inj:
+                t[p] = f[p]
+            left[k] = t.hex()
+    return left
+
+
+def masked_index(f, truth, inj):
+    """Which ring frame a TDM frame is when its injected bytes are left out of the
+    comparison (and byte 0's block index, as in tdm_indices); None if none."""
+    skip = set(inj) | {0}
+
+    def key(h):
+        b = bytes.fromhex(h)
+        return bytes(x for i, x in enumerate(b) if i not in skip) + bytes([b[0] & 0x0F])
+
+    kf = key(f)
+    return next((k for k, t in enumerate(truth) if key(t) == kf), None)
+
+
+def check_inject(d, truth):
+    """What the ring gets while our audio goes in (tb: bytes 1..6, 24 bit,
+    L = 5A nnnn, R = C3 (nnnn + 1234) from the DSP model, n + 1 per frame):
+      * frames before and after injection equal the ring's frames bit for bit;
+      * injected frames equal them except the injected bytes and the parity bit;
+        those bytes carry consecutive samples; the XOR of bits 4..511 (what
+        any XOR parity rule sees) is unchanged;
+      * frames stay consecutive, order: original, injected, original;
+      * the command naming byte 61 changed nothing (else byte 61 would move).
+    """
+    INJ = inj_positions(d) or (1, 2, 3, 4, 5, 6)
+    assert len(INJ) == 6, "the tb injects 24 bit"
+    tb = [bytes.fromhex(t) for t in truth]
+    skip = set(INJ) | {0, 63}
+
+    def key(f):                                            # bytes injection never touches
+        return bytes(b for i, b in enumerate(f) if i not in skip) + bytes([f[63] & 0xFE, f[0] & 0x0F])
+
+    def xor_bits(f):
+        return bin(int.from_bytes(f, "big") & ((1 << 508) - 1)).count("1") & 1
+
+    phase, last, n_inj, n_orig, bad, prev_n = 0, None, [0, 0], 0, 0, None
+    for k, f, injected in match_tx(d, truth, INJ):
         if k is None:
             bad += 1
             print(f"      TX frame with no ring counterpart: {f.hex()}")
@@ -194,7 +273,7 @@ def check_inject(d, truth):
             bad += 1
         last = k
         t = tb[k]
-        if f[1:] == t[1:] and (f[0] & 0x0F) == (t[0] & 0x0F):   # byte 0 high nibble = preamble
+        if not injected:
             if phase == 1:
                 phase = 2
             n_orig += 1
@@ -204,10 +283,10 @@ def check_inject(d, truth):
             bad += 1
             print("      injection came back after it was turned off")
         phase = 1
-        L = f[5] << 16 | f[6] << 8 | f[7]
-        R = f[8] << 16 | f[9] << 8 | f[10]
+        L = f[INJ[0]] << 16 | f[INJ[1]] << 8 | f[INJ[2]]
+        R = f[INJ[3]] << 16 | f[INJ[4]] << 8 | f[INJ[5]]
         n = L & 0xFFFF
-        good = (f[5] == 0x5A and f[8] == 0xC3 and (R & 0xFFFF) == ((n + 0x1234) & 0xFFFF)
+        good = (f[INJ[0]] == 0x5A and f[INJ[3]] == 0xC3 and (R & 0xFFFF) == ((n + 0x1234) & 0xFFFF)
                 and (prev_n is None or n == (prev_n + 1) & 0xFFFF)
                 and xor_bits(f) == xor_bits(t) and key(f) == key(t))
         if not good:
@@ -216,8 +295,8 @@ def check_inject(d, truth):
                   f"parity {xor_bits(f)} vs {xor_bits(t)}")
         prev_n = n
         n_inj[0] += 1
-    ok = bad == 0 and n_inj[0] >= 8 and phase == 2 and len(out) >= 40
-    print(f"INJ : {'PASS' if ok else 'FAIL'}  {len(out)} TX frames decoded: {n_orig} unchanged, "
+    ok = bad == 0 and n_inj[0] >= 8 and phase == 2 and n_orig + n_inj[0] + bad >= 40
+    print(f"INJ : {'PASS' if ok else 'FAIL'}  {n_orig + n_inj[0] + bad} TX frames decoded: {n_orig} unchanged, "
           f"{n_inj[0]} injected (samples consecutive, parity XOR kept), {bad} bad, "
           f"{'returned to pass-through' if phase == 2 else 'NEVER returned to pass-through'}")
     return ok
@@ -260,15 +339,29 @@ def tdm_indices(live, truth):
 
 
 def check_tdm(d, truth):
-    """Only frames sent under LOCK count; every one must be a ring frame, byte for
-    byte, and they must follow each other."""
+    """Only frames sent under LOCK count; every one must be a ring frame as it
+    left the listener (as_left: injected bytes included), byte for byte, and
+    they must follow each other."""
     live = tdm_frames_hex(d)
     idx = tdm_indices(live, truth)
+    # injection on before LOCK: the frames before the first one the TX log shows
+    # can only be placed with their injected bytes left out
+    pos = inj_positions(d)
+    early = 0
+    if pos and d_truth_ref:
+        for i, (f, k) in enumerate(zip(live, idx)):
+            if k < 0:
+                k2 = masked_index(f, d_truth_ref, pos)
+                if k2 is not None and k2 < left_known_from:
+                    idx[i] = k2
+                    early += 1
     matched = sum(1 for k in idx if k >= 0)
     bad = sum(1 for k in idx if k < 0)
     order_ok = all(b == a + 1 for a, b in zip(idx, idx[1:]) if a >= 0 and b >= 0)
+    inj = sum(1 for k in idx if k >= 0 and truth[k] != d_truth_ref[k]) if d_truth_ref else 0
     ok = bad == 0 and matched >= 8 and order_ok
-    print(f"TDM : {'PASS' if ok else 'FAIL'}  {matched} frames under LOCK matched, {bad} wrong, "
+    print(f"TDM : {'PASS' if ok else 'FAIL'}  {matched} frames under LOCK matched ({inj} of them with injected bytes"
+          f"{', ' + str(early) + ' before the TX log begins' if early else ''}), {bad} wrong, "
           f"{'in order' if order_ok else 'OUT OF ORDER (skipped or repeated)'}")
     return ok
 
@@ -354,7 +447,8 @@ def check_mclk(d):
 
 
 def check_i2s(d, truth):
-    """J3 carries exactly the bytes the host asked for, through amp_out, frame after frame.
+    """J3 carries exactly the bytes the host asked for, through amp_out, frame after
+    frame - from the frames as they left the listener (as_left).
 
     out_cfg.txt lists the commands sent (a wrong-XOR one must change nothing).
     The host first sets amp_out straight through with stream 0 to L x 1 and
@@ -393,7 +487,7 @@ def check_i2s(d, truth):
         L = s24(l[0] << 16 | l[1] << 8 | l[2]); R = s24(r[0] << 16 | r[1] << 8 | r[2])
         return (slot(L), slot((R + 1) >> 1))
 
-    stage, last, counts, bad = 0, None, [0] * (len(cfgs) + 1), 0
+    stage, last, counts, bad, seen = 0, None, [0] * (len(cfgs) + 1), 0, []
     for fw in frames:
         if stage == 0 and fw == (0, 0):
             counts[0] += 1
@@ -415,9 +509,11 @@ def check_i2s(d, truth):
             bad += 1                                          # skipped or repeated frame
             print(f"      ring frame {k} follows {last}")
         stage, last = st, k
+        seen.append(k)
         counts[st] += 1
+    inj = sum(1 for k in seen if truth[k] != d_truth_ref[k]) if d_truth_ref else 0
     ok = bad == 0 and all(c >= 4 for c in counts[1:]) and len(cfgs) == 2
-    print(f"I2S : {'PASS' if ok else 'FAIL'}  {len(frames)} frames: {counts[0]} silent before the "
+    print(f"I2S : {'PASS' if ok else 'FAIL'}  {len(frames)} frames ({inj} of them with injected bytes): {counts[0]} silent before the "
           f"first command, " + ", ".join(f"cfg{i} {c}" for i, c in enumerate(counts[1:], 1))
           + f"; {bad} wrong or out of order")
     return ok
@@ -623,12 +719,18 @@ def check_clkstop(d, tw_ns=10000.0):
     return ok
 
 
+d_truth_ref = None          # the frames as the ring sent them, for the counts in TDM/I2S reports
+
+
 def main(d):
+    global d_truth_ref
     d = Path(d)
     truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
     runs = [int(x, 16) for x in (d / "runs.hex").read_text().split()]
-    res = [check_si514(d), check_tx(d, runs), check_tdm(d, truth), check_uart(d, truth),
-           check_mclk(d), check_i2s(d, truth), check_inject(d, truth), check_fs(d)]
+    d_truth_ref = truth
+    left = as_left(d, truth)
+    res = [check_si514(d), check_tx(d, runs), check_tdm(d, left), check_uart(d, truth),
+           check_mclk(d), check_i2s(d, left), check_inject(d, truth), check_fs(d)]
     print("PASS" if all(res) else "FAIL")
     return 0 if all(res) else 1
 

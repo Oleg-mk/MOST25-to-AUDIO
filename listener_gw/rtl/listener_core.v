@@ -3,10 +3,10 @@
 //   samp (8 per clk_s) -> rx_runlen -> rx_classify -> rx_framer
 //        rx_classify -> regen (clk_r) -> inject -> tx_regen   ring, regenerated
 //                                         (inject: our audio into chosen bytes)
-//        rx_framer   -> tdm_out (clk_r) -> BCLK FS SD0 SD1  every frame byte
+//        rx_framer   -> tdm_out (clk_r) -> BCLK FS SD0 SD1  every frame byte, as it left us
 //        rx_framer   -> ctrl_uart       -> uart_tx          raw control blocks
 //        rx_framer   -> amp_out (clk_r) -> I2S              up to 3 sources, tone, volume,
-//                                                          balance: L R
+//                                                          balance: L R, as they left us
 //        uart_rx -> host_cmd -> amp_out, inject             host picks bytes, sets coefficients
 //        I2S_DIN -> inject                                 audio in, on our own BCLK/LRCK
 //        clk_r = 1024 Fs comes from a Si514 (I2C programmable XO) that this
@@ -147,9 +147,12 @@ module listener_core #(
                 .st(rg_st), .st_len(rg_len));
 
     // --------------------------------------------------------------- TDM out
+    // (with the bytes our audio replaced on the ring: what left us, not what came)
     wire tdm_valid; wire [9:0] tdm_n;
+    wire ij_on, ij_w3; wire [35:0] ij_pos; wire [47:0] ij_val;
     tdm_out u_tdm (.clk_s(clk_s), .rst_s(rst_s), .byte_we(bwe), .byte_addr(ba), .byte_data(bd),
                    .frame_done(fd), .enable(rx_lk), .clk_r(clk_r), .rst_r(rst_r),
+                   .sub_on(ij_on), .sub_w3(ij_w3), .sub_pos(ij_pos), .sub_val(ij_val),
                    .bclk(tdm_bclk), .fs(tdm_fs), .sd0(tdm_sd0), .sd1(tdm_sd1), .valid(tdm_valid),
                    .phase_n(tdm_n));
 
@@ -161,6 +164,7 @@ module listener_core #(
     amp_out    u_amp (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(hok), .cmd(hcmd), .cmd_p(hp),
                       .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                       .clk_r(clk_r), .rst_r(rst_r), .phase_n(tdm_n), .run(tdm_valid),
+                      .sub_on(ij_on), .sub_w3(ij_w3), .sub_pos(ij_pos), .sub_val(ij_val),
                       .bclk(i2s_bclk), .lrck(i2s_lrck), .sd(i2s_dout),
                       .overrun());
 
@@ -168,7 +172,8 @@ module listener_core #(
     inject     u_inj (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(hok), .cmd(hcmd), .cmd_p(hp),
                       .clk_r(clk_r), .rst_r(rst_r), .st(rg_st), .st_len(rg_len),
                       .phase_n(tdm_n), .i2s_run(tdm_valid), .din(i2s_din),
-                      .tx(tx_regen), .active(inj_active));
+                      .tx(tx_regen), .active(inj_active),
+                      .prev_on(ij_on), .prev_w3(ij_w3), .prev_pos(ij_pos), .prev_val(ij_val));
 
     // ------------------------------------------------------------------ MCLK
     // 512 Fs from the ring-locked clock: the receiver's master clock, at

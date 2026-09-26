@@ -94,7 +94,9 @@ injection is off after a core reset; a repeated command changes nothing):
   amplifier does only if the listener sits between the AUX source and the
   amplifier, in the direction of the light - on the fiber into the
   amplifier it always does. For listening (J2, J3) any place will do.
-- 01: J3 plays the amplifier's sink 1 (the main zone).
+- 01: J3 plays the amplifier's sink 1 (the main zone), from the frame as it
+  leaves the listener - our audio included while it replaces the AUX source's
+  bytes and the amplifier plays them.
 - 03: J3's coefficient set (section below), sent first so that a source is
   never heard at full scale before its gains; while the settings change, at
   most one set every 20 ms.

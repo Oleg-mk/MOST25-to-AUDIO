@@ -213,7 +213,9 @@ module tb_core;
 
     // DSP model on the audio input: an I2S slave on our BCLK/LRCK, sending
     // L = 5A nnnn, R = C3 (nnnn + 1234) (24 bit), n + 1 every frame; the
-    // changed bits' XOR then varies from frame to frame, so parity is exercised
+    // changed bits' XOR then varies from frame to frame, so parity is exercised.
+    // It goes into bytes 1..6, the bytes J3's two configurations pick from, so
+    // that J3 and TDM are seen to carry the frame as it left us
     integer slot = 0; reg lr_d = 1'b0; reg [15:0] cnt = 16'd0;
     reg [23:0] dl = 24'd0, dr = 24'd0;
     always @(negedge ibclk) begin
@@ -232,7 +234,7 @@ module tb_core;
         @(negedge rst);
         if (INJ_EARLY) begin                                        // before the Si514 is centred:
             repeat (3000) @(posedge clk_s);                         // the ring domain is reset under it
-            send_cmd(8'h02, 8'd3, 8'd5, 8'd6, 8'd7, 8'd8, 8'd9, 8'd10, 1'b0);
+            send_cmd(8'h02, 8'd3, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);
         end
         @(posedge lock);                                            // the loop has locked
         repeat (2000) @(posedge clk_s);
@@ -248,9 +250,9 @@ module tb_core;
         repeat (50000) @(posedge clk_s);
         if (!INJ_EARLY && !NO_INJECT) begin
 `ifdef NOFIX
-            send_cmd(8'h02, 8'h83, 8'd5, 8'd6, 8'd7, 8'd8, 8'd9, 8'd10, 1'b0); // (mutation: parity not fixed)
+            send_cmd(8'h02, 8'h83, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);   // (mutation: parity not fixed)
 `else
-            send_cmd(8'h02, 8'd3, 8'd5, 8'd6, 8'd7, 8'd8, 8'd9, 8'd10, 1'b0);  // inject 24 bit into 5..10
+            send_cmd(8'h02, 8'd3, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);    // inject 24 bit into 1..6
 `endif
         end
         repeat (20000) @(posedge clk_s);

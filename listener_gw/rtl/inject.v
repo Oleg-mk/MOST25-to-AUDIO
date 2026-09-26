@@ -26,6 +26,13 @@
 //             accepted (the synchronous area): a command naming byte 0 or the
 //             control/frame-control bytes 61..63 is refused as a whole.
 //
+// What went out. At every frame start the set just used - on or off, the
+// byte positions and the six sample bytes - is handed out (prev_*) for the
+// outputs that show the frame as it left us: tdm_out and amp_out take it when
+// their frame counter wraps, 128 UI after the receiver completed that frame,
+// which is after this block has begun the next one (the regenerator's delay
+// is 11..85 UI) and long before it begins the one after.
+//
 // Audio in. The samples arrive on I2S_DIN in the same format as the stereo
 // output (I2S, 32-bit slots, 16/24 bit, MSB one BCLK after the LRCK edge),
 // clocked by our own BCLK/LRCK - which run from the ring clock, so there is
@@ -60,7 +67,11 @@ module inject #(
     input  wire        i2s_run,             // that counter runs
     input  wire        din,                 // I2S_DIN, audio in
     output reg         tx,                  // line to the ring
-    output reg         active               // injecting in this frame (clk_r)
+    output reg         active,              // injecting in this frame (clk_r)
+    output reg         prev_on,             // the frame just ended was injected...
+    output reg         prev_w3,             // ...24 bit (else 16: bytes 2 and 5 unused)
+    output reg  [35:0] prev_pos,            // ...into these frame bytes (6 x 6 bits, L0 L1 L2 R0 R1 R2)
+    output reg  [47:0] prev_val             // ...with these bytes
 );
     // --------------------------------------------- command 02 (clk_s)
     reg [7:0] c_m = 8'd0;
@@ -172,6 +183,7 @@ module inject #(
         if (rst_r) begin
             inf <= 1'b0; nxt <= 11'd0; good <= 4'd0; on <= 1'b0; active <= 1'b0;
             tx <= 1'b0; delta <= 1'b0; fix <= 1'b0; w3 <= 1'b0;
+            prev_on <= 1'b0; prev_w3 <= 1'b0; prev_pos <= 36'd0; prev_val <= 48'd0;
         end else begin
             tx <= tx ^ f_out;
             if (go && hit && u[0]) delta <= delta ^ nb ^ st;
@@ -181,6 +193,12 @@ module inject #(
                 inf <= 1'b1; nxt <= 11'd1;
                 if (!intime) good <= 4'd0;
                 else if (good != 4'd15) good <= good + 4'd1;
+                // the set the frame just ended went out with
+                prev_on <= on; prev_w3 <= w3;
+                for (k = 0; k < 6; k = k + 1) begin
+                    prev_pos[6 * k +: 6] <= fpos[k];
+                    prev_val[8 * k +: 8] <= val[k];
+                end
                 // take this frame's settings and the newest sample pair
                 on     <= (r_m[1:0] != 2'd0) && intime && good >= INJ_LOCK && irun[1];
                 active <= (r_m[1:0] != 2'd0) && intime && good >= INJ_LOCK && irun[1];

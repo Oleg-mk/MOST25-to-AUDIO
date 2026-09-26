@@ -34,6 +34,11 @@
 // the UART, the switch at most one program run (9 us) after the commit, so
 // the next write never reaches the bank still in use.
 //
+// The sources are taken from the frame as it left the listener: where our
+// own audio replaced bytes on the ring (inject.v), the same bytes stand in
+// here (sub_*, the set of the frame just ended, live at phase_n 0), so what a
+// DSP on J3 plays is what the factory amplifier after us plays.
+//
 // Neither the banks nor the engine's gains are cleared by a reset: after power
 // up everything is zero, so the output is silent until the host has written
 // a set; after that a reset of either clock domain changes nothing audible,
@@ -54,6 +59,10 @@ module amp_out (
     input  wire        rst_r,
     input  wire [9:0]  phase_n,
     input  wire        run,                 // tdm_out is running (clk_r domain)
+    input  wire        sub_on,              // inject.v prev_*: the frame just ended was injected...
+    input  wire        sub_w3,              // ...24 bit
+    input  wire [35:0] sub_pos,             // ...into these frame bytes
+    input  wire [47:0] sub_val,             // ...with these
     output reg         bclk,
     output reg         lrck,
     output reg         sd,                  // L R
@@ -82,6 +91,7 @@ module amp_out (
     // A command takes effect at the next frame boundary, so no frame is ever
     // put together from two different sets of positions.
     reg [5:0] pos [0:17];                   // in effect for the frame being collected
+    reg [5:0] pfin [0:17];                  // ...and the positions fin was collected with
     reg [7:0] cur [0:17];                   // being collected
     reg [7:0] fin [0:17];                   // last complete frame, stable ~1 frame
     reg [1:0] wid [0:2], wfin [0:2];        // width in effect / with fin
@@ -99,6 +109,7 @@ module amp_out (
             if (frame_done) begin
                 for (k = 0; k < 18; k = k + 1) begin
                     fin[k] <= cur[k];
+                    pfin[k] <= pos[k];
                     pos[k] <= pnew[k];
                 end
                 for (s = 0; s < 3; s = s + 1) begin
@@ -114,13 +125,20 @@ module amp_out (
     // so it is quiet when the engine latches it at phase_n == 0
     reg [143:0] in_w;
     reg [23:0]  l24, r24;
-    integer     q;                          // its own: the clocked blocks' loops run on k, s
+    reg [7:0]   fb [0:17];                  // fin, with the bytes we put on the ring in their place
+    integer     q, m;                       // their own: the clocked blocks' loops run on k, s
     always @* begin
+        for (q = 0; q < 18; q = q + 1) begin
+            fb[q] = fin[q];
+            for (m = 0; m < 6; m = m + 1)
+                if (sub_on && (sub_w3 || (m != 2 && m != 5)) && sub_pos[6 * m +: 6] == pfin[q])
+                    fb[q] = sub_val[8 * m +: 8];
+        end
         for (q = 0; q < 3; q = q + 1) begin
-            l24 = (wfin[q] == 2'd3) ? {fin[6 * q], fin[6 * q + 1], fin[6 * q + 2]} :
-                  (wfin[q] == 2'd2) ? {fin[6 * q], fin[6 * q + 1], 8'd0} : 24'd0;
-            r24 = (wfin[q] == 2'd3) ? {fin[6 * q + 3], fin[6 * q + 4], fin[6 * q + 5]} :
-                  (wfin[q] == 2'd2) ? {fin[6 * q + 3], fin[6 * q + 4], 8'd0} : 24'd0;
+            l24 = (wfin[q] == 2'd3) ? {fb[6 * q], fb[6 * q + 1], fb[6 * q + 2]} :
+                  (wfin[q] == 2'd2) ? {fb[6 * q], fb[6 * q + 1], 8'd0} : 24'd0;
+            r24 = (wfin[q] == 2'd3) ? {fb[6 * q + 3], fb[6 * q + 4], fb[6 * q + 5]} :
+                  (wfin[q] == 2'd2) ? {fb[6 * q + 3], fb[6 * q + 4], 8'd0} : 24'd0;
             in_w[143 - 48 * q -: 24] = l24;
             in_w[119 - 48 * q -: 24] = mfin[q] ? l24 : r24;
         end
