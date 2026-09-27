@@ -213,6 +213,7 @@ S = {
         ("1", "GND", "power_in", "B", 3.81), ("9", "EP", "passive", "B", 7.62),
     ], "4.2-80 V, 2 A synchronous buck, 400 kHz set by RT, forced PWM (F)"),
     "DZ": from_kicad("Device", "D_Zener"),
+    "CP": from_kicad("Device", "C_Polarized"),
     "SW_ILIM": ic("TPS2553DBV", "U", 20.32, 10.16, [
         ("1", "IN", "power_in", "L", 2.54), ("3", "EN", "input", "L", 7.62),
         ("6", "OUT", "power_out", "R", 2.54),
@@ -717,7 +718,7 @@ def power_block(sh):
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
     sh.text("Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В, негативні - прямим діодом.", 17.78, 87.63, 1.27)
     sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
-    sh.text("5V_SW (U6 LMR38020: до 80 В, 400 кГц від R31) вмикає WAKE: модуль FPGA, з його 3V3 - блок 9 (~0.1 А). VOUT = 1 В x (1 + R4/R5) = 5.31 В.", 17.78, 95.25, 1.27)
+    sh.text("5V_SW (U6 LMR38020: до 80 В, 400 кГц від R31) вмикає WAKE: FPGA і блок 9 (~0.1 А). VOUT = 5.31 В. C44, C45 з керамікою: проти дзвону джгута.", 17.78, 95.25, 1.27)
     sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
@@ -756,6 +757,18 @@ def power_block(sh):
                     ref_at=(vn[0] - 22.86, vin[1] + 2.54), val_at=(vn[0] - 22.86, vin[1] + 5.08),
                     fjust=("right", "right"))
     sh.wire(vn, c4.p("1"), c43.p("1")); sh.gnd(c4.p("2")); sh.gnd(c43.p("2"))
+    # two electrolytics, each with a ceramic beside it: the harness is long, and its
+    # inductance rings with ceramics alone on load steps (LMR38020 data sheet 9.2.2.6)
+    prev = c43
+    for k, (key, ref, val, fp) in enumerate((("CP", "C44", "100u 63V", "Capacitor_SMD:CP_Elec_10x10.5"),
+                                             ("C", "C46", "100n 100V", SMD["C"]),
+                                             ("CP", "C45", "100u 63V", "Capacitor_SMD:CP_Elec_10x10.5"),
+                                             ("C", "C47", "100n 100V", SMD["C"]))):
+        x = vn[0] - 35.56 - 15.24 * k
+        c = sh.at_pin(key, ref, val, "1", (x, vin[1]), fp=fp, ref_at=(x - 2.54, vin[1] + 2.54),
+                      val_at=(x - 2.54, vin[1] + 5.08), fjust=("right", "right"))
+        sh.wire(prev.p("1"), c.p("1")); sh.gnd(c.p("2"))
+        prev = c
     sh.lbl("WAKE", u6.p("2"), 20.32, "L")
     b = u6.p("1")[1] + 2.54
     sh.wire(u6.p("1"), (u6.p("1")[0], b)); sh.wire(u6.p("9"), (u6.p("9")[0], b))
