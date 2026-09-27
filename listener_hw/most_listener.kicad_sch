@@ -327,6 +327,184 @@
 		)
 		(embedded_fonts no)
 	)
+	(symbol "Device:L"
+		(pin_numbers
+			(hide yes)
+		)
+		(pin_names
+			(offset 1.016)
+			(hide yes)
+		)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(duplicate_pin_numbers_are_jumpers no)
+		(property "Reference" "L"
+			(at -1.27 0 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "L"
+			(at 1.905 0 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Inductor"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_keywords" "inductor choke coil reactor magnetic"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "ki_fp_filters" "Choke_* *Coil* Inductor_* L_*"
+			(at 0 0 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(hide yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(symbol "L_0_1"
+			(arc
+				(start 0 2.54)
+				(mid 0.6323 1.905)
+				(end 0 1.27)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(arc
+				(start 0 1.27)
+				(mid 0.6323 0.635)
+				(end 0 0)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(arc
+				(start 0 0)
+				(mid 0.6323 -0.635)
+				(end 0 -1.27)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+			(arc
+				(start 0 -1.27)
+				(mid 0.6323 -1.905)
+				(end 0 -2.54)
+				(stroke
+					(width 0)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
+		)
+		(symbol "L_1_1"
+			(pin passive line
+				(at 0 3.81 270)
+				(length 1.27)
+				(name "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "1"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 0 -3.81 90)
+				(length 1.27)
+				(name "2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+				(number "2"
+					(effects
+						(font
+							(size 1.27 1.27)
+						)
+					)
+				)
+			)
+		)
+		(embedded_fonts no)
+	)
 	(symbol "power:GND"
 		(power global)
 		(pin_numbers
@@ -1208,184 +1386,6 @@
 				(at 0 -3.81 90)
 				(length 1.27)
 				(name ""
-					(effects
-						(font
-							(size 1.27 1.27)
-						)
-					)
-				)
-				(number "2"
-					(effects
-						(font
-							(size 1.27 1.27)
-						)
-					)
-				)
-			)
-		)
-		(embedded_fonts no)
-	)
-	(symbol "Device:L"
-		(pin_numbers
-			(hide yes)
-		)
-		(pin_names
-			(offset 1.016)
-			(hide yes)
-		)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(in_pos_files yes)
-		(duplicate_pin_numbers_are_jumpers no)
-		(property "Reference" "L"
-			(at -1.27 0 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "L"
-			(at 1.905 0 90)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Datasheet" ""
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Description" "Inductor"
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "ki_keywords" "inductor choke coil reactor magnetic"
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "ki_fp_filters" "Choke_* *Coil* Inductor_* L_*"
-			(at 0 0 0)
-			(show_name no)
-			(do_not_autoplace no)
-			(hide yes)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(symbol "L_0_1"
-			(arc
-				(start 0 2.54)
-				(mid 0.6323 1.905)
-				(end 0 1.27)
-				(stroke
-					(width 0)
-					(type default)
-				)
-				(fill
-					(type none)
-				)
-			)
-			(arc
-				(start 0 1.27)
-				(mid 0.6323 0.635)
-				(end 0 0)
-				(stroke
-					(width 0)
-					(type default)
-				)
-				(fill
-					(type none)
-				)
-			)
-			(arc
-				(start 0 0)
-				(mid 0.6323 -0.635)
-				(end 0 -1.27)
-				(stroke
-					(width 0)
-					(type default)
-				)
-				(fill
-					(type none)
-				)
-			)
-			(arc
-				(start 0 -1.27)
-				(mid 0.6323 -1.905)
-				(end 0 -2.54)
-				(stroke
-					(width 0)
-					(type default)
-				)
-				(fill
-					(type none)
-				)
-			)
-		)
-		(symbol "L_1_1"
-			(pin passive line
-				(at 0 3.81 270)
-				(length 1.27)
-				(name "1"
-					(effects
-						(font
-							(size 1.27 1.27)
-						)
-					)
-				)
-				(number "1"
-					(effects
-						(font
-							(size 1.27 1.27)
-						)
-					)
-				)
-			)
-			(pin passive line
-				(at 0 -3.81 90)
-				(length 1.27)
-				(name "2"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -2509,6 +2509,13 @@
   (property "Datasheet" "" (at 57.15 44.45 0) (effects (font (size 1.27 1.27)) (hide yes)))
   (pin "1" (uuid "521de607-6c82-5249-8a80-b7b2497eb3ca")) (pin "2" (uuid "198f28e8-e090-585e-8138-e71eb5e98a18"))
   (instances (project "most_listener" (path "/1dba4ab3-cb1b-59ba-ab72-d256b8063c7a" (reference "D1") (unit 1)))))
+(symbol (lib_id "Device:L") (at 67.31 44.45 90) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b649e943-e110-529a-b5d6-073552040431")
+  (property "Reference" "L2" (at 67.31 41.91 90) (effects (font (size 1.27 1.27))))
+  (property "Value" "22u" (at 67.31 46.99 90) (effects (font (size 1.27 1.27))))
+  (property "Footprint" "Inductor_SMD:L_Bourns-SRN8040_8x8.15mm" (at 67.31 44.45 0) (effects (font (size 1.27 1.27)) (hide yes)))
+  (property "Datasheet" "" (at 67.31 44.45 0) (effects (font (size 1.27 1.27)) (hide yes)))
+  (pin "1" (uuid "96152950-7c01-5e8f-9839-d1c9a52ea8e7")) (pin "2" (uuid "ebf78cd6-4274-5d67-bcf6-b54e96182ee1"))
+  (instances (project "most_listener" (path "/1dba4ab3-cb1b-59ba-ab72-d256b8063c7a" (reference "L2") (unit 1)))))
 (symbol (lib_id "power:GND") (at 33.02 60.96 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "64f0fa00-e81c-581b-81bf-3d4e1e5e41dd")
   (property "Reference" "#PWR001" (at 33.02 67.31 0) (effects (font (size 1.27 1.27)) (hide yes)))
   (property "Value" "GND" (at 33.02 66.04 0) (effects (font (size 1.27 1.27)) (hide yes)))
@@ -2523,11 +2530,11 @@
   (property "Datasheet" "" (at 35.56 55.88 0) (effects (font (size 1.27 1.27)) (hide yes)))
   (pin "1" (uuid "0b605aa1-e57a-52a9-b9e7-52e39b590266"))
   (instances (project "most_listener" (path "/1dba4ab3-cb1b-59ba-ab72-d256b8063c7a" (reference "#FLG002") (unit 1)))))
-(symbol (lib_id "most_listener:VBAT_P") (at 68.58 39.37 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "c69eece4-4c61-528c-a6f4-80f84b8e0934")
-  (property "Reference" "#PWR003" (at 68.58 45.72 0) (effects (font (size 1.27 1.27)) (hide yes)))
-  (property "Value" "VBAT_P" (at 68.58 35.56 0) (effects (font (size 1.27 1.27))))
-  (property "Footprint" "" (at 68.58 39.37 0) (effects (font (size 1.27 1.27)) (hide yes)))
-  (property "Datasheet" "" (at 68.58 39.37 0) (effects (font (size 1.27 1.27)) (hide yes)))
+(symbol (lib_id "most_listener:VBAT_P") (at 73.66 39.37 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "c69eece4-4c61-528c-a6f4-80f84b8e0934")
+  (property "Reference" "#PWR003" (at 73.66 45.72 0) (effects (font (size 1.27 1.27)) (hide yes)))
+  (property "Value" "VBAT_P" (at 73.66 35.56 0) (effects (font (size 1.27 1.27))))
+  (property "Footprint" "" (at 73.66 39.37 0) (effects (font (size 1.27 1.27)) (hide yes)))
+  (property "Datasheet" "" (at 73.66 39.37 0) (effects (font (size 1.27 1.27)) (hide yes)))
   (pin "1" (uuid "6d3c6567-a695-5c50-9829-fb2cd1dec0e7"))
   (instances (project "most_listener" (path "/1dba4ab3-cb1b-59ba-ab72-d256b8063c7a" (reference "#PWR003") (unit 1)))))
 (symbol (lib_id "power:PWR_FLAG") (at 81.28 44.45 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "75c720ca-42a2-59dd-beb9-ebf4b82c9200")
@@ -2581,7 +2588,7 @@
   (instances (project "most_listener" (path "/1dba4ab3-cb1b-59ba-ab72-d256b8063c7a" (reference "#PWR007") (unit 1)))))
 (text "Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В, негативні - прямим діодом." (exclude_from_sim no) (at 17.78 87.63 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "4c86fd8b-3863-591c-b931-d5f416c0ddf5"))
 (text "3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7." (exclude_from_sim no) (at 17.78 91.44 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "c0201ef9-a2ff-560d-b0e1-d103f06f51e3"))
-(text "5V_SW (U6 LMR38020: до 80 В, 400 кГц від R31) вмикає WAKE: FPGA і блок 9 (~0.1 А). VOUT = 5.31 В. C44, C45 з керамікою: проти дзвону джгута." (exclude_from_sim no) (at 17.78 95.25 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "da04e78e-a6de-5fc9-946c-dd7e2d807387"))
+(text "5V_SW (U6 LMR38020, 80 В, 400 кГц) вмикає WAKE: модуль FPGA і U14 (3V3_DA, блок 9). VOUT 5.31 В. C44/C45 + L2 22 мкГн: дзвін джгута і 400 кГц не в джгут." (exclude_from_sim no) (at 17.78 95.25 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "c09f662e-9de6-5f50-b6fd-35a7ec29b5fa"))
 (text "5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять." (exclude_from_sim no) (at 17.78 99.06 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1efde64f-8568-56b9-a971-805ff3e67202"))
 (symbol (lib_id "most_listener:TPS7B8133DRV") (at 116.84 31.75 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "b838c656-d339-59ad-983b-312ae3e2308f")
   (property "Reference" "U5" (at 105.41 25.4 0) (effects (font (size 1.27 1.27)) (justify left bottom)))
@@ -4338,20 +4345,21 @@
 (wire (pts (xy 57.15 63.5) (xy 72.39 63.5)) (stroke (width 0) (type default)) (uuid "3b4f2832-1b83-5cd4-b51c-058116430d78"))
 (wire (pts (xy 57.15 231.14) (xy 57.15 233.68)) (stroke (width 0) (type default)) (uuid "6d8fcbf2-37c5-5d69-80f6-0d15eae4b9a0"))
 (wire (pts (xy 57.15 241.3) (xy 85.09 241.3)) (stroke (width 0) (type default)) (uuid "d866298a-c4be-575c-8e77-3391dc2520be"))
-(wire (pts (xy 60.96 44.45) (xy 68.58 44.45)) (stroke (width 0) (type default)) (uuid "61bf8a55-9f96-5520-8700-590e72a47269"))
+(wire (pts (xy 60.96 44.45) (xy 63.5 44.45)) (stroke (width 0) (type default)) (uuid "580d90cf-6ca2-53de-974a-e6bdad21b5ed"))
 (wire (pts (xy 60.96 147.32) (xy 68.58 147.32)) (stroke (width 0) (type default)) (uuid "a0422d42-e8d0-5c04-89e9-d382560be9f9"))
 (wire (pts (xy 60.96 157.48) (xy 68.58 157.48)) (stroke (width 0) (type default)) (uuid "1a21260d-83cf-5e00-81f9-1d993fb7ec3f"))
 (wire (pts (xy 60.96 215.9) (xy 68.58 215.9)) (stroke (width 0) (type default)) (uuid "2ab5d84d-5ffb-5679-9253-dc13607ec40e"))
 (wire (pts (xy 63.5 313.69) (xy 63.5 316.23)) (stroke (width 0) (type default)) (uuid "6f611874-1aec-54fe-8ab8-2552242af082"))
 (wire (pts (xy 63.5 328.93) (xy 71.12 328.93)) (stroke (width 0) (type default)) (uuid "e70d8a1c-3ca8-52a3-8b98-f634717aac89"))
 (wire (pts (xy 66.04 121.92) (xy 76.2 121.92)) (stroke (width 0) (type default)) (uuid "657be224-f05a-5501-bd3d-7b1e28676343"))
-(wire (pts (xy 68.58 39.37) (xy 68.58 44.45)) (stroke (width 0) (type default)) (uuid "6d322d21-12a5-5f37-a4a8-c29bff1433fa"))
-(wire (pts (xy 68.58 44.45) (xy 78.74 44.45)) (stroke (width 0) (type default)) (uuid "541684f4-7527-5f90-ae11-96868f7beb5f"))
 (wire (pts (xy 68.58 157.48) (xy 68.58 184.15)) (stroke (width 0) (type default)) (uuid "cb042947-1004-547f-b438-5409a2f36627"))
 (wire (pts (xy 68.58 184.15) (xy 175.26 184.15)) (stroke (width 0) (type default)) (uuid "ff3be5cc-6943-5eb2-84a2-e6c7d4bbde4a"))
 (wire (pts (xy 68.58 215.9) (xy 99.06 215.9)) (stroke (width 0) (type default)) (uuid "5b9fb66c-c020-5348-bbd8-e351ad549d68"))
+(wire (pts (xy 71.12 44.45) (xy 73.66 44.45)) (stroke (width 0) (type default)) (uuid "16953543-0914-5c0f-8dc4-e201a2dbe53a"))
 (wire (pts (xy 72.39 63.5) (xy 87.63 63.5)) (stroke (width 0) (type default)) (uuid "fb9da81b-fcae-57c9-b10d-1a78e17d793d"))
 (wire (pts (xy 72.39 238.76) (xy 80.01 238.76)) (stroke (width 0) (type default)) (uuid "2e54488a-f0c1-561a-87f1-6fe6cf96d423"))
+(wire (pts (xy 73.66 39.37) (xy 73.66 44.45)) (stroke (width 0) (type default)) (uuid "646068a5-97e9-51c5-9a89-ef3f1ea4767c"))
+(wire (pts (xy 73.66 44.45) (xy 78.74 44.45)) (stroke (width 0) (type default)) (uuid "d09244a9-a7af-5190-9484-d48ea8bd0a03"))
 (wire (pts (xy 76.2 147.32) (xy 78.74 147.32)) (stroke (width 0) (type default)) (uuid "c37b5893-383a-5ef3-8e52-423b51ee6f42"))
 (wire (pts (xy 76.2 339.09) (xy 76.2 344.17)) (stroke (width 0) (type default)) (uuid "908aadb5-75ff-5c0c-b6fe-c66a8e3707a8"))
 (wire (pts (xy 76.2 339.09) (xy 86.36 339.09)) (stroke (width 0) (type default)) (uuid "011dd3f1-6d74-52cc-873b-f1201bb86445"))
@@ -4661,9 +4669,9 @@
 (junction (at 57.15 63.5) (diameter 0) (color 0 0 0 0) (uuid "f68416e2-72a6-5c05-9734-c64fabc4f492"))
 (junction (at 57.15 241.3) (diameter 0) (color 0 0 0 0) (uuid "9eeb27a6-7eee-5c25-898a-6e3bbc1eab5d"))
 (junction (at 66.04 121.92) (diameter 0) (color 0 0 0 0) (uuid "b1d604d6-7481-5635-84bb-951431312678"))
-(junction (at 68.58 44.45) (diameter 0) (color 0 0 0 0) (uuid "19cda2c0-bc78-57a1-abae-58abf8b5820b"))
 (junction (at 68.58 215.9) (diameter 0) (color 0 0 0 0) (uuid "85b4c1f0-e8f1-5c61-bc54-8aba73e7e1ce"))
 (junction (at 72.39 63.5) (diameter 0) (color 0 0 0 0) (uuid "33ab73ff-9536-5e9b-be38-af1a08685d57"))
+(junction (at 73.66 44.45) (diameter 0) (color 0 0 0 0) (uuid "4e89df5c-4a21-5c2a-9d70-baf14cb02bb9"))
 (junction (at 76.2 344.17) (diameter 0) (color 0 0 0 0) (uuid "eab7bc0b-0aea-5462-b394-928e41e3a9e7"))
 (junction (at 78.74 147.32) (diameter 0) (color 0 0 0 0) (uuid "789332eb-f72a-5121-a1e3-1ff1bed1fe73"))
 (junction (at 80.01 238.76) (diameter 0) (color 0 0 0 0) (uuid "13ea12a5-af60-5b6d-9cc0-29008629e0b2"))

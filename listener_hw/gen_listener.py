@@ -843,8 +843,14 @@ def power_block(sh):
                    ref_at=(53.34, y - 3.81), val_at=(53.34, y + 3.81))
     sh.wire(j4.p("1"), f1.p("1"))
     sh.wire(f1.p("2"), d1.p("2"))
-    node = (68.58, y)
-    sh.wire(d1.p("1"), node, (99.06, y))
+    # L2 (Bourns SRN8040-220M, 22 uH, 3 A) with the capacitors behind it is a pi filter:
+    # ~40 dB at 400 kHz against the electrolytics' ESR, so U6's switching stays off the
+    # harness the amplifier hangs on; the same ESR damps the 2.2 kHz resonance (zeta ~1.6)
+    l2 = sh.at_pin("L", "L2", "22u", "1", (d1.p("1")[0] + 2.54, y), r=90,
+                   fp="Inductor_SMD:L_Bourns-SRN8040_8x8.15mm")
+    sh.wire(d1.p("1"), l2.p("1"))
+    node = (73.66, y)
+    sh.wire(l2.p("2"), node, (99.06, y))
     g = j4.p("2")
     sh.wire(g, (33.02, g[1]), (33.02, 60.96))
     sh.gnd((33.02, 60.96))
@@ -865,7 +871,7 @@ def power_block(sh):
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
     sh.text("Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В, негативні - прямим діодом.", 17.78, 87.63, 1.27)
     sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
-    sh.text("5V_SW (U6 LMR38020: до 80 В, 400 кГц від R31) вмикає WAKE: FPGA і блок 9 (~0.1 А). VOUT = 5.31 В. C44, C45 з керамікою: проти дзвону джгута.", 17.78, 95.25, 1.27)
+    sh.text("5V_SW (U6 LMR38020, 80 В, 400 кГц) вмикає WAKE: модуль FPGA і U14 (3V3_DA, блок 9). VOUT 5.31 В. C44/C45 + L2 22 мкГн: дзвін джгута і 400 кГц не в джгут.", 17.78, 95.25, 1.27)
     sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
