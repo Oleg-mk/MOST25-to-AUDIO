@@ -30,8 +30,13 @@ Every pinout below was checked against the maker's data sheet:
                                                      Tables 4, 6, 13, section 8.3.3
   SRC4192 (SSOP-28, DB)                            - TI SBFS022C: Pin Functions,
                                                      Tables 1, 2, 3, section 7.4.1
-  PLR135/T10, PLT133/T10W (TOSLINK)                - Everlight data sheets (Rev 2;
-                                                     DPL-0000049 Rev.5): pin functions
+  PLR135/T10, PLT133/T10W (TOSLINK)                - Everlight data sheets DPL-135-017
+                                                     Rev 2 (1 Vcc, 2 GND, 3 Vout) and
+                                                     DPL-0000049 Rev.5 (1 Vin, 2 Vcc, 3 GND):
+                                                     pin functions and the PCB layouts
+  BKL 0101153 RCA jack                             - BKL TDS drawing (P.C.B Layout 2:1)
+  Tang Nano 20K, ESP32-DevKitC V4 outlines         - Sipeed data sheet v1.3 p.5-6;
+                                                     Espressif dimensions drawing
   ASE-xxxMHz oscillator, Conn_Coaxial              - KiCad 10 library symbols
 Pin ORDER on the custom symbols is chosen for the drawing; pin NUMBERS are the
 data-sheet ones.
@@ -245,13 +250,13 @@ S = {
         ("7", "GND", "passive", "L", 17.78), ("8", "GND", "passive", "L", 20.32),
     ], "Analyser: MCLK 512 Fs, TDM (2 x TDM8), raw control blocks on UART"),
     "TOSLINK_RX": ic("PLR135", "J", 15.24, 12.7, [
-        ("1", "VOUT", "output", "R", 3.81),
-        ("3", "VCC", "power_in", "T", 7.62), ("2", "GND", "power_in", "B", 7.62),
-    ], "TOSLINK receiver, 2.4-5.5 V, 16 Mbps (Everlight PLR135/T10)"),
+        ("3", "VOUT", "output", "R", 3.81),
+        ("1", "VCC", "power_in", "T", 7.62), ("2", "GND", "power_in", "B", 7.62),
+    ], "TOSLINK receiver, 2.4-5.5 V, 16 Mbps (Everlight PLR135/T10: 1 Vcc, 2 GND, 3 Vout; 4 and 5 are the pegs)"),
     "TOSLINK_TX": ic("PLT133", "J", 15.24, 12.7, [
-        ("1", "VIN", "input", "L", 3.81), ("4", "NC", "no_connect", "L", 8.89), ("5", "NC", "no_connect", "L", 11.43),
+        ("1", "VIN", "input", "L", 3.81),
         ("2", "VCC", "power_in", "T", 7.62), ("3", "GND", "power_in", "B", 7.62),
-    ], "TOSLINK transmitter, 2.7-5.5 V, 16 Mbps (Everlight PLT133/T10W)"),
+    ], "TOSLINK transmitter, 2.7-5.5 V, 16 Mbps (Everlight PLT133/T10W: 1 Vin, 2 Vcc, 3 GND; 4 and 5 are the pegs)"),
     "DIR9001": ic("DIR9001", "U", 40.64, 43.18, [
         ("21", "RST", "input", "L", 5.08), ("20", "RXIN", "input", "L", 10.16), ("27", "ERROR", "output", "L", 15.24),
         ("22", "FILT", "passive", "L", 20.32), ("7", "XTO", "output", "L", 30.48),
@@ -612,6 +617,147 @@ def si514_layout(gap_col=1.0, gap_row=0.5):
         out.append((name, (cx, cy), r, {n: (cx + x, cy + y, w, h) for n, (x, y, w, h) in pd.items()},
                     body))
     return out
+
+
+
+
+# ------------------------------------------- footprints from the makers' drawings
+def _fpl(x1, y1, x2, y2, layer, w, key):
+    return (f'\t(fp_line (start {f(x1)} {f(y1)}) (end {f(x2)} {f(y2)}) '
+            f'(stroke (width {f(w)}) (type solid)) (layer "{layer}") (uuid "{uid(key)}"))')
+
+
+def _fpbox(x1, y1, x2, y2, layer, w, key):
+    pts = ((x1, y1, x2, y1), (x2, y1, x2, y2), (x2, y2, x1, y2), (x1, y2, x1, y1))
+    return "\n".join(_fpl(*p, layer, w, key + str(i)) for i, p in enumerate(pts))
+
+
+def _fppad(num, kind, shape, x, y, sx, sy, drill, key):
+    d = f" (drill {f(drill)})" if drill else ""
+    return (f'\t(pad "{num}" {kind} {shape} (at {f(x)} {f(y)}) (size {f(sx)} {f(sy)}){d} '
+            f'(layers "*.Cu" "*.Mask") (uuid "{uid(key)}"))')
+
+
+def _fptext(s, x, y, layer, size, key, kind=None):
+    head = f'(property "{kind}" "{s}"' if kind else f'(fp_text user "{s}"'
+    return (f'\t{head} (at {f(x)} {f(y)} 0) (layer "{layer}") (uuid "{uid(key)}") '
+            f'(effects (font (size {f(size)} {f(size)}) (thickness {f(size * 0.15)}))))')
+
+
+def _fpdot(x, y, key):
+    return (f'\t(fp_circle (center {f(x)} {f(y)}) (end {f(x + 0.15)} {f(y)}) '
+            f'(stroke (width 0.1) (type solid)) (fill yes) (layer "F.SilkS") (uuid "{uid(key)}"))')
+
+
+def _fp(name, descr, tags, attr, items, ref_y, val_y):
+    props = [_fptext("REF**", 0, ref_y, "F.SilkS", 1.0, "fpr" + name, "Reference"),
+             _fptext(name, 0, val_y, "F.Fab", 1.0, "fpv" + name, "Value")]
+    return (f'(footprint "{name}"\n\t(version 20260206)\n\t(generator "gen_listener")\n\t(layer "F.Cu")\n'
+            f'\t(descr "{descr}")\n\t(tags "{tags}")\n' + "\n".join(props) + f'\n\t(attr {attr})\n'
+            + "\n".join(items) + "\n)\n")
+
+
+FP_T10 = "Everlight_TOSLINK_T10"
+FP_RCA = "BKL_0101153_RCA_RA"
+FP_TANG = "Sipeed_TangNano20K"
+FP_ESP = "Espressif_ESP32-DevKitC_V4"
+
+
+def toslink_t10_footprint():
+    """PLR135/T10 and PLT133/T10W share the housing: 3 pins 0.80 on 2.54, two pegs 1.10 at
+    5.08 spacing 2.63 behind the pins (the PCB layouts), body 9.70 wide x 10.00 deep, the pins
+    8.76 from the rear face, so the port face is 1.24 in front of them (the side views). The
+    port faces +y; pin 1 is at -x, as seen from the port (the front views)."""
+    items = []
+    for i in range(3):
+        items.append(_fppad(str(i + 1), "thru_hole", "rect" if i == 0 else "circle", -2.54 + 2.54 * i, 0,
+                            1.6, 1.6, 0.9, f"t10p{i}"))
+    for i, x in enumerate((-2.54, 2.54)):
+        items.append(_fppad("", "np_thru_hole", "circle", x, -2.63, 1.2, 1.2, 1.2, f"t10g{i}"))
+    x0, x1, y0, y1 = -4.85, 4.85, -8.76, 1.24
+    items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "t10fab"))
+    items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "t10silk"))
+    items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "t10crt"))
+    items.append(_fptext("port", 0, 0.5, "F.Fab", 0.5, "t10txt"))
+    items.append(_fpdot(-4.0, 2.0, "t10pin1"))
+    return _fp(FP_T10, "Everlight PLR135/T10 receiver and PLT133/T10W transmitter (TOSLINK housing): 3 pins on "
+               "2.54, two pegs 2.63 behind them, the optical port faces +y; data sheets DPL-135-017 p.2 and "
+               "DPL-0000049 Rev.5 p.4", "TOSLINK Everlight PLR135 PLT133", "through_hole", items, -10.2, 2.6)
+
+
+def bkl_rca_footprint():
+    """BKL 0101153, Cinch-Printbuchse 90 degrees (the TDS drawing, P.C.B Layout 2:1): a 1.0 hole on
+    the axis and one 2.5 beside it, two 2.0 holes 10.1 apart 5.1 towards the port; the body
+    14.7 wide, its rear face 2.0 behind the thin pins and the flange 8.0 in front of the thick
+    legs (side view). Pad 1 = the centre contact on the axis; pad 2 = the thick legs; pad 3 =
+    the thin pin beside the axis, whose function the drawing does not name: measure it on a
+    sample (shell or centre) before the layout ties it to anything."""
+    items = [_fppad("1", "thru_hole", "rect", 0, 0, 1.8, 1.8, 1.1, "rca1"),
+             _fppad("3", "thru_hole", "circle", 2.5, 0, 1.8, 1.8, 1.1, "rca3"),
+             _fppad("2", "thru_hole", "circle", -5.05, 5.1, 3.0, 3.0, 2.2, "rca2a"),
+             _fppad("2", "thru_hole", "circle", 5.05, 5.1, 3.0, 3.0, 2.2, "rca2b")]
+    x0, x1, y0, y1 = -7.35, 7.35, -2.0, 12.8
+    items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "rcafab"))
+    items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "rcasilk"))
+    items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "rcacrt"))
+    items.append(_fptext("port ->", 0, 10.5, "F.Fab", 0.7, "rcatxt"))
+    items.append(_fpdot(-1.4, -1.4, "rcapin1"))
+    return _fp(FP_RCA, "BKL Electronic 0101153 RCA jack, right angle, gold, black: centre pin on the axis (1), "
+               "thick legs (2), the thin pin 2.5 beside the axis (3, function not in the drawing - measure); "
+               "body 14.7 x 14.8, the port faces +y", "RCA Cinch BKL 0101153", "through_hole", items, -3.5, 14.2)
+
+
+def tangnano_footprint():
+    """Sipeed Tang Nano 20K (data sheet v1.3 p.6): 54.04 x 22.55 mm, two rows of 20 on 2.54, rows
+    20.32 apart (the board's width less two edge margins); pad 1 at the USB-C end, left row,
+    as the pinout drawing (p.5) and the schematic symbol number them. The HDMI connector
+    stands 8 mm past the far end, the USB-C 1.5 mm past the near one: both in the courtyard."""
+    items = []
+    for i in range(20):
+        y = -24.13 + 2.54 * i
+        items.append(_fppad(str(i + 1), "thru_hole", "rect" if i == 0 else "circle", -10.16, y, 1.7, 1.7, 1.0,
+                            f"tn{i + 1}"))
+        items.append(_fppad(str(i + 21), "thru_hole", "circle", 10.16, y, 1.7, 1.7, 1.0, f"tn{i + 21}"))
+    x0, x1, y0, y1 = -11.275, 11.275, -27.02, 27.02
+    items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "tnfab"))
+    items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "tnsilk"))
+    items.append(_fpbox(x0 - 0.25, y0 - 1.75, x1 + 0.25, y1 + 8.25, "F.CrtYd", 0.05, "tncrt"))
+    items.append(_fptext("USB-C", 0, -25.6, "F.Fab", 0.8, "tnusb"))
+    items.append(_fptext("HDMI, +8 mm", 0, 25.6, "F.Fab", 0.8, "tnhdmi"))
+    items.append(_fpdot(-11.9, -24.13, "tnpin1"))
+    return _fp(FP_TANG, "Sipeed Tang Nano 20K module, 54.04 x 22.55 mm, 2 x 20 pins on 2.54, rows 20.32 apart, "
+               "pad 1 = pin 73 (HSPI_DIN2) at the USB-C end; the HDMI connector overhangs the far end by 8 mm "
+               "(data sheet v1.3 p.5, p.6)", "Sipeed Tang Nano 20K GW2AR", "through_hole", items, -29.0, 29.5)
+
+
+def devkitc_footprint():
+    """Espressif ESP32-DevKitC V4 (dimensions drawing): 48.26 x 27.94 mm, two rows of 19 on 2.54,
+    rows 25.40 apart, the first pin 1.27 from the antenna end; pad 1 = 3V3, top left with the
+    antenna up, pads 20..38 the right row from GND down to CLK. The antenna reaches 6.04 past
+    the end (18 wide): no copper under it, so it is in the courtyard; the USB socket 1.3 past
+    the other end."""
+    items = []
+    for i in range(19):
+        y = -22.86 + 2.54 * i
+        items.append(_fppad(str(i + 1), "thru_hole", "rect" if i == 0 else "circle", -12.7, y, 1.7, 1.7, 1.0,
+                            f"dk{i + 1}"))
+        items.append(_fppad(str(i + 20), "thru_hole", "circle", 12.7, y, 1.7, 1.7, 1.0, f"dk{i + 20}"))
+    x0, x1, y0, y1 = -13.97, 13.97, -24.13, 24.13
+    items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "dkfab"))
+    items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "dksilk"))
+    items.append(_fpbox(-9.0, -30.17, 9.0, -24.13, "F.Fab", 0.1, "dkant"))
+    items.append(_fpbox(x0 - 0.25, -30.42, x1 + 0.25, y1 + 1.55, "F.CrtYd", 0.05, "dkcrt"))
+    items.append(_fptext("antenna: no copper", 0, -27.2, "F.Fab", 0.7, "dkanttxt"))
+    items.append(_fptext("USB", 0, 23.0, "F.Fab", 0.8, "dkusb"))
+    items.append(_fpdot(-14.6, -22.86, "dkpin1"))
+    return _fp(FP_ESP, "Espressif ESP32-DevKitC V4, 48.26 x 27.94 mm, 2 x 19 pins on 2.54, rows 25.40 apart, "
+               "pad 1 = 3V3 at the antenna end; the antenna overhangs that end by 6.04 mm and wants no copper "
+               "under it (Espressif dimensions drawing)", "Espressif ESP32 DevKitC", "through_hole", items,
+               -31.7, 26.9)
+
+
+NEW_FOOTPRINTS = ((FP_T10, toslink_t10_footprint), (FP_RCA, bkl_rca_footprint),
+                  (FP_TANG, tangnano_footprint), (FP_ESP, devkitc_footprint))
 
 
 def rect_gap(a, b):
@@ -1014,7 +1160,7 @@ def isolation_block(sh):
 
 def fpga_block(sh):
     sh.frame(274.32, 106.68, 406.4, 198.12, "5. FPGA   Sipeed Tang Nano 20K")
-    m1 = sh.add("TANG", "M1", "Tang Nano 20K", 340.36, 151.13, fp="")
+    m1 = sh.add("TANG", "M1", "Tang Nano 20K", 340.36, 151.13, fp=f"{LIB}:{FP_TANG}")
     # ring and Si514 signals only on pins whose sole other load is the empty
     # LCD FPC connector
     # TX_FB comes in through an 8:1 deserialiser (IDES8, 1.26 ns, like RX_IN);
@@ -1199,7 +1345,7 @@ def output_block(sh):
 
 def host_block(sh):
     sh.frame(335.28, 12.7, 406.4, 101.6, "8. ХОСТ   M2 = ESP32-DevKitC-VIE")
-    m2 = sh.add("DEVKITC", "M2", "ESP32-DevKitC-VIE", 375.92, 50.8, fp="")
+    m2 = sh.add("DEVKITC", "M2", "ESP32-DevKitC-VIE", 375.92, 50.8, fp=f"{LIB}:{FP_ESP}")
     # from the FPGA: the ring-locked I2S clocks and the raw control blocks
     for pad, name in (("5", "I2S_BCLK_F"), ("6", "I2S_LRCK_F"), ("7", "OPT_ERR"), ("8", "UART_TX_F")):
         sh.lbl(name, m2.p(pad), 12.7, "L")
@@ -1245,12 +1391,12 @@ def digital_audio_block(sh):
     u12 = sh.add("DIR9001", "U12", "DIR9001", 109.22, 340.36, fp="Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm",
                  ref_at=(88.9, 317.5), val_at=(86.36, 360.68), fjust=("left bottom", "right bottom"))
     rxin, rst12, err, filt, xto = u12.p("20"), u12.p("21"), u12.p("27"), u12.p("22"), u12.p("7")
-    j5 = sh.at_pin("TOSLINK_RX", "J5", "PLR135/T10", "1", (63.5, rxin[1]), fp="",
+    j5 = sh.at_pin("TOSLINK_RX", "J5", "PLR135/T10", "3", (63.5, rxin[1]), fp=f"{LIB}:{FP_T10}",
                    ref_at=(45.72, 323.85), val_at=(63.5, 336.55), fjust=("left bottom", "left bottom"))
     r25 = sh.at_pin("R", "R25", "100", "1", (71.12, rxin[1]), r=90, fp=SMD["R"])
-    sh.wire(j5.p("1"), r25.p("1")); sh.wire(r25.p("2"), rxin)
+    sh.wire(j5.p("3"), r25.p("1")); sh.wire(r25.p("2"), rxin)
     # J5's supply: a ferrite and 100n within 2 cm of the module (its data sheet, layout notes)
-    vcc5 = j5.p("3")
+    vcc5 = j5.p("1")
     n5 = (vcc5[0], round(vcc5[1] - 6.35, 3))
     sh.wire(vcc5, n5)
     fb3 = sh.at_pin("FB", "FB3", "600R", "1", (n5[0] + 2.54, n5[1]), r=90, fp="Inductor_SMD:L_0603_1608Metric")
@@ -1328,10 +1474,10 @@ def digital_audio_block(sh):
     sh.label("SPDIF_F", (264.16, n1[1]), "L"); sh.wire((264.16, n1[1]), n1)
     r28 = sh.at_pin("R", "R28", "33", "1", (n1[0] + 2.54, n1[1]), r=90, fp=SMD["R"])
     sh.wire(n1, r28.p("1"))
-    j6 = sh.at_pin("TOSLINK_TX", "J6", "PLT133/T10W", "1", (r28.p("2")[0] + 7.62, n1[1]), fp="",
+    j6 = sh.at_pin("TOSLINK_TX", "J6", "PLT133/T10W", "1", (r28.p("2")[0] + 7.62, n1[1]), fp=f"{LIB}:{FP_T10}",
                    ref_at=(292.1, 318.77), val_at=(309.88, 331.47), fjust=("left bottom", "left bottom"))
     sh.wire(r28.p("2"), j6.p("1"))
-    sh.up("3V3_SW", j6.p("2"), 6.35); sh.gnd(j6.p("3"), 2.54); sh.nc(j6.p("4")); sh.nc(j6.p("5"))
+    sh.up("3V3_SW", j6.p("2"), 6.35); sh.gnd(j6.p("3"), 2.54)
     n2 = (n1[0], 346.71)
     sh.wire(n1, n2)
     r26 = sh.at_pin("R", "R26", "240", "1", (n2[0] + 2.54, n2[1]), r=90, fp=SMD["R"])
@@ -1340,7 +1486,7 @@ def digital_audio_block(sh):
     r27 = sh.at_pin("R", "R27", "110", "1", nd, fp=SMD["R"]); sh.gnd(r27.p("2"))
     c29 = sh.at_pin("C", "C29", "100n", "1", (nd[0] + 7.62, nd[1]), r=90, fp=SMD["C"])
     sh.wire(nd, c29.p("1"))
-    j7 = sh.at_pin("COAX", "J7", "RCA 75R", "1", (c29.p("2")[0] + 5.08, nd[1]), fp="",
+    j7 = sh.at_pin("COAX", "J7", "RCA 75R", "1", (c29.p("2")[0] + 5.08, nd[1]), fp=f"{LIB}:{FP_RCA}",
                    ref_at=(307.34, 342.9), val_at=(312.42, 346.71), fjust=(None, "left"))
     sh.wire(c29.p("2"), j7.p("1")); sh.gnd(j7.p("2"), 2.54)
 
@@ -1409,6 +1555,9 @@ def main():
     assert cu >= 0.2 and clear > 0, (cu, clear)
     (HERE / f"{LIB}.pretty").mkdir(exist_ok=True)
     (HERE / f"{LIB}.pretty" / f"{FP_SI514}.kicad_mod").write_text(fp, encoding="utf-8")
+    for name, make in NEW_FOOTPRINTS:
+        (HERE / f"{LIB}.pretty" / f"{name}.kicad_mod").write_text(make(), encoding="utf-8")
+        print("wrote", name)
     (HERE / "fp-lib-table").write_text(
         '(fp_lib_table (version 7)\n'
         f'  (lib (name "{LIB}")(type "KiCad")(uri "${{KIPRJMOD}}/{LIB}.pretty")(options "")'
