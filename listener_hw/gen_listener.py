@@ -1497,6 +1497,11 @@ def digital_audio_block(sh):
     j7 = sh.at_pin("COAX", "J7", "RCA 75R", "1", (c29.p("2")[0] + 5.08, nd[1]), fp=f"{LIB}:{FP_RCA}",
                    ref_at=(307.34, 342.9), val_at=(312.42, 346.71), fjust=(None, "left"))
     sh.wire(c29.p("2"), j7.p("1")); sh.gnd(j7.p("2"), 2.54)
+    # D4: ESD on the jack's centre pin, a 0.1 pF-class bidirectional diode (SOD-882)
+    n4 = (299.72, nd[1])
+    d4 = sh.at_pin("TVS", "D4", "PESD5V0S1BL", "1", (n4[0], n4[1] + 2.54), r=270, fp="Diode_SMD:D_SOD-882",
+                   ref_at=(n4[0] - 2.54, n4[1] + 5.08), val_at=(n4[0] - 2.54, n4[1] + 7.62), fjust=("right", "right"))
+    sh.wire(n4, d4.p("1")); sh.gnd(d4.p("2"))
 
     # ---- U14: the block's own 3.3 V from 5V_SW. The module's regulator (3V3_SW) has an
     # unknown margin, and this block takes ~0.1 A; an LDO of its own also keeps the
