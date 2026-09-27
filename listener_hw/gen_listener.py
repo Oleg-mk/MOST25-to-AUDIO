@@ -695,10 +695,12 @@ def te_fot_footprint():
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "fotfab"))
     items.append(_fpl(x0, -11.8, x1, -11.8, "F.Fab", 0.1, "fotfoot"))        # the foot ends; the port overhangs
     # silk: the right action pin's pad reaches past the housing's edge, so that edge is drawn
-    # in two pieces around it; the courtyard takes the pad in
+    # in two pieces around it, and the rear edge in three around the two guide legs at y 9.15;
+    # the courtyard takes the pad in
     sx0, sy0, sx1, sy1 = x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11
     items.append(_fpl(sx0, sy0, sx1, sy0, "F.SilkS", 0.12, "fotsilk0"))
-    items.append(_fpl(sx0, sy1, sx1, sy1, "F.SilkS", 0.12, "fotsilk1"))
+    for k, (ax, bx) in enumerate(((sx0, -5.4), (-3.55, 6.1), (7.95, sx1))):
+        items.append(_fpl(ax, sy1, bx, sy1, "F.SilkS", 0.12, f"fotsilk1{k}"))
     items.append(_fpl(sx0, sy0, sx0, sy1, "F.SilkS", 0.12, "fotsilk2"))
     items.append(_fpl(sx1, sy0, sx1, -8.3 - 1.6, "F.SilkS", 0.12, "fotsilk3"))
     items.append(_fpl(sx1, -8.3 + 1.6, sx1, sy1, "F.SilkS", 0.12, "fotsilk4"))
@@ -885,7 +887,7 @@ def power_block(sh):
     sh.frame(12.7, 12.7, 203.2, 101.6, "1. ЖИВЛЕННЯ   J4 акумулятор -> 3V3_AON (завжди) і 5V_SW (за WAKE) -> 5V_HOST (M2)")
     # input: J4 -> F1 -> D1 -> VBAT_P
     j4 = sh.add("CONN2", "J4", "VBAT_IN", 25.4, 45.72,
-                fp="Connector_JST:JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical")
+                fp="Connector_Molex:Molex_Micro-Fit_3.0_43045-0212_2x01_P3.00mm_Vertical")
     y = j4.p("1")[1]
     f1 = sh.at_pin("F", "F1", "2A T", "1", (38.1, y), r=90, fp="Fuse:Fuse_1206_3216Metric")
     d1 = sh.at_pin("DS", "D1", "SS34", "2", (53.34, y), r=180, fp="Diode_SMD:D_SMA",
@@ -918,7 +920,7 @@ def power_block(sh):
     c2 = sh.at_pin("C", "C2", "100n 100V", "1", (99.06, y + 5.08), fp=SMD["C"])
     sh.wire((86.36, y), c1.p("1")); sh.wire((99.06, y), c2.p("1"))
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
-    sh.text("Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В, негативні - прямим діодом.", 17.78, 87.63, 1.27)
+    sh.text("J4 Molex Micro-Fit 3.0 із защіпкою (5 А). Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В.", 17.78, 87.63, 1.27)
     sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
     sh.text("5V_SW (U6 LMR38020, 80 В, 400 кГц) вмикає WAKE: модуль FPGA і U14 (3V3_DA, блок 9). VOUT 5.31 В. C44/C45 + L2 22 мкГн: дзвін джгута і 400 кГц не в джгут.", 17.78, 95.25, 1.27)
     sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
@@ -1650,9 +1652,11 @@ def main():
     sh = build()
     out = HERE / f"{PROJECT}.kicad_sch"
     sh.write(out)
-    (HERE / f"{PROJECT}.kicad_pro").write_text(
-        '{"meta": {"filename": "%s.kicad_pro", "version": 3}, "schematic": {}}\n' % PROJECT,
-        encoding="utf-8")
+    pro = HERE / f"{PROJECT}.kicad_pro"
+    if not pro.exists():            # gen_listener_pcb.py fills it in (the board net classes)
+        pro.write_text(
+            '{"meta": {"filename": "%s.kicad_pro", "version": 3}, "schematic": {}}\n' % PROJECT,
+            encoding="utf-8")
     # project symbol library + table, so the sheet opens with no "missing
     # library" warnings and the parts can be reused
     own = [sym.text.replace(f'(symbol "{LIB}:', '(symbol "', 1)

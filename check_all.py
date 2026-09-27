@@ -92,11 +92,22 @@ def main():
     step("schematic: generate", [py, "gen_listener.py"], hw)
     step("schematic: ERC", [str(KICAD), "sch", "erc", "--exit-code-violations", "--output", "erc.rpt",
                             "most_listener.kicad_sch"], hw, need=KICAD)
+    kipy = KICAD.parent / "python.exe"                  # KiCad's own Python carries pcbnew
+    step("board: generate", [str(kipy), "gen_listener_pcb.py"], hw, need=kipy)
+    # the DRC's exit code counts the unconnected items, which stay until the board is routed;
+    # errors are read from the JSON report instead
+    step("board: DRC", [str(KICAD), "pcb", "drc", "--severity-error", "--format", "json", "--output",
+                        "work/drc.json", "most_listener.kicad_pcb"], hw, need=KICAD)
+    step("board: DRC reports no error",
+         [py, "-c", "import json, sys; d = json.load(open('work/drc.json', encoding='utf-8')); "
+                    "print(len(d['violations']), 'errors,', len(d['unconnected_items']), 'unconnected'); "
+                    "sys.exit(1 if d['violations'] else 0)"], hw, need=hw / "work" / "drc.json")
     if shutil.which("git") and (ROOT / ".git").exists():
-        # everything the generator writes, not the sheet alone
-        step("schematic: the generator reproduces the committed files",
+        # everything the generators write, not the sheet alone
+        step("schematic and board: the generators reproduce the committed files",
              ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
-              "most_listener.kicad_pro", "most_listener.pretty", "fp-lib-table", "sym-lib-table"], hw)
+              "most_listener.kicad_pro", "most_listener.kicad_pcb", "most_listener.pretty", "fp-lib-table",
+              "sym-lib-table"], hw)
 
     print("\n" + "=" * 60)
     for name, verdict, dt in results:

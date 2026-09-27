@@ -14,5 +14,7 @@ listener_hw/*-backups/
 listener_hw/~*.lck
 listener_hw/fp-info-cache
 listener_hw/erc.rpt
+# board: gen_listener_pcb.py's netlist, DRC report and Specctra export; the routed session
+listener_hw/work/
 
 # firmware: listener_fw/.gitignore (ESP-IDF build, fetched components, tests)

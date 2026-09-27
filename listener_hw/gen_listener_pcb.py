@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""gen_listener_pcb.py - the listener board's PCB, placed by this script from the schematic.
+
+Run with KiCad's own Python (it carries the pcbnew module):
+  "%LOCALAPPDATA%\\Programs\\KiCad\\10.0\\bin\\python.exe" gen_listener_pcb.py
+It exports the netlist of most_listener.kicad_sch with kicad-cli, loads every footprint
+from the project library or KiCad's, places each part where PLACE says, gives every pad its
+net, draws the outline, the mounting holes, the ground pours and the copper keep-out under
+M2's antenna, and writes most_listener.kicad_pcb (net classes go to most_listener.kicad_pro).
+It also writes work/most_listener.dsn, the Specctra export the autorouter takes; the routed
+session comes back through route_import.py. This file owns everything but the copper.
+
+Two layers, 130 x 90 mm, origin at the top left, y down. What sits where, and why:
+  left edge    J1, the MOST header, its optical face 3.6 mm past the edge; the FOT cluster
+               (U1 U2 U3 U9 U11 U4 and their parts) between J1's pins (x 18.9) and M1's
+               left header (x 41.8), which carries the ring pins; the Si514 (U7 U8) above
+               it, under M1's CLK_1024 pin
+  middle       M1, the Tang Nano, USB-C at the top edge, the HDMI end at the bottom; the
+               board under the module is free for tracks, only its two pin columns are not
+  right        M2, the DevKitC, its USB at the right edge, the PCB-antenna end inside the
+               board under a copper keep-out (the VIE module works from its IPEX antenna)
+  top right    block 9: the TOSLINK modules and the RCA jack flush with the top edge,
+               DIR9001 turned so its receiver side faces J5, SRC4192 next to it, its I2S
+               side over M2's I2S pins, X1 and U14 between J6 and J7, the coax divider
+               under J7
+  corridor     x 64..75 between M1 and M2: D3 at M1's 5 V pin, DIR9001's small parts,
+               R20 R21 (UART/I2S between the modules); the rest is a routing channel
+  bottom       the battery input at the left (J4 F1 D2 D1 L2, the electrolytics), the buck
+               right of them, its 5 V test point, J3 (I2S) at the bottom edge under M2's
+               I2S pins; U10 (host switch) under M2's 5 V pin, J2 (analyser) on the right
+               edge below M2
+  corners      four M3 holes
+Rotation is KiCad's: degrees counterclockwise on screen. For a two-pad part at 0 deg pad 1
+is on the left; at 90 deg pad 1 is at the bottom, at 270 at the top.
+"""
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+from pathlib import Path
+
+import pcbnew
+
+HERE = Path(__file__).resolve().parent
+PROJECT = "most_listener"
+LIB = "most_listener"
+KICAD_BIN = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "KiCad" / "10.0" / "bin"
+KICAD_FP = KICAD_BIN.parent / "share" / "kicad" / "footprints"
+W, H = 130.0, 90.0
+
+# ref: (x, y, rotation). All parts on the top side.
+PLACE = {
+    # ---- J1 and the FOT cluster (blocks 3, 4); J1's pins at x 18.87, y 30.45 (TXD) .. 49.55 (RXD)
+    "J1": (11.8, 40.0, 90),
+    "U3": (37.5, 23.5, 0), "C12": (34.0, 23.5, 0), "TP5": (30.0, 24.5, 0),       # RX_IN gate at M1 pin 8
+    "U9": (37.5, 27.5, 0), "C16": (33.5, 27.5, 0), "C11": (26.5, 27.5, 0),       # retimer at M1 pins 9, 10
+    "U2": (27.0, 30.5, 0), "R2": (23.5, 30.5, 0), "R9": (30.5, 31.0, 0), "TP2": (34.0, 31.0, 0),
+    "R16": (37.5, 31.0, 0),
+    "C19": (23.5, 34.0, 0), "C20": (27.5, 34.0, 0), "R3": (23.5, 36.8, 0), "FB2": (27.5, 36.8, 0),
+    "U11": (33.5, 38.5, 0), "R23": (37.5, 35.0, 0), "C25": (37.5, 38.5, 0), "C26": (37.5, 42.0, 0),
+    "R8": (33.5, 42.0, 0),
+    "C10": (23.5, 41.5, 0), "C18": (27.5, 41.5, 0), "FB1": (27.5, 44.5, 0), "TP3": (33.5, 45.5, 0),
+    "C17": (27.5, 47.2, 0), "R1": (23.5, 50.3, 0), "U1": (27.5, 50.3, 0), "TP1": (31.5, 50.5, 0),
+    "R7": (23.5, 53.0, 0),
+    "U4": (28.0, 57.0, 0), "R6": (24.0, 57.0, 0), "C9": (28.0, 60.5, 0), "C8": (32.0, 60.5, 0),
+    "TP4": (33.5, 56.5, 0),
+    "U5": (30.0, 64.0, 0), "C3": (34.0, 64.0, 0), "TP6": (38.0, 64.0, 0),          # 3V3_AON LDO
+    # ---- the ring clock (block 6); U7 carries the land patterns of all three Si514 packages
+    "U8": (30.0, 4.0, 0), "C15": (25.0, 4.0, 0), "C14": (35.0, 4.0, 0),
+    "U7": (30.0, 12.0, 0), "R11": (38.5, 8.5, 90), "R12": (38.5, 12.5, 90), "R10": (38.5, 15.7, 0),
+    "C13": (23.5, 19.5, 0), "C21": (26.7, 19.5, 0), "C22": (29.9, 19.5, 0), "R15": (33.1, 19.5, 0),
+    "R17": (36.3, 19.5, 90), "R14": (39.3, 19.0, 90),
+    # ---- the modules
+    "M1": (52.0, 30.0, 0),
+    "M2": (105.87, 39.0, 90),
+    # ---- the corridor between them
+    "D3": (67.8, 5.5, 0),                                                          # 5V_SW -> M1 pin 21
+    "R20": (68.0, 40.0, 90), "R21": (71.0, 40.0, 90),
+    # ---- power (block 1), left to right along the bottom
+    "J4": (13.0, 80.5, 0), "TP8": (10.0, 70.0, 0),
+    "F1": (22.5, 78.0, 0), "D2": (27.0, 84.0, 270), "D1": (31.0, 78.0, 180), "L2": (40.0, 78.0, 0),
+    "C1": (47.5, 70.5, 0), "C2": (51.5, 70.5, 0),
+    "C44": (51.5, 78.5, 0), "C46": (51.5, 86.5, 0), "C45": (65.5, 78.5, 0), "C47": (65.5, 86.5, 0),
+    "C4": (74.4, 75.4, 90), "C43": (74.4, 80.5, 90), "U6": (80.0, 76.0, 0), "R31": (77.5, 81.0, 0),
+    "C6": (85.5, 74.5, 90), "L1": (90.0, 76.0, 0), "C7": (95.7, 76.0, 90), "TP7": (100.5, 76.0, 0),
+    "R5": (84.5, 80.5, 0), "R4": (84.5, 83.0, 0),
+    "U10": (122.0, 58.0, 0), "C23": (117.5, 58.0, 0), "C24": (126.5, 56.5, 0), "R22": (122.0, 61.5, 0),
+    "TP9": (110.0, 60.0, 0),
+    # ---- outputs (block 7)
+    "J3": (81.0, 87.5, 90), "RN2": (89.5, 82.5, 0),
+    "J2": (127.5, 61.0, 0), "RN1": (122.5, 70.0, 90), "R19": (122.5, 65.0, 0), "R18": (122.5, 75.0, 0),
+    # ---- block 9, digital audio, along the top edge
+    "J5": (77.5, 1.24, 180), "R25": (70.5, 12.5, 270), "C30": (76.5, 12.1, 0), "FB3": (80.5, 12.1, 0),
+    "U12": (78.5, 18.1, 180),
+    "C28": (72.8, 15.4, 0), "R24": (72.8, 18.0, 0), "C27": (69.3, 18.0, 0), "C34": (72.8, 20.6, 0),
+    "C35": (72.5, 23.5, 0), "R30": (69.3, 20.6, 0), "C40": (69.3, 23.2, 0),
+    "C38": (83.7, 14.5, 90), "C32": (83.7, 18.4, 90), "C33": (83.5, 22.6, 90),
+    "U13": (89.5, 18.0, 0), "C36": (95.3, 18.0, 90), "C37": (95.5, 22.6, 90), "R29": (95.5, 14.0, 90),
+    "J6": (89.5, 1.24, 180), "R28": (96.5, 4.0, 90), "C31": (96.5, 8.0, 90),
+    "X1": (101.5, 6.5, 0), "C39": (101.5, 10.5, 0),
+    "U14": (99.5, 15.5, 0), "C48": (99.5, 19.5, 0), "C49": (103.2, 15.5, 0),
+    "J7": (112.5, 12.8, 180), "R26": (108.0, 19.0, 0), "R27": (108.0, 21.6, 0), "C29": (112.5, 19.0, 0),
+    "D4": (116.5, 19.0, 0),
+}
+HOLES = [(4.0, 4.0), (W - 4.0, 4.0), (4.0, H - 4.0), (W - 4.0, H - 4.0)]
+# M2's PCB antenna: 18 x 6.04 mm past the module's end, no copper under it (both layers)
+ANTENNA = (75.7, 30.0, 81.74, 48.0)
+# nets that carry current: 0.6 mm tracks (the rest 0.25 mm)
+POWER = {"GND", "VBAT_P", "5V_SW", "/5V_HOST", "3V3_AON", "3V3_SW", "3V3_DA", "Net-(J1-TXVCC)",
+         "Net-(J1-RXVCC)", "Net-(U7-VDD)", "Net-(J4-VBAT)", "Net-(D1-A)", "Net-(D1-K)", "Net-(D3-K)",
+         "Net-(U6-SW)"}
+# parts whose reference stays where the footprint puts it (big enough to carry it), and the
+# few whose default spot lands on a neighbour: their reference goes here instead
+BIG = {"M1", "M2", "J1", "J2", "J3", "J4", "J5", "J6", "J7", "U7", "U12", "U13", "C44", "C45", "L1", "L2",
+       "D1", "D2", "D3", "U6"}
+REFPOS = {"J5": (77.5, 7.0), "J6": (89.5, 7.0), "J7": (112.5, 4.5)}
+# test points show their net name (the value) on the silk, next to the pad: (x, y, justify)
+TPTEXT = {"TP1": (31.5, 53.3, 0), "TP2": (33.4, 33.8, 0), "TP3": (33.5, 48.3, 0), "TP4": (35.4, 56.5, -1),
+          "TP5": (30.0, 27.3, 0), "TP6": (38.0, 66.8, 0), "TP7": (100.5, 78.8, 0), "TP8": (10.0, 72.8, 0),
+          "TP9": (110.0, 62.8, 0)}
+
+
+def mm(x):
+    return pcbnew.FromMM(x)
+
+
+def pt(x, y):
+    return pcbnew.VECTOR2I(mm(x), mm(y))
+
+
+# --------------------------------------------------------------- netlist
+TOKEN = re.compile(r'"(?:[^"\\]|\\.)*"|[()]|[^\s()"]+')
+
+
+def sexpr(text):
+    tok = TOKEN.findall(text)
+    pos = 0
+
+    def node():
+        nonlocal pos
+        out = []
+        while pos < len(tok):
+            x = tok[pos]
+            pos += 1
+            if x == "(":
+                out.append(node())
+            elif x == ")":
+                return out
+            else:
+                out.append(x[1:-1].replace('\\"', '"') if x.startswith('"') else x)
+        return out
+
+    return node()[0]
+
+
+def find(node, key):
+    return [n for n in node if isinstance(n, list) and n and n[0] == key]
+
+
+def netlist():
+    """(ref -> (value, footprint), net name -> [(ref, pin)]) from the schematic, via kicad-cli."""
+    out = HERE / "work" / f"{PROJECT}.net"
+    out.parent.mkdir(exist_ok=True)
+    subprocess.run([str(KICAD_BIN / "kicad-cli.exe"), "sch", "export", "netlist", "--format", "kicadsexpr",
+                    "--output", str(out), str(HERE / f"{PROJECT}.kicad_sch")], check=True, capture_output=True)
+    tree = sexpr(out.read_text(encoding="utf-8"))
+    comps, nets = {}, {}
+    for c in find(find(tree, "components")[0], "comp"):
+        fpn = find(c, "footprint")
+        comps[find(c, "ref")[0][1]] = (find(c, "value")[0][1], fpn[0][1] if fpn and len(fpn[0]) > 1 else "")
+    for n in find(find(tree, "nets")[0], "net"):
+        nets[find(n, "name")[0][1]] = [(find(x, "ref")[0][1], find(x, "pin")[0][1]) for x in find(n, "node")]
+    return comps, nets
+
+
+# ----------------------------------------------------------------- board
+def load_footprint(fpid):
+    lib, name = fpid.split(":")
+    path = HERE / f"{LIB}.pretty" if lib == LIB else KICAD_FP / f"{lib}.pretty"
+    fp = pcbnew.FootprintLoad(str(path), name)
+    if fp is None:
+        raise SystemExit(f"footprint {fpid} not found in {path}")
+    return fp
+
+
+def outline(board):
+    for (x1, y1), (x2, y2) in (((0, 0), (W, 0)), ((W, 0), (W, H)), ((W, H), (0, H)), ((0, H), (0, 0))):
+        s = pcbnew.PCB_SHAPE(board)
+        s.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        s.SetStart(pt(x1, y1))
+        s.SetEnd(pt(x2, y2))
+        s.SetLayer(pcbnew.Edge_Cuts)
+        s.SetWidth(mm(0.1))
+        board.Add(s)
+
+
+def zone(board, layer, net, box, rule_area=False):
+    z = pcbnew.ZONE(board)
+    z.SetLayer(layer)
+    if net is not None:
+        z.SetNet(net)
+    x1, y1, x2, y2 = box
+    o = z.Outline()
+    o.NewOutline()
+    for x, y in ((x1, y1), (x2, y1), (x2, y2), (x1, y2)):
+        o.Append(mm(x), mm(y))
+    if rule_area:
+        z.SetIsRuleArea(True)
+        z.SetDoNotAllowZoneFills(True)
+        z.SetDoNotAllowTracks(True)
+        z.SetDoNotAllowVias(True)
+        z.SetDoNotAllowPads(False)
+        z.SetDoNotAllowFootprints(False)
+    else:
+        z.SetLocalClearance(mm(0.25))
+        z.SetMinThickness(mm(0.25))
+        z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
+        z.SetThermalReliefGap(mm(0.3))
+        z.SetThermalReliefSpokeWidth(mm(0.4))
+    board.Add(z)
+    return z
+
+
+def courtyard(fp):
+    bb = fp.GetCourtyard(pcbnew.F_CrtYd).BBox()
+    return bb if bb.GetWidth() else fp.GetBoundingBox(False, False)
+
+
+def texts(fp):
+    """Small parts: the reference above the part in 0.8 mm text; test points show their net
+    instead; the mounting holes show nothing."""
+    ref = fp.GetReference()
+    r, v = fp.Reference(), fp.Value()
+    if ref.startswith("H"):
+        r.SetVisible(False)
+        return
+    if ref in REFPOS:
+        r.SetPosition(pt(*REFPOS[ref]))
+        r.SetTextAngleDegrees(0)
+        return
+    if ref in BIG:
+        return
+    bb = courtyard(fp)
+    t = r
+    pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetTop() - mm(0.6))
+    if ref.startswith("TP"):
+        r.SetVisible(False)
+        t = v
+        v.SetLayer(pcbnew.F_SilkS)
+        v.SetVisible(True)
+        x, y, just = TPTEXT[ref]
+        pos = pt(x, y)
+        if just < 0:
+            v.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
+    t.SetTextSize(pcbnew.VECTOR2I(mm(0.8), mm(0.8)))
+    t.SetTextThickness(mm(0.12))
+    t.SetTextAngleDegrees(0)
+    t.SetPosition(pos)
+
+
+def build():
+    comps, nets = netlist()
+    board = pcbnew.BOARD()
+    board.SetCopperLayerCount(2)
+    ds = board.GetDesignSettings()
+    ds.m_TrackMinWidth = mm(0.15)
+    ds.m_ViasMinSize = mm(0.5)
+    ds.m_MinThroughDrill = mm(0.3)
+    ds.m_MinClearance = mm(0.127)
+    ds.m_CopperEdgeClearance = mm(0.3)
+    # net classes (they land in the project file): 0.25 mm tracks, 0.15 clearance (the 0.5 mm
+    # pitch packages leave 0.15 between pads, and their GND pads are in Power), 0.6/0.3 vias;
+    # Power 0.6 mm tracks, 0.8/0.4 vias
+    nc = ds.m_NetSettings.GetDefaultNetclass()
+    nc.SetClearance(mm(0.15))
+    nc.SetTrackWidth(mm(0.25))
+    nc.SetViaDiameter(mm(0.6))
+    nc.SetViaDrill(mm(0.3))
+    power = pcbnew.NETCLASS("Power")
+    power.SetClearance(mm(0.15))
+    power.SetTrackWidth(mm(0.6))
+    power.SetViaDiameter(mm(0.8))
+    power.SetViaDrill(mm(0.4))
+    ds.m_NetSettings.SetNetclass("Power", power)
+    for name in sorted(POWER):
+        if name not in nets:
+            raise SystemExit(f"POWER names a net that does not exist: {name}")
+        ds.m_NetSettings.SetNetclassPatternAssignment(name, "Power")
+
+    netinfo = {}
+    for name in nets:
+        ni = pcbnew.NETINFO_ITEM(board, name)
+        board.Add(ni)
+        netinfo[name] = ni
+    pad_net = {(ref, pin): name for name, nodes in nets.items() for ref, pin in nodes}
+
+    missing = [r for r in comps if r not in PLACE]
+    extra = [r for r in PLACE if r not in comps]
+    if missing or extra:
+        raise SystemExit(f"placement: missing {missing}, unknown {extra}")
+    for ref, (value, fpid) in sorted(comps.items()):
+        if not fpid:
+            raise SystemExit(f"{ref} has no footprint")
+        fp = load_footprint(fpid)
+        fp.SetReference(ref)
+        fp.SetValue(value)
+        x, y, rot = PLACE[ref]
+        fp.SetPosition(pt(x, y))
+        fp.SetOrientationDegrees(rot)
+        board.Add(fp)
+        for pad in fp.Pads():
+            name = pad_net.get((ref, pad.GetNumber()))
+            if name:
+                pad.SetNet(netinfo[name])
+        texts(fp)
+    for i, (x, y) in enumerate(HOLES, 1):
+        fp = load_footprint("MountingHole:MountingHole_3.2mm_M3")
+        fp.SetReference(f"H{i}")
+        fp.SetValue("M3")
+        fp.SetPosition(pt(x, y))
+        board.Add(fp)
+        texts(fp)
+    outline(board)
+    gnd = netinfo["GND"]
+    zone(board, pcbnew.B_Cu, gnd, (0.5, 0.5, W - 0.5, H - 0.5))
+    zone(board, pcbnew.F_Cu, gnd, (0.5, 0.5, W - 0.5, H - 0.5))
+    for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+        zone(board, layer, None, ANTENNA, rule_area=True)
+    return board, comps, nets
+
+
+RANK = ["version", "generator", "generator_version", "general", "paper", "layers", "setup", "property", "net",
+        "footprint", "gr_line", "gr_arc", "gr_circle", "gr_rect", "gr_poly", "gr_text", "segment", "arc", "via",
+        "zone", "group"]
+
+
+def blocks(text):
+    """The top-level children of the file's one outer list: (start, end) of each, quotes honoured."""
+    out, depth, i, start, quoted = [], 0, 0, None, False
+    while i < len(text):
+        c = text[i]
+        if quoted:
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                quoted = False
+        elif c == '"':
+            quoted = True
+        elif c == "(":
+            depth += 1
+            if depth == 2:
+                start = i
+        elif c == ")":
+            if depth == 2:
+                out.append((start, i + 1))
+            depth -= 1
+        i += 1
+    return out
+
+
+def canonical(path):
+    """KiCad writes the items in the order of their uuids, which it draws afresh on every run.
+    Sort the blocks by content (nets by number, footprints by reference) and number the uuids,
+    so the file is the same for the same input and git shows only real changes (check_all.py
+    relies on that)."""
+    import uuid
+    text = re.sub(r'\(uuid "[0-9a-f-]{36}"\)', '(uuid "")', path.read_text(encoding="utf-8"))
+    spans = blocks(text)
+    head, tail = text[:spans[0][0]], text[spans[-1][1]:]
+
+    def key(block):
+        kind = block[1:].split(None, 1)[0]
+        rank = RANK.index(kind) if kind in RANK else len(RANK)
+        if kind == "net":
+            return (rank, int(block.split()[1]), "")
+        if kind == "footprint":
+            return (rank, 0, re.search(r'\(property "Reference" "([^"]*)"', block).group(1))
+        return (rank, 0, block)
+
+    body = "\n\t".join(sorted((text[a:b] for a, b in spans), key=key))
+    n = 0
+
+    def number(m):
+        nonlocal n
+        n += 1
+        return f'(uuid "{uuid.uuid5(uuid.NAMESPACE_URL, f"{PROJECT}.kicad_pcb/{n}")}")'
+
+    path.write_text(re.sub(r'\(uuid ""\)', number, head + body + tail), encoding="utf-8", newline="\n")
+
+
+def main():
+    board, comps, nets = build()
+    out = HERE / f"{PROJECT}.kicad_pcb"
+    pcbnew.SaveBoard(str(out), board)
+    canonical(out)
+    dsn = HERE / "work" / f"{PROJECT}.dsn"
+    pcbnew.ExportSpecctraDSN(board, str(dsn))
+    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm; {dsn.name}")
+
+
+if __name__ == "__main__":
+    main()
