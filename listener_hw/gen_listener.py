@@ -44,6 +44,13 @@ Every pinout below was checked against the maker's data sheet:
   Tang Nano 20K, ESP32-DevKitC V4 outlines         - Sipeed data sheet v1.3 p.5-6;
                                                      Espressif dimensions drawing
   ASE-xxxMHz oscillator, Conn_Coaxial              - KiCad 10 library symbols
+  PCM5102A (TSSOP-20)                              - TI SLAS859C: Pin Functions, 9.3.3
+                                                     (XSMT), 10.1.1 (Figure 33: supplies,
+                                                     CAPP-CAPM, VNEG, LDOO, 470R + 2.2 nF),
+                                                     11.1 (LDOO 0.1 uF); pin numbers also
+                                                     equal KiCad's Audio:PCM5100 symbol
+  LP5907 output capacitance 0.7..10 uF             - TI LP5907 data sheet, Recommended
+                                                     Operating Conditions
 Pin ORDER on the custom symbols is chosen for the drawing; pin NUMBERS are the
 data-sheet ones.
 
@@ -178,6 +185,7 @@ S = {
     "3V3_SW": rail("3V3_SW"),
     "5V_SW": rail("5V_SW"),
     "3V3_DA": rail("3V3_DA"),
+    "3V3_DAC": rail("3V3_DAC"),
     "J_FOT": ic("TE_1-1394640-1", "J", 25.4, 22.86, [
         ("5", "RXVCC", "power_in", "T", 5.08),
         ("3", "TXVCC", "power_in", "T", 10.16),
@@ -333,6 +341,16 @@ for _k in ("J_FOT", "LDO", "BUCK", "SI514", "LDO_CLK", "SW_ILIM"):
 for _k in ("BUF34", "BUF125", "MUX157", "OS123", "FF79"):
     S[_k].valpos = "under_left"
 
+S["PCM5102A"] = ic("PCM5102A", "U", 40.64, 50.8, [
+    ("13", "BCK", "input", "L", 5.08), ("15", "LRCK", "input", "L", 7.62), ("14", "DIN", "input", "L", 10.16),
+    ("17", "XSMT", "input", "L", 15.24), ("12", "SCK", "input", "L", 22.86), ("16", "FMT", "input", "L", 25.4),
+    ("11", "FLT", "input", "L", 27.94), ("10", "DEMP", "input", "L", 30.48),
+    ("6", "OUTL", "output", "R", 5.08), ("7", "OUTR", "output", "R", 20.32), ("2", "CAPP", "passive", "R", 27.94),
+    ("4", "CAPM", "passive", "R", 35.56), ("5", "VNEG", "passive", "R", 40.64), ("18", "LDOO", "passive", "R", 45.72),
+    ("1", "CPVDD", "power_in", "T", 10.16), ("8", "AVDD", "power_in", "T", 20.32), ("20", "DVDD", "power_in", "T", 30.48),
+    ("3", "CPGND", "power_in", "B", 10.16), ("9", "AGND", "power_in", "B", 20.32), ("19", "DGND", "power_in", "B", 30.48),
+], "2.1 Vrms ground-centred stereo DAC, 112 dB, PLL from BCK (3-wire I2S), hardware mode (TI SLAS859C)")
+
 S["TANG"] = ic("Tang_Nano_20K", "M", 30.48, 53.34, module_pins(),
                "Sipeed Tang Nano 20K, GW2AR-LV18QN88C8/I7")
 
@@ -380,7 +398,7 @@ class Sheet:
         self.segs, self.pinpts, self.pwr = [], [], 0
 
     def add(self, key, ref, value, x, y, r=0, fp="", show_val=True, ref_at=None,
-            val_at=None, fjust=None):
+            val_at=None, fjust=None, bom=True):
         sym = S[key]
         # every reference once: KiCad's ERC does not check annotation, and two
         # parts under one name (J3 was both the battery input and I2S) merge
@@ -429,7 +447,7 @@ class Sheet:
         pins = " ".join(f'(pin "{n}" (uuid "{uid(ref + n)}"))' for n in sym.pins)
         self.items.append(
             f'(symbol (lib_id "{sym.lib_id}") (at {f(x)} {f(y)} {r}) (unit 1) '
-            f'(exclude_from_sim no) (in_bom {"no" if is_pwr else "yes"}) (on_board yes) '
+            f'(exclude_from_sim no) (in_bom {"no" if is_pwr or not bom else "yes"}) (on_board yes) '
             f'(dnp no) (uuid "{uid("sym" + ref)}")\n  ' + "\n  ".join(props) +
             f'\n  {pins}\n  (instances (project "{PROJECT}" (path "/{uid("root")}" '
             f'(reference "{ref}") (unit 1)))))')
@@ -1612,25 +1630,116 @@ def testpoint_block(sh):
             ("TP4", "WAKE", "net"), ("TP5", "RT_CLK", "net")]
     y = 299.72
     for ref, name, kind in rows:
-        tp = sh.at_pin("TP", ref, name, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm",
+        tp = sh.at_pin("TP", ref, name, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
                        ref_at=(x + 2.54, y - 1.27), val_at=(x + 2.54, y + 1.27), fjust=("left", "left"))
         sh.lbl(name, tp.p("1"), 7.62, "L")
         y += 5.08
     y += 2.54
     for ref, rail in (("TP6", "3V3_AON"), ("TP7", "5V_SW")):
-        tp = sh.at_pin("TP", ref, rail, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm",
+        tp = sh.at_pin("TP", ref, rail, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
                        ref_at=(x + 2.54, y - 1.27), val_at=(x + 2.54, y + 1.27), fjust=("left", "left"))
         q = (x - 7.62, y)
         sh.wire(tp.p("1"), q); sh.up(rail, q, 2.54)
         y += 7.62
     for i, ref in enumerate(("TP8", "TP9")):
         xx = x + 15.24 * i
-        tp = sh.at_pin("TP", ref, "GND", "1", (xx, y), fp="TestPoint:TestPoint_Pad_D2.0mm",
+        tp = sh.at_pin("TP", ref, "GND", "1", (xx, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
                        ref_at=(xx + 2.54, y - 1.27), val_at=(xx + 2.54, y + 1.27), fjust=("left", "left"))
         q = (xx - 5.08, y)
         sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
     sh.text("Під щуп на стенді (обхід -> регенерація -> ін'єкція): RX_BUF за U1, TX_REGEN з U9,", 414.02, 353.06, 1.27)
     sh.text("TX_SEL (обхід чи регенерація), WAKE, такт Si514 на U9 (RT_CLK), шини і земля. Виводи FPGA - на M1.", 414.02, 356.87, 1.27)
+
+
+def line_out_block(sh):
+    sh.frame(411.48, 12.7, 579.12, 153.67,
+             "11. ЛІНІЙНИЙ ВИХІД   стерео J3 -> U15 PCM5102A -> J8 L, J9 R (RCA, 2.1 Вrms)")
+    # ---- U16: the DAC's own 3.3 V from 5V_SW, like U14 for block 9
+    u16 = sh.add("LDO_CLK", "U16", "LP5907MFX-3.3", 441.96, 30.48, fp="Package_TO_SOT_SMD:SOT-23-5")
+    vin, en = u16.p("1"), u16.p("3")
+    xr = vin[0] - 7.62
+    sh.wire(vin, (xr, vin[1]))
+    sh.up("5V_SW", (xr, vin[1]), 2.54)
+    sh.wire(en, (vin[0] - 5.08, en[1]), (vin[0] - 5.08, vin[1]))
+    c50 = sh.at_pin("C", "C50", "1u", "1", (xr - 7.62, vin[1]), fp=SMD["C"])
+    sh.wire((xr, vin[1]), c50.p("1")); sh.gnd(c50.p("2"))
+    sh.nc(u16.p("4")); sh.gnd(u16.p("2"))
+    vo = u16.p("5")
+    nda = (vo[0] + 5.08, vo[1])
+    sh.wire(vo, nda); sh.up("3V3_DAC", nda, 2.54)
+    c51 = sh.at_pin("C", "C51", "1u", "1", (nda[0] + 5.08, vo[1]), fp=SMD["C"])
+    sh.wire(nda, c51.p("1")); sh.gnd(c51.p("2"))
+
+    # ---- U15: hardware mode, three I2S wires, mute from LOCK
+    cx, cy = 474.98, 81.28
+    u15 = sh.add("PCM5102A", "U15", "PCM5102A", cx, cy, fp="Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm",
+                 ref_at=(cx, cy - 2.54), val_at=(cx, cy + 2.54))
+    sh.lbl("I2S_BCLK_F", u15.p("13"), 10.16, "L")
+    sh.lbl("I2S_LRCK_F", u15.p("15"), 10.16, "L")
+    sh.lbl("I2S_DOUT_F", u15.p("14"), 10.16, "L")
+    sh.lbl("LOCK", u15.p("17"), 10.16, "L")
+    # SCK low: the PLL makes the system clock from BCK; FMT, FLT, DEMP low: I2S, normal
+    # latency, no de-emphasis
+    ties = [u15.p(n) for n in ("12", "16", "11", "10")]
+    xb = round(ties[0][0] - 5.08, 3)
+    for t in ties:
+        sh.wire(t, (xb, t[1]))
+    sh.wire((xb, ties[0][1]), (xb, ties[-1][1]))
+    sh.gnd((xb, ties[-1][1]), 2.54)
+    for n in ("1", "8", "20"):
+        sh.up("3V3_DAC", u15.p(n), 5.08)
+    for n in ("3", "9", "19"):
+        sh.gnd(u15.p(n), 2.54)
+    # charge pump: the flying cap across CAPP-CAPM, VNEG to ground; LDOO (the core's 1.8 V)
+    capp, capm, vneg, ldoo = (u15.p(n) for n in ("2", "4", "5", "18"))
+    xo = capp[0]
+    c57 = sh.at_pin("C", "C57", "2u2", "1", (xo + 7.62, capp[1]), fp=SMD["C"])
+    sh.wire(capp, c57.p("1")); sh.wire(capm, c57.p("2"))
+    c58 = sh.at_pin("C", "C58", "2u2", "1", (xo + 25.4, vneg[1]), fp=SMD["C"])
+    sh.wire(vneg, c58.p("1")); sh.gnd(c58.p("2"))
+    c59 = sh.at_pin("C", "C59", "100n", "1", (xo + 5.08, ldoo[1]), fp=SMD["C"])
+    c60 = sh.at_pin("C", "C60", "10u", "1", (xo + 15.24, ldoo[1]), fp="Capacitor_SMD:C_0805_2012Metric")
+    sh.wire(ldoo, c60.p("1")); sh.gnd(c59.p("2")); sh.gnd(c60.p("2"))
+    # ---- the outputs: 470R + 2n2 (Figure 33), an ESD diode at each jack as D4 on J7
+    for pin, rref, cref, dref, jref, jval in (("6", "R32", "C61", "D5", "J8", "LINE L"),
+                                              ("7", "R33", "C62", "D6", "J9", "LINE R")):
+        o = u15.p(pin)
+        r = sh.at_pin("R", rref, "470", "1", (o[0] + 5.08, o[1]), r=90, fp=SMD["R"])
+        sh.wire(o, r.p("1"))
+        n = (round(o[0] + 17.78, 3), o[1])
+        sh.wire(r.p("2"), n)
+        c = sh.at_pin("C", cref, "2n2", "1", n, fp=SMD["C"]); sh.gnd(c.p("2"))
+        nd = (round(o[0] + 27.94, 3), o[1])
+        d = sh.at_pin("TVS", dref, "PESD5V0S1BL", "1", (nd[0], nd[1] + 2.54), r=270, fp="Diode_SMD:D_SOD-882",
+                      ref_at=(nd[0] + 2.54, nd[1] + 5.08), val_at=(nd[0] + 2.54, nd[1] + 7.62),
+                      fjust=("left", "left"))
+        sh.wire(nd, d.p("1")); sh.gnd(d.p("2"))
+        j = sh.at_pin("COAX", jref, jval, "1", (round(o[0] + 48.26, 3), o[1]), fp=f"{LIB}:{FP_RCA}",
+                      ref_at=(round(o[0] + 58.42, 3), o[1] - 1.27), val_at=(round(o[0] + 58.42, 3), o[1] + 1.27),
+                      fjust=("left", "left"))
+        sh.wire(n, nd, j.p("1")); sh.gnd(j.p("2"), 2.54)
+
+    # ---- the 3V3_DAC decoupling, drawn as a row; on the board each cap sits at its pin
+    caps = [("C52", "100n", SMD["C"]), ("C53", "2u2", SMD["C"]), ("C54", "100n", SMD["C"]),
+            ("C55", "4u7", "Capacitor_SMD:C_0805_2012Metric"), ("C56", "100n", SMD["C"])]
+    ys = 119.38
+    xs = [round(419.1 + 8.89 * i, 3) for i in range(len(caps))]
+    for x, (ref, val, fp) in zip(xs, caps):
+        c = sh.at_pin("C", ref, val, "1", (x, ys), fp=fp)
+        sh.gnd(c.p("2"))
+    sh.wire((xs[0], ys), (xs[-1], ys))
+    sh.up("3V3_DAC", (xs[2], ys), 2.54)
+
+    y = 134.62
+    for line in (
+        "U15 PCM5102A, апаратний режим: FMT = 0 (I2S), FLT = 0 (звичайна затримка), DEMP = 0. SCK на землі: PLL бере такт з BCK (3 проводи, BCK = 64 Fs).",
+        "Вхід - те саме стерео, що на J3. XSMT = LOCK: без захоплення кільця і до конфігурації FPGA (R8) ЦАП приглушений; спад і підйом за 104 відліки.",
+        "Вихід 2.1 Вrms відносно землі, без розділових конденсаторів: 470 Ом + 2.2 нФ C0G (рис. 33); D5, D6 - ESD на RCA. J8, J9 пад 3: як у J7, зміряти на зразку.",
+        "U16 LP5907: 3V3_DAC від 5V_SW. Ємність на його виході - до 10 мкФ, тому AVDD 4.7 мкФ і CPVDD 2.2 мкФ замість 10 мкФ з рис. 33.",
+        "На платі кожен конденсатор ряду стоїть біля свого виводу: C52, C53 - CPVDD; C54, C55 - AVDD; C56 - DVDD.",
+    ):
+        sh.text(line, 414.02, y, 1.27)
+        y += 3.81
 
 
 def build():
@@ -1645,6 +1754,7 @@ def build():
     host_block(sh)
     digital_audio_block(sh)
     testpoint_block(sh)
+    line_out_block(sh)
     return sh
 
 

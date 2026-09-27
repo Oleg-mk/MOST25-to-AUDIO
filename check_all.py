@@ -96,12 +96,14 @@ def main():
     # DRC runs here; the exit code would count the unconnected items, which stay until the
     # routing is done, so the errors are read from the JSON report instead
     (hw / "work").mkdir(exist_ok=True)
-    step("board: DRC", [str(KICAD), "pcb", "drc", "--severity-error", "--format", "json", "--output",
-                        "work/drc.json", "most_listener.kicad_pcb"], hw, need=KICAD)
-    step("board: DRC reports no error",
+    step("board: DRC", [str(KICAD), "pcb", "drc", "--severity-error", "--schematic-parity", "--format", "json",
+                        "--output", "work/drc.json", "most_listener.kicad_pcb"], hw, need=KICAD)
+    step("board: DRC reports no error and the board matches the sheet",
          [py, "-c", "import json, sys; d = json.load(open('work/drc.json', encoding='utf-8')); "
-                    "print(len(d['violations']), 'errors,', len(d['unconnected_items']), 'unconnected'); "
-                    "sys.exit(1 if d['violations'] else 0)"], hw, need=hw / "work" / "drc.json")
+                    "p = d.get('schematic_parity', []); "
+                    "print(len(d['violations']), 'errors,', len(p), 'differences from the sheet,', "
+                    "len(d['unconnected_items']), 'unconnected'); "
+                    "sys.exit(1 if d['violations'] or p else 0)"], hw, need=hw / "work" / "drc.json")
     if shutil.which("git") and (ROOT / ".git").exists():
         # everything the schematic generator writes, not the sheet alone
         step("schematic: the generator reproduces the committed files",

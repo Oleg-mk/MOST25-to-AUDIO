@@ -117,7 +117,7 @@ ANTENNA = (75.7, 30.0, 81.74, 48.0)
 # pass between a module's pins); the rest 0.25 mm
 POWER = {"GND", "VBAT_P", "5V_SW", "/5V_HOST", "Net-(J4-VBAT)", "Net-(D1-A)", "Net-(D1-K)", "Net-(D3-K)",
          "Net-(U6-SW)"}
-RAIL = {"3V3_AON", "3V3_SW", "3V3_DA", "Net-(J1-TXVCC)", "Net-(J1-RXVCC)", "Net-(U7-VDD)"}
+RAIL = {"3V3_AON", "3V3_SW", "3V3_DA", "3V3_DAC", "Net-(J1-TXVCC)", "Net-(J1-RXVCC)", "Net-(U7-VDD)"}
 # the project's DRC rules (most_listener.kicad_dru)
 RULES = """(version 1)
 # one resolved spoke ties a pad to the pour well enough here: the pours are ground on both
@@ -174,7 +174,8 @@ def find(node, key):
 
 
 def netlist():
-    """(ref -> (value, footprint), net name -> [(ref, pin)]) from the schematic, via kicad-cli."""
+    """(ref -> (value, footprint, symbol path), net name -> [(ref, pin)]) from the schematic,
+    via kicad-cli. The path (sheet + symbol uuid) is what links a footprint to its symbol."""
     out = HERE / "work" / f"{PROJECT}.net"
     out.parent.mkdir(exist_ok=True)
     subprocess.run([str(KICAD_BIN / "kicad-cli.exe"), "sch", "export", "netlist", "--format", "kicadsexpr",
@@ -183,7 +184,8 @@ def netlist():
     comps, nets = {}, {}
     for c in find(find(tree, "components")[0], "comp"):
         fpn = find(c, "footprint")
-        comps[find(c, "ref")[0][1]] = (find(c, "value")[0][1], fpn[0][1] if fpn and len(fpn[0]) > 1 else "")
+        path = find(find(c, "sheetpath")[0], "tstamps")[0][1] + find(c, "tstamps")[0][1]
+        comps[find(c, "ref")[0][1]] = (find(c, "value")[0][1], fpn[0][1] if fpn and len(fpn[0]) > 1 else "", path)
     for n in find(find(tree, "nets")[0], "net"):
         nets[find(n, "name")[0][1]] = [(find(x, "ref")[0][1], find(x, "pin")[0][1]) for x in find(n, "node")]
     return comps, nets
@@ -317,14 +319,21 @@ def build():
         netinfo[name] = ni
     pad_net = {(ref, pin): name for name, nodes in nets.items() for ref, pin in nodes}
 
-    missing = [r for r in comps if r not in PLACE]
     extra = [r for r in PLACE if r not in comps]
-    if missing or extra:
-        raise SystemExit(f"placement: missing {missing}, unknown {extra}")
-    for ref, (value, fpid) in sorted(comps.items()):
+    if extra:
+        raise SystemExit(f"placement: unknown {extra}")
+    # parts the table does not know (block 11 went onto the hand-edited board, not into this
+    # layout) wait in a row beside the board, for whoever lays the board out afresh
+    parked = [r for r in sorted(comps) if r not in PLACE]
+    for i, ref in enumerate(parked):
+        PLACE[ref] = (W + 8.0 + 7.0 * (i % 5), 6.0 + 7.0 * (i // 5), 0)
+    for ref, (value, fpid, path) in sorted(comps.items()):
         if not fpid:
             raise SystemExit(f"{ref} has no footprint")
         fp = load_footprint(fpid)
+        lib, name = fpid.split(":")
+        fp.SetFPID(pcbnew.LIB_ID(lib, name))            # as the symbol's Footprint field says
+        fp.SetPath(pcbnew.KIID_PATH(path))              # the link Update PCB from Schematic follows
         fp.SetReference(ref)
         fp.SetValue(value)
         x, y, rot = PLACE[ref]
@@ -333,8 +342,8 @@ def build():
         board.Add(fp)
         for pad in fp.Pads():
             name = pad_net.get((ref, pad.GetNumber()))
-            if name and not name.startswith("unconnected-"):     # the sheet marks NC pins as nets of one
-                pad.SetNet(netinfo[name])                        # pin; U7 has three, one per land pattern
+            if name:                                    # single pins too: unconnected-(...), as KiCad does
+                pad.SetNet(netinfo[name])
             if ref == "U6" and pad.GetNumber() == "9":      # the buck's pad and its vias: solid into the pour
                 pad.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
         texts(fp)
@@ -343,6 +352,8 @@ def build():
         fp.SetReference(f"H{i}")
         fp.SetValue("M3")
         fp.SetPosition(pt(x, y))
+        fp.SetBoardOnly(True)                           # no symbol: an update from the sheet keeps it
+        fp.SetExcludedFromBOM(True)
         board.Add(fp)
         texts(fp)
     outline(board)
@@ -422,6 +433,9 @@ def main():
     pcbnew.SaveBoard(str(out), board)
     canonical(out)
     print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm, no tracks")
+    parked = [r for r, (x, y, rot) in PLACE.items() if x > W]
+    if parked:
+        print("beside the board, to be placed:", " ".join(parked))
 
 if __name__ == "__main__":
     main()
