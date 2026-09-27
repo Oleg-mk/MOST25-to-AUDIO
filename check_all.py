@@ -106,8 +106,8 @@ def main():
         # everything the generators write, not the sheet alone
         step("schematic and board: the generators reproduce the committed files",
              ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
-              "most_listener.kicad_pro", "most_listener.kicad_pcb", "most_listener.pretty", "fp-lib-table",
-              "sym-lib-table"], hw)
+              "most_listener.kicad_pro", "most_listener.kicad_pcb", "most_listener.kicad_dru",
+              "most_listener.pretty", "fp-lib-table", "sym-lib-table"], hw)
 
     print("\n" + "=" * 60)
     for name, verdict, dt in results:

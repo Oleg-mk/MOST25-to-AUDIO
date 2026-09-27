@@ -7,8 +7,15 @@ It exports the netlist of most_listener.kicad_sch with kicad-cli, loads every fo
 from the project library or KiCad's, places each part where PLACE says, gives every pad its
 net, draws the outline, the mounting holes, the ground pours and the copper keep-out under
 M2's antenna, and writes most_listener.kicad_pcb (net classes go to most_listener.kicad_pro).
-It also writes work/most_listener.dsn, the Specctra export the autorouter takes; the routed
-session comes back through route_import.py. This file owns everything but the copper.
+It also writes work/most_listener.dsn, the Specctra export the autorouter (FreeRouting) starts
+from; when most_listener.ses, the routed session, lies beside the sheet, its tracks and vias
+are imported and the zones filled - so the copper too is reproduced from the committed files.
+To route afresh (after moving a part): delete most_listener.ses, run this file (it writes the
+.dsn without the old copper), then
+  freerouting.exe -de work/most_listener.dsn -do work/most_listener.ses -mp 100 -mt 1
+(FreeRouting 2.4.1, about 4 minutes on one thread), copy work/most_listener.ses beside the
+sheet and run this file again; kicad-cli's DRC should then report nothing but the flush
+connectors' silk clipped by the edge.
 
 Two layers, 130 x 90 mm, origin at the top left, y down. What sits where, and why:
   left edge    J1, the MOST header, its optical face 3.6 mm past the edge; the FOT cluster
@@ -21,14 +28,16 @@ Two layers, 130 x 90 mm, origin at the top left, y down. What sits where, and wh
                board under a copper keep-out (the VIE module works from its IPEX antenna)
   top right    block 9: the TOSLINK modules and the RCA jack flush with the top edge,
                DIR9001 turned so its receiver side faces J5, SRC4192 next to it, its I2S
-               side over M2's I2S pins, X1 and U14 between J6 and J7, the coax divider
-               under J7
-  corridor     x 64..75 between M1 and M2: D3 at M1's 5 V pin, DIR9001's small parts,
-               R20 R21 (UART/I2S between the modules); the rest is a routing channel
-  bottom       the battery input at the left (J4 F1 D2 D1 L2, the electrolytics), the buck
-               right of them, its 5 V test point, J3 (I2S) at the bottom edge under M2's
-               I2S pins; U10 (host switch) under M2's 5 V pin, J2 (analyser) on the right
-               edge below M2
+               side over M2's I2S pins, X1 between J6 and J7, the coax divider under J7
+  corridor     x 64..75 between M1 and M2: D3 at M1's 5 V pin, under it U14 (block 9's LDO,
+               where 5V_SW arrives from below without crossing block 9), DIR9001's small
+               parts; the rest is a routing channel (R20 R21, the UART/I2S links between the
+               modules, sit under M2's IO25/IO27 pins)
+  bottom       the battery input at the left - J4 on the left edge under J1, so the car's two
+               cables, fibre and power, leave through one face, then F1 D2 D1 L2 and the
+               electrolytics - the buck right of them, its 5 V test point, J3 (I2S) at the
+               bottom edge under M2's I2S pins; U10 (host switch) under M2's 5 V pin, J2
+               (analyser) on the right edge below M2
   corners      four M3 holes
 Rotation is KiCad's: degrees counterclockwise on screen. For a two-pad part at 0 deg pad 1
 is on the left; at 90 deg pad 1 is at the bottom, at 270 at the top.
@@ -63,8 +72,8 @@ PLACE = {
     "C10": (23.5, 41.5, 0), "C18": (27.5, 41.5, 0), "FB1": (27.5, 44.5, 0), "TP3": (33.5, 45.5, 0),
     "C17": (27.5, 47.2, 0), "R1": (23.5, 50.3, 0), "U1": (27.5, 50.3, 0), "TP1": (31.5, 50.5, 0),
     "R7": (23.5, 53.0, 0),
-    "U4": (28.0, 57.0, 0), "R6": (24.0, 57.0, 0), "C9": (28.0, 60.5, 0), "C8": (32.0, 60.5, 0),
-    "TP4": (33.5, 56.5, 0),
+    "U4": (28.0, 57.0, 0), "R6": (32.5, 57.0, 180), "C9": (32.5, 59.6, 0), "C8": (28.5, 60.5, 0),
+    "TP4": (36.5, 53.8, 0),                                                        # R6 C9 at U4's right column
     "U5": (30.0, 64.0, 0), "C3": (34.0, 64.0, 0), "TP6": (38.0, 64.0, 0),          # 3V3_AON LDO
     # ---- the ring clock (block 6); U7 carries the land patterns of all three Si514 packages
     "U8": (30.0, 4.0, 0), "C15": (25.0, 4.0, 0), "C14": (35.0, 4.0, 0),
@@ -76,9 +85,10 @@ PLACE = {
     "M2": (105.87, 39.0, 90),
     # ---- the corridor between them
     "D3": (67.8, 5.5, 0),                                                          # 5V_SW -> M1 pin 21
-    "R20": (68.0, 40.0, 90), "R21": (71.0, 40.0, 90),
+    "U14": (66.3, 10.5, 0), "C48": (66.3, 14.3, 0), "C49": (66.0, 17.0, 0),      # block 9's LDO, off 5V_SW here
+    "R20": (103.3, 56.0, 90), "R21": (108.4, 56.0, 90),                         # under M2's IO25, IO27 pins
     # ---- power (block 1), left to right along the bottom
-    "J4": (13.0, 80.5, 0), "TP8": (10.0, 70.0, 0),
+    "J4": (8.92, 70.0, 90), "TP8": (14.0, 78.0, 0),        # J4 face flush with the left edge
     "F1": (22.5, 78.0, 0), "D2": (27.0, 84.0, 270), "D1": (31.0, 78.0, 180), "L2": (40.0, 78.0, 0),
     "C1": (47.5, 70.5, 0), "C2": (51.5, 70.5, 0),
     "C44": (51.5, 78.5, 0), "C46": (51.5, 86.5, 0), "C45": (65.5, 78.5, 0), "C47": (65.5, 86.5, 0),
@@ -95,29 +105,39 @@ PLACE = {
     "U12": (78.5, 18.1, 180),
     "C28": (72.8, 15.4, 0), "R24": (72.8, 18.0, 0), "C27": (69.3, 18.0, 0), "C34": (72.8, 20.6, 0),
     "C35": (72.5, 23.5, 0), "R30": (69.3, 20.6, 0), "C40": (69.3, 23.2, 0),
-    "C38": (83.7, 14.5, 90), "C32": (83.7, 18.4, 90), "C33": (83.5, 22.6, 90),
-    "U13": (89.5, 18.0, 0), "C36": (95.3, 18.0, 90), "C37": (95.5, 22.6, 90), "R29": (95.5, 14.0, 90),
+    "C32": (83.7, 18.4, 90), "C33": (83.5, 22.6, 90),
+    "U13": (89.5, 18.0, 0), "C36": (95.3, 18.0, 90), "C37": (95.5, 22.6, 90), "C38": (95.3, 14.0, 90),
+    "R29": (99.5, 15.5, 90),
     "J6": (89.5, 1.24, 180), "R28": (96.5, 4.0, 90), "C31": (96.5, 8.0, 90),
     "X1": (101.5, 6.5, 0), "C39": (101.5, 10.5, 0),
-    "U14": (99.5, 15.5, 0), "C48": (99.5, 19.5, 0), "C49": (103.2, 15.5, 0),
     "J7": (112.5, 12.8, 180), "R26": (108.0, 19.0, 0), "R27": (108.0, 21.6, 0), "C29": (112.5, 19.0, 0),
     "D4": (116.5, 19.0, 0),
 }
 HOLES = [(4.0, 4.0), (W - 4.0, 4.0), (4.0, H - 4.0), (W - 4.0, H - 4.0)]
 # M2's PCB antenna: 18 x 6.04 mm past the module's end, no copper under it (both layers)
 ANTENNA = (75.7, 30.0, 81.74, 48.0)
-# nets that carry current: 0.6 mm tracks (the rest 0.25 mm)
-POWER = {"GND", "VBAT_P", "5V_SW", "/5V_HOST", "3V3_AON", "3V3_SW", "3V3_DA", "Net-(J1-TXVCC)",
-         "Net-(J1-RXVCC)", "Net-(U7-VDD)", "Net-(J4-VBAT)", "Net-(D1-A)", "Net-(D1-K)", "Net-(D3-K)",
+# nets that carry current: 0.6 mm tracks; the 3.3 V rails 0.35 mm (tens of mA, and 0.6 mm cannot
+# pass between a module's pins); the rest 0.25 mm
+POWER = {"GND", "VBAT_P", "5V_SW", "/5V_HOST", "Net-(J4-VBAT)", "Net-(D1-A)", "Net-(D1-K)", "Net-(D3-K)",
          "Net-(U6-SW)"}
+RAIL = {"3V3_AON", "3V3_SW", "3V3_DA", "Net-(J1-TXVCC)", "Net-(J1-RXVCC)", "Net-(U7-VDD)"}
+# nets poured on both sides
+POURED = {"GND"}
+# the project's DRC rules (most_listener.kicad_dru)
+RULES = """(version 1)
+# one resolved spoke ties a pad to the pour well enough here: the pours are ground on both
+# sides and the parts are small; KiCad's default asks for two and calls one "starved"
+(rule "one spoke"
+  (constraint min_resolved_spokes 1))
+"""
 # parts whose reference stays where the footprint puts it (big enough to carry it), and the
 # few whose default spot lands on a neighbour: their reference goes here instead
 BIG = {"M1", "M2", "J1", "J2", "J3", "J4", "J5", "J6", "J7", "U7", "U12", "U13", "C44", "C45", "L1", "L2",
        "D1", "D2", "D3", "U6"}
 REFPOS = {"J5": (77.5, 7.0), "J6": (89.5, 7.0), "J7": (112.5, 4.5)}
 # test points show their net name (the value) on the silk, next to the pad: (x, y, justify)
-TPTEXT = {"TP1": (31.5, 53.3, 0), "TP2": (33.4, 33.8, 0), "TP3": (33.5, 48.3, 0), "TP4": (35.4, 56.5, -1),
-          "TP5": (30.0, 27.3, 0), "TP6": (38.0, 66.8, 0), "TP7": (100.5, 78.8, 0), "TP8": (10.0, 72.8, 0),
+TPTEXT = {"TP1": (31.5, 53.3, 0), "TP2": (33.4, 33.8, 0), "TP3": (33.5, 48.3, 0), "TP4": (36.5, 56.6, 0),
+          "TP5": (30.0, 27.3, 0), "TP6": (38.0, 66.8, 0), "TP7": (100.5, 78.8, 0), "TP8": (14.0, 80.8, 0),
           "TP9": (110.0, 62.8, 0)}
 
 
@@ -222,6 +242,25 @@ def zone(board, layer, net, box, rule_area=False):
     return z
 
 
+def drop_dangling_vias(board):
+    """FreeRouting leaves vias behind where it ripped a route up: a via with tracks on one
+    layer only, or on none. A via of a poured net lands in the pour on the other side, so it
+    stays when a track reaches it on one layer."""
+    ends = {}
+    for t in board.Tracks():
+        if t.GetClass() == "PCB_TRACK":
+            for p in (t.GetStart(), t.GetEnd()):
+                ends.setdefault((p.x, p.y), set()).add(t.GetLayer())
+    gone = 0
+    for v in [t for t in board.Tracks() if t.GetClass() == "PCB_VIA"]:
+        p = v.GetPosition()
+        need = 1 if v.GetNetname() in POURED else 2
+        if len(ends.get((p.x, p.y), ())) < need:
+            board.Remove(v)
+            gone += 1
+    return gone
+
+
 def courtyard(fp):
     bb = fp.GetCourtyard(pcbnew.F_CrtYd).BBox()
     return bb if bb.GetWidth() else fp.GetBoundingBox(False, False)
@@ -271,7 +310,7 @@ def build():
     ds.m_CopperEdgeClearance = mm(0.3)
     # net classes (they land in the project file): 0.25 mm tracks, 0.15 clearance (the 0.5 mm
     # pitch packages leave 0.15 between pads, and their GND pads are in Power), 0.6/0.3 vias;
-    # Power 0.6 mm tracks, 0.8/0.4 vias
+    # Power 0.6 mm tracks, 0.8/0.4 vias; Rail 0.35 mm
     nc = ds.m_NetSettings.GetDefaultNetclass()
     nc.SetClearance(mm(0.15))
     nc.SetTrackWidth(mm(0.25))
@@ -283,10 +322,17 @@ def build():
     power.SetViaDiameter(mm(0.8))
     power.SetViaDrill(mm(0.4))
     ds.m_NetSettings.SetNetclass("Power", power)
-    for name in sorted(POWER):
-        if name not in nets:
-            raise SystemExit(f"POWER names a net that does not exist: {name}")
-        ds.m_NetSettings.SetNetclassPatternAssignment(name, "Power")
+    rail = pcbnew.NETCLASS("Rail")
+    rail.SetClearance(mm(0.15))
+    rail.SetTrackWidth(mm(0.35))
+    rail.SetViaDiameter(mm(0.6))
+    rail.SetViaDrill(mm(0.3))
+    ds.m_NetSettings.SetNetclass("Rail", rail)
+    for cls, names in (("Power", POWER), ("Rail", RAIL)):
+        for name in sorted(names):
+            if name not in nets:
+                raise SystemExit(f"{cls} names a net that does not exist: {name}")
+            ds.m_NetSettings.SetNetclassPatternAssignment(name, cls)
 
     netinfo = {}
     for name in nets:
@@ -311,8 +357,10 @@ def build():
         board.Add(fp)
         for pad in fp.Pads():
             name = pad_net.get((ref, pad.GetNumber()))
-            if name:
-                pad.SetNet(netinfo[name])
+            if name and not name.startswith("unconnected-"):     # the sheet marks NC pins as nets of one
+                pad.SetNet(netinfo[name])                        # pin; U7 has three, one per land pattern
+            if ref == "U6" and pad.GetNumber() == "9":      # the buck's pad and its vias: solid into the pour
+                pad.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
         texts(fp)
     for i, (x, y) in enumerate(HOLES, 1):
         fp = load_footprint("MountingHole:MountingHole_3.2mm_M3")
@@ -322,12 +370,17 @@ def build():
         board.Add(fp)
         texts(fp)
     outline(board)
-    gnd = netinfo["GND"]
-    zone(board, pcbnew.B_Cu, gnd, (0.5, 0.5, W - 0.5, H - 0.5))
-    zone(board, pcbnew.F_Cu, gnd, (0.5, 0.5, W - 0.5, H - 0.5))
+    # the bottom pour goes to the autorouter as its ground plane, so it escapes every GND pad
+    # to it by a via; the top pour is laid over the finished tracks (top_pour), or it would
+    # leave GND pads on scraps of copper between foreign tracks with no room for a via
+    zone(board, pcbnew.B_Cu, netinfo["GND"], (0.5, 0.5, W - 0.5, H - 0.5))
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
         zone(board, layer, None, ANTENNA, rule_area=True)
     return board, comps, nets
+
+
+def top_pour(board):
+    zone(board, pcbnew.F_Cu, board.FindNet("GND"), (0.5, 0.5, W - 0.5, H - 0.5))
 
 
 RANK = ["version", "generator", "generator_version", "general", "paper", "layers", "setup", "property", "net",
@@ -392,11 +445,22 @@ def canonical(path):
 def main():
     board, comps, nets = build()
     out = HERE / f"{PROJECT}.kicad_pcb"
+    board.SetFileName(str(out))
+    dsn = HERE / "work" / f"{PROJECT}.dsn"
+    pcbnew.ExportSpecctraDSN(board, str(dsn))        # the placement alone: what the autorouter starts from
+    ses = HERE / f"{PROJECT}.ses"
+    routed = ""
+    if ses.exists():                                 # the autorouter's session: its tracks and vias
+        pcbnew.ImportSpecctraSES(board, str(ses))
+        gone = drop_dangling_vias(board)
+        routed = f", {len(board.Tracks())} tracks and vias from {ses.name} ({gone} stray vias dropped)"
+    top_pour(board)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+    (HERE / f"{PROJECT}.kicad_dru").write_text(RULES, encoding="utf-8", newline="\n")
     pcbnew.SaveBoard(str(out), board)
     canonical(out)
-    dsn = HERE / "work" / f"{PROJECT}.dsn"
-    pcbnew.ExportSpecctraDSN(board, str(dsn))
-    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm; {dsn.name}")
+    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm{routed}; "
+          f"{dsn.name}")
 
 
 if __name__ == "__main__":
