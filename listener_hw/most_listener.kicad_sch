@@ -4611,7 +4611,7 @@
 (text "X1 24.576 МГц: опорний такт оцінювача швидкості SRC4192 (RCKI), асинхронний до обох портів. RST_AIN: R30/C40 = 10 мс, коли X1 уже іде (SRC4192 без POR)." (exclude_from_sim no) (at 17.78 381 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "caf68ed3-6f1f-515c-9df0-e2a5d8e0fa12"))
 (text "OPT_ERR (U12 ERROR) -> M2 IO32: 1 = TOSLINK без сигналу або помилка парності; хост тоді не інжектує. Джерело для інжекції: команда 02, біт M[2]." (exclude_from_sim no) (at 17.78 384.81 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "891a74eb-63ee-5919-a876-419fa0960b4f"))
 (text "S/PDIF OUT: SPDIF_F (FPGA 31) -> R28 -> J6 PLT133; R26/R27: 0.5 В на 75 Ом, вихідний опір 75 Ом; C29 без постійної -> J7 RCA. Той самий потік, що й на J3." (exclude_from_sim no) (at 17.78 388.62 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "0e4dfec4-9648-5106-89f7-d0b62a96e121"))
-(rectangle (start 411.48 289.56) (end 498 360.68) (stroke (width 0.254) (type dash) (color 72 72 160 1)) (fill (type none)) (uuid "d5060568-75af-59fe-ae6c-664ed6fce3e6"))
+(rectangle (start 411.48 289.56) (end 523.24 360.68) (stroke (width 0.254) (type dash) (color 72 72 160 1)) (fill (type none)) (uuid "d5060568-75af-59fe-ae6c-664ed6fce3e6"))
 (text "10. ТЕСТОВІ ТОЧКИ (стенд)" (exclude_from_sim no) (at 412.75 293.37 0) (effects (font (size 2 2) (bold yes)) (justify left bottom)) (uuid "176442a8-4f04-5249-b2d9-5f11dfe0e2c3"))
 (symbol (lib_id "Connector:TestPoint") (at 467.36 299.72 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "62449e75-8e18-57a8-acde-656a79607570")
   (property "Reference" "TP1" (at 469.9 298.45 0) (effects (font (size 1.27 1.27)) (justify left)))

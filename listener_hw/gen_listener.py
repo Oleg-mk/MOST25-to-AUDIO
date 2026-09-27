@@ -1556,7 +1556,7 @@ def digital_audio_block(sh):
 
 
 def testpoint_block(sh):
-    sh.frame(411.48, 289.56, 498.0, 360.68, "10. ТЕСТОВІ ТОЧКИ (стенд)")
+    sh.frame(411.48, 289.56, 523.24, 360.68, "10. ТЕСТОВІ ТОЧКИ (стенд)")
     x = 467.36
     rows = [("TP1", "RX_BUF", "net"), ("TP2", "TX_REGEN", "net"), ("TP3", "TX_SEL", "net"),
             ("TP4", "WAKE", "net"), ("TP5", "RT_CLK", "net")]
