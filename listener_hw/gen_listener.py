@@ -680,7 +680,7 @@ def toslink_t10_footprint():
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "t10fab"))
     items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "t10silk"))
     items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "t10crt"))
-    items.append(_fptext("port", 0, 0.5, "F.Fab", 0.5, "t10txt"))
+    items.append(_fptext("port", 0, 1.9, "F.Fab", 0.5, "t10txt"))
     items.append(_fpdot(-4.0, 2.0, "t10pin1"))
     return _fp(FP_T10, "Everlight PLR135/T10 receiver and PLT133/T10W transmitter (TOSLINK housing): 3 pins on "
                "2.54, two pegs 2.63 behind them, the optical port faces +y; data sheets DPL-135-017 p.2 and "
@@ -702,7 +702,7 @@ def bkl_rca_footprint():
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "rcafab"))
     items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "rcasilk"))
     items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "rcacrt"))
-    items.append(_fptext("port ->", 0, 10.5, "F.Fab", 0.7, "rcatxt"))
+    items.append(_fptext("port", 0, 10.5, "F.Fab", 0.7, "rcatxt"))
     items.append(_fpdot(-1.4, -1.4, "rcapin1"))
     return _fp(FP_RCA, "BKL Electronic 0101153 RCA jack, right angle, gold, black: centre pin on the axis (1), "
                "thick legs (2), the thin pin 2.5 beside the axis (3, function not in the drawing - measure); "
@@ -1556,7 +1556,7 @@ def digital_audio_block(sh):
 
 
 def testpoint_block(sh):
-    sh.frame(411.48, 289.56, 498.0, 353.06, "10. ТЕСТОВІ ТОЧКИ (стенд: обхід -> регенерація -> ін'єкція)")
+    sh.frame(411.48, 289.56, 498.0, 360.68, "10. ТЕСТОВІ ТОЧКИ (стенд)")
     x = 467.36
     rows = [("TP1", "RX_BUF", "net"), ("TP2", "TX_REGEN", "net"), ("TP3", "TX_SEL", "net"),
             ("TP4", "WAKE", "net"), ("TP5", "RT_CLK", "net")]
@@ -1579,8 +1579,8 @@ def testpoint_block(sh):
                        ref_at=(xx + 2.54, y - 1.27), val_at=(xx + 2.54, y + 1.27), fjust=("left", "left"))
         q = (xx - 5.08, y)
         sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
-    sh.text("Під щуп на стенді: RX_BUF за U1, TX_REGEN з U9, TX_SEL (обхід чи регенерація),", 414.02, 345.44, 1.27)
-    sh.text("WAKE, такт Si514 на U9 (RT_CLK), шини і земля. Виводи FPGA - на гребінці M1.", 414.02, 349.25, 1.27)
+    sh.text("Під щуп на стенді (обхід -> регенерація -> ін'єкція): RX_BUF за U1, TX_REGEN з U9,", 414.02, 353.06, 1.27)
+    sh.text("TX_SEL (обхід чи регенерація), WAKE, такт Si514 на U9 (RT_CLK), шини і земля. Виводи FPGA - на M1.", 414.02, 356.87, 1.27)
 
 
 def build():

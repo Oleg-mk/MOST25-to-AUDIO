@@ -24,6 +24,6 @@
 	(fp_line (start 5.1 -9.01) (end 5.1 1.49) (stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "2a324262-14b0-5573-b058-f0d85422df2e"))
 	(fp_line (start 5.1 1.49) (end -5.1 1.49) (stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "be743ddc-e59c-50b3-82b4-45ec02aee7ca"))
 	(fp_line (start -5.1 1.49) (end -5.1 -9.01) (stroke (width 0.05) (type solid)) (layer "F.CrtYd") (uuid "df075749-6d78-57aa-8311-8447fce48f72"))
-	(fp_text user "port" (at 0 0.5 0) (layer "F.Fab") (uuid "49ec6091-d3bc-57f7-99c1-fc105242a6e8") (effects (font (size 0.5 0.5) (thickness 0.075))))
+	(fp_text user "port" (at 0 1.9 0) (layer "F.Fab") (uuid "49ec6091-d3bc-57f7-99c1-fc105242a6e8") (effects (font (size 0.5 0.5) (thickness 0.075))))
 	(fp_circle (center -4 2) (end -3.85 2) (stroke (width 0.1) (type solid)) (fill yes) (layer "F.SilkS") (uuid "db891c82-189e-5ff4-82b9-2eaf30acb1a3"))
 )
