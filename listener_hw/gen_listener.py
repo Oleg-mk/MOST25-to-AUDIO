@@ -171,6 +171,7 @@ S = {
     "3V3_AON": rail("3V3_AON"),
     "3V3_SW": rail("3V3_SW"),
     "5V_SW": rail("5V_SW"),
+    "3V3_DA": rail("3V3_DA"),
     "J_FOT": ic("TE_1-1394640-1", "J", 25.4, 22.86, [
         ("5", "RXVCC", "power_in", "T", 5.08),
         ("3", "TXVCC", "power_in", "T", 10.16),
@@ -1385,7 +1386,7 @@ def host_block(sh):
 
 
 def digital_audio_block(sh):
-    sh.frame(12.7, 289.56, 406.4, 391.16,
+    sh.frame(12.7, 289.56, 406.4, 394.97,
              "9. ЦИФРОВЕ АУДІО   J5 TOSLINK IN -> U12 DIR9001 -> U13 SRC4192 -> I2S_DIN2_F;   SPDIF_F -> J6 TOSLINK OUT і J7 коаксіал")
     # ---- TOSLINK in: J5 -> R25 (damping, DIR9001 data sheet 8.3.1) -> U12.RXIN
     u12 = sh.add("DIR9001", "U12", "DIR9001", 109.22, 340.36, fp="Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm",
@@ -1400,7 +1401,7 @@ def digital_audio_block(sh):
     n5 = (vcc5[0], round(vcc5[1] - 6.35, 3))
     sh.wire(vcc5, n5)
     fb3 = sh.at_pin("FB", "FB3", "600R", "1", (n5[0] + 2.54, n5[1]), r=90, fp="Inductor_SMD:L_0603_1608Metric")
-    sh.wire(n5, fb3.p("1")); sh.up("3V3_SW", fb3.p("2"), 2.54)
+    sh.wire(n5, fb3.p("1")); sh.up("3V3_DA", fb3.p("2"), 2.54)
     c30 = sh.at_pin("C", "C30", "100n", "1", (n5[0] - 10.16, n5[1]), fp=SMD["C"])
     sh.wire(n5, c30.p("1")); sh.gnd(c30.p("2"))
     sh.flag(c30.p("1"), dx=0)                          # fed through FB3: driven
@@ -1424,7 +1425,7 @@ def digital_audio_block(sh):
     for p in top:
         sh.wire(p, (p[0], yb))
     sh.wire((top[0][0], yb), (top[-1][0], yb))
-    sh.up("3V3_SW", (u12.x, yb), 2.54)
+    sh.up("3V3_DA", (u12.x, yb), 2.54)
     bot = [u12.p(n) for n in ("6", "23", "14", "13", "28", "19", "8")]
     yg = round(bot[0][1] + 2.54, 3)
     for p in bot:
@@ -1444,7 +1445,7 @@ def digital_audio_block(sh):
     for p in top:
         sh.wire(p, (p[0], yb))
     sh.wire((top[0][0], yb), (top[-1][0], yb))
-    sh.up("3V3_SW", (u13.x, yb), 2.54)
+    sh.up("3V3_DA", (u13.x, yb), 2.54)
     bot = [u13.p(n) for n in ("8", "21", "11", "12", "26", "27", "28", "1", "9", "14", "20", "17", "16", "18")]
     yg = round(bot[0][1] + 2.54, 3)
     for p in bot:
@@ -1458,7 +1459,7 @@ def digital_audio_block(sh):
     out, en, vdd, g = x1.p("3"), x1.p("1"), x1.p("4"), x1.p("2")
     sh.wire(out, (out[0], rcki[1]), rcki)
     sh.wire(en, (en[0] - 2.54, en[1]), (en[0] - 2.54, vdd[1]), vdd)
-    sh.up("3V3_SW", vdd, 0)
+    sh.up("3V3_DA", vdd, 0)
     sh.gnd(g, 2.54)
     # output port, slave on the FPGA's I2S clocks; data to the FPGA through 33R
     sdout, bcko13, lrcko13, rdy, rst13, nc3 = (u13.p(n) for n in ("23", "25", "24", "15", "13", "3"))
@@ -1477,7 +1478,7 @@ def digital_audio_block(sh):
     j6 = sh.at_pin("TOSLINK_TX", "J6", "PLT133/T10W", "1", (r28.p("2")[0] + 7.62, n1[1]), fp=f"{LIB}:{FP_T10}",
                    ref_at=(292.1, 318.77), val_at=(309.88, 331.47), fjust=("left bottom", "left bottom"))
     sh.wire(r28.p("2"), j6.p("1"))
-    sh.up("3V3_SW", j6.p("2"), 6.35); sh.gnd(j6.p("3"), 2.54)
+    sh.up("3V3_DA", j6.p("2"), 6.35); sh.gnd(j6.p("3"), 2.54)
     n2 = (n1[0], 346.71)
     sh.wire(n1, n2)
     r26 = sh.at_pin("R", "R26", "240", "1", (n2[0] + 2.54, n2[1]), r=90, fp=SMD["R"])
@@ -1490,11 +1491,30 @@ def digital_audio_block(sh):
                    ref_at=(307.34, 342.9), val_at=(312.42, 346.71), fjust=(None, "left"))
     sh.wire(c29.p("2"), j7.p("1")); sh.gnd(j7.p("2"), 2.54)
 
-    # ---- the shared reset: 10 ms after 3V3_SW, when X1 already runs (the SRC4192 has no
+    # ---- U14: the block's own 3.3 V from 5V_SW. The module's regulator (3V3_SW) has an
+    # unknown margin, and this block takes ~0.1 A; an LDO of its own also keeps the
+    # receiver's PLL and the ASRC off the FPGA's supply noise.
+    u14 = sh.add("LDO_CLK", "U14", "LP5907MFX-3.3", 358.14, 312.42, fp="Package_TO_SOT_SMD:SOT-23-5")
+    vin, en = u14.p("1"), u14.p("3")
+    xr = vin[0] - 7.62
+    sh.wire(vin, (xr, vin[1]))
+    sh.up("5V_SW", (xr, vin[1]), 2.54)
+    sh.wire(en, (vin[0] - 5.08, en[1]), (vin[0] - 5.08, vin[1]))
+    c48 = sh.at_pin("C", "C48", "1u", "1", (xr - 7.62, vin[1]), fp=SMD["C"])
+    sh.wire((xr, vin[1]), c48.p("1")); sh.gnd(c48.p("2"))
+    sh.nc(u14.p("4")); sh.gnd(u14.p("2"))
+    vo = u14.p("5")
+    nda = (vo[0] + 5.08, vo[1])
+    sh.wire(vo, nda); sh.up("3V3_DA", nda, 2.54)
+    c49 = sh.at_pin("C", "C49", "1u", "1", (nda[0] + 5.08, vo[1]), fp=SMD["C"])
+    sh.wire(nda, c49.p("1")); sh.gnd(c49.p("2"))
+    sh.text("U14 LP5907: 3V3_DA (250 мА) для блоку 9 від 5V_SW, не з LDO модуля. J7 пад 3 (тонкий штир поза віссю): функції в кресленні BKL нема, зміряти на зразку.", 17.78, 392.43, 1.27)
+
+    # ---- the shared reset: 10 ms after 3V3_DA, when X1 already runs (the SRC4192 has no
     # power-on reset and wants RCKI alive during RST); and the decoupling, drawn as a row
     r30 = sh.at_pin("R", "R30", "10k", "2", (317.5, 365.76), fp=SMD["R"],
                     ref_at=(314.96, 360.68), val_at=(314.96, 363.22), fjust=("right", "right"))
-    sh.up("3V3_SW", r30.p("1"), 2.54)
+    sh.up("3V3_DA", r30.p("1"), 2.54)
     c40 = sh.at_pin("C", "C40", "1u", "1", r30.p("2"), fp=SMD["C"]); sh.gnd(c40.p("2"))
     sh.wire(r30.p("2"), (312.42, 365.76)); sh.label("RST_AIN", (312.42, 365.76), "L")
     caps = [("C31", "100n", SMD["C"]), ("C32", "100n", SMD["C"]), ("C33", "10u", "Capacitor_SMD:C_0805_2012Metric"),
@@ -1507,7 +1527,7 @@ def digital_audio_block(sh):
         c = sh.at_pin("C", ref, val, "1", (x, ys), fp=fp)
         sh.gnd(c.p("2"))
     sh.wire((xs[0], ys), (xs[-1], ys))
-    sh.up("3V3_SW", (xs[4], ys), 2.54)
+    sh.up("3V3_DA", (xs[4], ys), 2.54)
     sh.text("C31 J6; C32/C33 U12 VDD; C34/C35 U12 VCC;", 325.12, 381.0, 1.27)
     sh.text("C36/C37 U13 VDD; C38 U13 VIO; C39 X1: біля виводів.", 325.12, 384.81, 1.27)
 
