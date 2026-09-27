@@ -7,15 +7,11 @@ It exports the netlist of most_listener.kicad_sch with kicad-cli, loads every fo
 from the project library or KiCad's, places each part where PLACE says, gives every pad its
 net, draws the outline, the mounting holes, the ground pours and the copper keep-out under
 M2's antenna, and writes most_listener.kicad_pcb (net classes go to most_listener.kicad_pro).
-It also writes work/most_listener.dsn, the Specctra export the autorouter (FreeRouting) starts
-from; when most_listener.ses, the routed session, lies beside the sheet, its tracks and vias
-are imported and the zones filled - so the copper too is reproduced from the committed files.
-To route afresh (after moving a part): delete most_listener.ses, run this file (it writes the
-.dsn without the old copper), then
-  freerouting.exe -de work/most_listener.dsn -do work/most_listener.ses -mp 100 -mt 1
-(FreeRouting 2.4.1, about 4 minutes on one thread), copy work/most_listener.ses beside the
-sheet and run this file again; kicad-cli's DRC should then report nothing but the flush
-connectors' silk clipped by the edge.
+The copper is routed by hand in KiCad: this file lays the parts out once, and from then on
+most_listener.kicad_pcb belongs to the PCB editor - the script refuses to overwrite it unless
+it is run with --fresh, which lays the parts out again from PLACE and discards every track.
+Changes of the sheet reach the board through the editor (Tools > Update PCB from Schematic),
+not through this file.
 
 Two layers, 130 x 90 mm, origin at the top left, y down. What sits where, and why:
   left edge    J1, the MOST header, its optical face 3.6 mm past the edge; the FOT cluster
@@ -47,6 +43,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pcbnew
@@ -121,8 +118,6 @@ ANTENNA = (75.7, 30.0, 81.74, 48.0)
 POWER = {"GND", "VBAT_P", "5V_SW", "/5V_HOST", "Net-(J4-VBAT)", "Net-(D1-A)", "Net-(D1-K)", "Net-(D3-K)",
          "Net-(U6-SW)"}
 RAIL = {"3V3_AON", "3V3_SW", "3V3_DA", "Net-(J1-TXVCC)", "Net-(J1-RXVCC)", "Net-(U7-VDD)"}
-# nets poured on both sides
-POURED = {"GND"}
 # the project's DRC rules (most_listener.kicad_dru)
 RULES = """(version 1)
 # one resolved spoke ties a pad to the pour well enough here: the pours are ground on both
@@ -242,25 +237,6 @@ def zone(board, layer, net, box, rule_area=False):
     return z
 
 
-def drop_dangling_vias(board):
-    """FreeRouting leaves vias behind where it ripped a route up: a via with tracks on one
-    layer only, or on none. A via of a poured net lands in the pour on the other side, so it
-    stays when a track reaches it on one layer."""
-    ends = {}
-    for t in board.Tracks():
-        if t.GetClass() == "PCB_TRACK":
-            for p in (t.GetStart(), t.GetEnd()):
-                ends.setdefault((p.x, p.y), set()).add(t.GetLayer())
-    gone = 0
-    for v in [t for t in board.Tracks() if t.GetClass() == "PCB_VIA"]:
-        p = v.GetPosition()
-        need = 1 if v.GetNetname() in POURED else 2
-        if len(ends.get((p.x, p.y), ())) < need:
-            board.Remove(v)
-            gone += 1
-    return gone
-
-
 def courtyard(fp):
     bb = fp.GetCourtyard(pcbnew.F_CrtYd).BBox()
     return bb if bb.GetWidth() else fp.GetBoundingBox(False, False)
@@ -370,17 +346,10 @@ def build():
         board.Add(fp)
         texts(fp)
     outline(board)
-    # the bottom pour goes to the autorouter as its ground plane, so it escapes every GND pad
-    # to it by a via; the top pour is laid over the finished tracks (top_pour), or it would
-    # leave GND pads on scraps of copper between foreign tracks with no room for a via
-    zone(board, pcbnew.B_Cu, netinfo["GND"], (0.5, 0.5, W - 0.5, H - 0.5))
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+        zone(board, layer, netinfo["GND"], (0.5, 0.5, W - 0.5, H - 0.5))
         zone(board, layer, None, ANTENNA, rule_area=True)
     return board, comps, nets
-
-
-def top_pour(board):
-    zone(board, pcbnew.F_Cu, board.FindNet("GND"), (0.5, 0.5, W - 0.5, H - 0.5))
 
 
 RANK = ["version", "generator", "generator_version", "general", "paper", "layers", "setup", "property", "net",
@@ -415,8 +384,7 @@ def blocks(text):
 def canonical(path):
     """KiCad writes the items in the order of their uuids, which it draws afresh on every run.
     Sort the blocks by content (nets by number, footprints by reference) and number the uuids,
-    so the file is the same for the same input and git shows only real changes (check_all.py
-    relies on that)."""
+    so two runs give the same file."""
     import uuid
     text = re.sub(r'\(uuid "[0-9a-f-]{36}"\)', '(uuid "")', path.read_text(encoding="utf-8"))
     spans = blocks(text)
@@ -443,25 +411,17 @@ def canonical(path):
 
 
 def main():
-    board, comps, nets = build()
     out = HERE / f"{PROJECT}.kicad_pcb"
+    if out.exists() and "--fresh" not in sys.argv:
+        print(f"{out.name} exists and carries the hand routing; --fresh lays the parts out again from PLACE "
+              "and loses every track")
+        return
+    board, comps, nets = build()
     board.SetFileName(str(out))
-    dsn = HERE / "work" / f"{PROJECT}.dsn"
-    pcbnew.ExportSpecctraDSN(board, str(dsn))        # the placement alone: what the autorouter starts from
-    ses = HERE / f"{PROJECT}.ses"
-    routed = ""
-    if ses.exists():                                 # the autorouter's session: its tracks and vias
-        pcbnew.ImportSpecctraSES(board, str(ses))
-        gone = drop_dangling_vias(board)
-        routed = f", {len(board.Tracks())} tracks and vias from {ses.name} ({gone} stray vias dropped)"
-    top_pour(board)
-    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     (HERE / f"{PROJECT}.kicad_dru").write_text(RULES, encoding="utf-8", newline="\n")
     pcbnew.SaveBoard(str(out), board)
     canonical(out)
-    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm{routed}; "
-          f"{dsn.name}")
-
+    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm, no tracks")
 
 if __name__ == "__main__":
     main()
