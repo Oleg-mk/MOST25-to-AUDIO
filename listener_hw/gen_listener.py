@@ -287,6 +287,7 @@ S = {
     ], "Asynchronous sample rate converter, both ports slave, 24-bit I2S in and out (TI SBFS022C)"),
     "OSC": from_kicad("Oscillator", "ASE-xxxMHz"),
     "COAX": from_kicad("Connector", "Conn_Coaxial"),
+    "TP": from_kicad("Connector", "TestPoint"),
     "CONN_I2S": ic("Conn_I2S", "J", 15.24, 17.78, [
         ("1", "MCLK", "passive", "L", 2.54), ("2", "BCLK", "passive", "L", 5.08),
         ("3", "LRCK", "passive", "L", 7.62), ("4", "DOUT", "passive", "L", 10.16),
@@ -1549,6 +1550,34 @@ def digital_audio_block(sh):
         y += 3.81
 
 
+def testpoint_block(sh):
+    sh.frame(411.48, 289.56, 498.0, 353.06, "10. ТЕСТОВІ ТОЧКИ (стенд: обхід -> регенерація -> ін'єкція)")
+    x = 467.36
+    rows = [("TP1", "RX_BUF", "net"), ("TP2", "TX_REGEN", "net"), ("TP3", "TX_SEL", "net"),
+            ("TP4", "WAKE", "net"), ("TP5", "RT_CLK", "net")]
+    y = 299.72
+    for ref, name, kind in rows:
+        tp = sh.at_pin("TP", ref, name, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm",
+                       ref_at=(x + 2.54, y - 1.27), val_at=(x + 2.54, y + 1.27), fjust=("left", "left"))
+        sh.lbl(name, tp.p("1"), 7.62, "L")
+        y += 5.08
+    y += 2.54
+    for ref, rail in (("TP6", "3V3_AON"), ("TP7", "5V_SW")):
+        tp = sh.at_pin("TP", ref, rail, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm",
+                       ref_at=(x + 2.54, y - 1.27), val_at=(x + 2.54, y + 1.27), fjust=("left", "left"))
+        q = (x - 7.62, y)
+        sh.wire(tp.p("1"), q); sh.up(rail, q, 2.54)
+        y += 7.62
+    for i, ref in enumerate(("TP8", "TP9")):
+        xx = x + 15.24 * i
+        tp = sh.at_pin("TP", ref, "GND", "1", (xx, y), fp="TestPoint:TestPoint_Pad_D2.0mm",
+                       ref_at=(xx + 2.54, y - 1.27), val_at=(xx + 2.54, y + 1.27), fjust=("left", "left"))
+        q = (xx - 5.08, y)
+        sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
+    sh.text("Під щуп на стенді: RX_BUF за U1, TX_REGEN з U9, TX_SEL (обхід чи регенерація),", 414.02, 345.44, 1.27)
+    sh.text("WAKE, такт Si514 на U9 (RT_CLK), шини і земля. Виводи FPGA - на гребінці M1.", 414.02, 349.25, 1.27)
+
+
 def build():
     sh = Sheet()
     power_block(sh)
@@ -1560,6 +1589,7 @@ def build():
     output_block(sh)
     host_block(sh)
     digital_audio_block(sh)
+    testpoint_block(sh)
     return sh
 
 
