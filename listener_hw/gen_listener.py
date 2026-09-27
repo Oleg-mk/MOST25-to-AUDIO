@@ -24,7 +24,13 @@ Every pinout below was checked against the maker's data sheet:
   TE 1-1394640-1 (MOST FOT header)                 - usb2most v3 schematic, a
                                                      board proven on a real car;
                                                      Rext and supply filters per
-                                                     Avago AN 5344 / AFBR-1013 data sheet
+                                                     Avago AN 5344 / AFBR-1013 data sheet;
+                                                     pin allocation TE 114-18997 A3 4.1
+  TE MOST pigtail FOT footprint                    - TE customer view model drawing
+                                                     C-2-2141577-1 B (2:1 views, measured:
+                                                     front view for x, side view for
+                                                     depth), hole for hole the same as
+                                                     usb2most's TYCO_1_1394640_1 (GPLv3)
   Tang Nano 20K header pads                        - Sipeed pin label drawing
   DIR9001 (TSSOP-28)                               - TI SLES198A: Pin Functions,
                                                      Tables 4, 6, 13, section 8.3.3
@@ -659,10 +665,52 @@ def _fp(name, descr, tags, attr, items, ref_y, val_y):
             + "\n".join(items) + "\n)\n")
 
 
+FP_FOT = "TE_MOST_Pigtail_FOT_2+0"
 FP_T10 = "Everlight_TOSLINK_T10"
 FP_RCA = "BKL_0101153_RCA_RA"
 FP_TANG = "Sipeed_TangNano20K"
 FP_ESP = "Espressif_ESP32-DevKitC_V4"
+
+
+def te_fot_footprint():
+    """TE MOST pigtail FOT unit (1-1394640-1; drawing C-2-2141577-1): eight 0.5 mm pins in
+    one row, 2.54 apart with 3.86 between pins 4 and 5 (TX 1..4, RX 5..8); two 2.0 mm
+    standoffs; two 0.4 mm action pins in 1.8 mm holes (soldered or pressed, 114-18997 6.1)
+    and four 0.4 mm guide legs. Measured off the 2:1 drawing: the front view gives x, the
+    side view the depth; every hole equals usb2most's footprint. Pin 1 is at +x here (the
+    front view, contacts down, has it at the left); the optical face is at -y, 15.4 past the
+    pins and beyond the body's foot - it overhangs the board edge."""
+    items = []
+    for i in range(8):
+        x = 9.55 - 2.54 * i - (3.86 - 2.54 if i >= 4 else 0)
+        items.append(_fppad(str(i + 1), "thru_hole", "rect" if i == 0 else "circle", round(x, 2), 7.07,
+                            1.6, 1.6, 1.0, f"fotp{i}"))
+    for i, (x, y) in enumerate(((7.6, 1.0), (-6.1, -10.4))):
+        items.append(_fppad("", "np_thru_hole", "circle", x, y, 2.1, 2.1, 2.1, f"fotpeg{i}"))
+    for i, (x, y) in enumerate(((10.85, -8.3), (-12.85, -8.3))):
+        items.append(_fppad("0", "thru_hole", "circle", x, y, 2.4, 2.4, 1.8, f"fotact{i}"))
+    for i, (x, y) in enumerate(((0.0, 4.45), (-12.85, 6.2), (-4.47, 9.15), (7.01, 9.15))):
+        items.append(_fppad("", "np_thru_hole", "circle", x, y, 1.1, 1.1, 1.1, f"fotguide{i}"))
+    x0, x1, y0, y1 = -14.1, 11.1, -15.4, 9.35
+    items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "fotfab"))
+    items.append(_fpl(x0, -11.8, x1, -11.8, "F.Fab", 0.1, "fotfoot"))        # the foot ends; the port overhangs
+    # silk: the right action pin's pad reaches past the housing's edge, so that edge is drawn
+    # in two pieces around it; the courtyard takes the pad in
+    sx0, sy0, sx1, sy1 = x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11
+    items.append(_fpl(sx0, sy0, sx1, sy0, "F.SilkS", 0.12, "fotsilk0"))
+    items.append(_fpl(sx0, sy1, sx1, sy1, "F.SilkS", 0.12, "fotsilk1"))
+    items.append(_fpl(sx0, sy0, sx0, sy1, "F.SilkS", 0.12, "fotsilk2"))
+    items.append(_fpl(sx1, sy0, sx1, -8.3 - 1.6, "F.SilkS", 0.12, "fotsilk3"))
+    items.append(_fpl(sx1, -8.3 + 1.6, sx1, sy1, "F.SilkS", 0.12, "fotsilk4"))
+    items.append(_fpbox(x0 - 0.25, y0 - 0.25, 12.3, y1 + 0.25, "F.CrtYd", 0.05, "fotcrt"))
+    items.append(_fptext("optical face", -1.5, -13.6, "F.Fab", 0.7, "fottxt"))
+    items.append(_fptext("TX 1..4", 5.7, 5.3, "F.Fab", 0.6, "fottx"))
+    items.append(_fptext("RX 5..8", -5.7, 5.3, "F.Fab", 0.6, "fotrx"))
+    items.append(_fpdot(11.7, 7.07, "fotpin1"))
+    return _fp(FP_FOT, "TE MOST25 pigtail FOT unit with header (1-1394640-1, drawing C-2-2141577-1): 8 pins 0.5 mm "
+               "in one row on 2.54 with 3.86 between 4 and 5, two 2.0 mm standoffs, two action pins in 1.8 mm "
+               "holes (pad 0), four guide legs; the optical face at -y overhangs the board edge; pin 1 (TX data) "
+               "at +x", "TE MOST FOT pigtail 1394640 2141577", "through_hole", items, -17.0, 10.8)
 
 
 def toslink_t10_footprint():
@@ -758,7 +806,7 @@ def devkitc_footprint():
                -31.7, 26.9)
 
 
-NEW_FOOTPRINTS = ((FP_T10, toslink_t10_footprint), (FP_RCA, bkl_rca_footprint),
+NEW_FOOTPRINTS = ((FP_FOT, te_fot_footprint), (FP_T10, toslink_t10_footprint), (FP_RCA, bkl_rca_footprint),
                   (FP_TANG, tangnano_footprint), (FP_ESP, devkitc_footprint))
 
 
@@ -1043,7 +1091,7 @@ def wake_block(sh):
 
 def optics_block(sh):
     sh.frame(12.7, 106.68, 203.2, 198.12, "3. КІЛЬЦЕ   J1 = вхід і вихід MOST (обидва волокна); ретрансляція, завжди живлено")
-    j1 = sh.add("J_FOT", "J1", "1-1394640-1", 45.72, 151.13, fp="",
+    j1 = sh.add("J_FOT", "J1", "1-1394640-1", 45.72, 151.13, fp=f"{LIB}:{FP_FOT}",
                 ref_at=(33.02, 138.43), val_at=(31.75, 151.13), fjust=("left bottom", "right"))
     sh.text("волокно ВІД попереднього вузла -> RX", 17.78, 176.53, 1.27)
     sh.text("волокно ДО наступного вузла  <- TX", 17.78, 180.34, 1.27)

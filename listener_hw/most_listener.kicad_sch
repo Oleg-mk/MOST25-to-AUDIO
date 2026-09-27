@@ -3346,7 +3346,7 @@
 (symbol (lib_id "most_listener:TE_1-1394640-1") (at 45.72 151.13 0) (unit 1) (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no) (uuid "df9e38c8-d865-5773-8aa2-39296c24c0af")
   (property "Reference" "J1" (at 33.02 138.43 0) (effects (font (size 1.27 1.27)) (justify left bottom)))
   (property "Value" "1-1394640-1" (at 31.75 151.13 0) (effects (font (size 1.27 1.27)) (justify right)))
-  (property "Footprint" "" (at 45.72 151.13 0) (effects (font (size 1.27 1.27)) (hide yes)))
+  (property "Footprint" "most_listener:TE_MOST_Pigtail_FOT_2+0" (at 45.72 151.13 0) (effects (font (size 1.27 1.27)) (hide yes)))
   (property "Datasheet" "" (at 45.72 151.13 0) (effects (font (size 1.27 1.27)) (hide yes)))
   (pin "5" (uuid "5b78e03e-6847-5308-982f-86c6a7fd39f6")) (pin "3" (uuid "d9139116-c041-5286-850b-34cef43bbcad")) (pin "4" (uuid "5487ca87-272a-50b5-854e-6c72a10e54fc")) (pin "8" (uuid "12a0dcbd-9727-5973-ae1b-685bd3edc743")) (pin "7" (uuid "6fb4e195-0f13-5664-a7f9-868c6fa4710f")) (pin "1" (uuid "45e8ac43-b034-5ec5-8aba-4da4d566927a")) (pin "6" (uuid "a286d325-7700-5371-8c8a-bf1797375242")) (pin "2" (uuid "68225aa2-0c6b-5d3b-bf47-39a159e0c9a9")) (pin "0" (uuid "5b27255c-9997-5070-9107-7409feb1e6cb"))
   (instances (project "most_listener" (path "/1dba4ab3-cb1b-59ba-ab72-d256b8063c7a" (reference "J1") (unit 1)))))
