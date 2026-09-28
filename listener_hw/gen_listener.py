@@ -715,8 +715,9 @@ def te_fot_footprint():
     # silk: the right action pin's pad reaches past the housing's edge, so that edge is drawn
     # in two pieces around it, and the rear edge in three around the two guide legs at y 9.15;
     # the courtyard takes the pad in
-    sx0, sy0, sx1, sy1 = x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11
-    items.append(_fpl(sx0, sy0, sx1, sy0, "F.SilkS", 0.12, "fotsilk0"))
+    # the optical face overhangs the board edge (the foot line, y -11.8): no silk there, the sides
+    # start 0.4 mm inside the edge
+    sx0, sy0, sx1, sy1 = x0 - 0.11, -11.8 + 0.4, x1 + 0.11, y1 + 0.11
     for k, (ax, bx) in enumerate(((sx0, -5.4), (-3.55, 6.1), (7.95, sx1))):
         items.append(_fpl(ax, sy1, bx, sy1, "F.SilkS", 0.12, f"fotsilk1{k}"))
     items.append(_fpl(sx0, sy0, sx0, sy1, "F.SilkS", 0.12, "fotsilk2"))
@@ -746,7 +747,11 @@ def toslink_t10_footprint():
         items.append(_fppad("", "np_thru_hole", "circle", x, -2.63, 1.2, 1.2, 1.2, f"t10g{i}"))
     x0, x1, y0, y1 = -4.85, 4.85, -8.76, 1.24
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "t10fab"))
-    items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "t10silk"))
+    # silk on three sides: the port face sits at the board edge, the sides end 0.4 mm behind it
+    ys = y1 - 0.4
+    items.append(_fpl(x0 - 0.11, y0 - 0.11, x1 + 0.11, y0 - 0.11, "F.SilkS", 0.12, "t10silk0"))
+    items.append(_fpl(x0 - 0.11, y0 - 0.11, x0 - 0.11, ys, "F.SilkS", 0.12, "t10silk1"))
+    items.append(_fpl(x1 + 0.11, y0 - 0.11, x1 + 0.11, ys, "F.SilkS", 0.12, "t10silk2"))
     items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "t10crt"))
     items.append(_fptext("port", 0, 1.9, "F.Fab", 0.5, "t10txt"))
     items.append(_fpdot(-4.0, 2.0, "t10pin1"))
@@ -768,7 +773,11 @@ def bkl_rca_footprint():
              _fppad("2", "thru_hole", "circle", 5.05, 5.1, 3.0, 3.0, 2.2, "rca2b")]
     x0, x1, y0, y1 = -7.35, 7.35, -2.0, 12.8
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "rcafab"))
-    items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "rcasilk"))
+    # silk on three sides: the flange sits at the board edge, the sides end 0.4 mm behind it
+    ys = y1 - 0.4
+    items.append(_fpl(x0 - 0.11, y0 - 0.11, x1 + 0.11, y0 - 0.11, "F.SilkS", 0.12, "rcasilk0"))
+    items.append(_fpl(x0 - 0.11, y0 - 0.11, x0 - 0.11, ys, "F.SilkS", 0.12, "rcasilk1"))
+    items.append(_fpl(x1 + 0.11, y0 - 0.11, x1 + 0.11, ys, "F.SilkS", 0.12, "rcasilk2"))
     items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "rcacrt"))
     items.append(_fptext("port", 0, 10.5, "F.Fab", 0.7, "rcatxt"))
     items.append(_fpdot(-1.4, -1.4, "rcapin1"))
