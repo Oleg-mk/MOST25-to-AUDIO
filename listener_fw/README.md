@@ -32,7 +32,7 @@ What it does now:
 - **The board's TOSLINK input as the source** (key `i` on the console):
   command 02 then names DIN2 - the S/PDIF receiver's output through the
   board's sample-rate converter, on the same ring-locked clocks - and is on
-  only while that receiver is locked (IO32 reads the DIR9001's ERROR pin;
+  only while that receiver is locked (IO13 reads the DIR9001's ERROR pin;
   pulled up, so a board without the receiver never injects from it). The next
   `i` makes the phone the source again.
 
@@ -43,12 +43,17 @@ sources), and the per-car scales from a recording of a real ring.
 
 | ESP32 | DevKitC pad | Net | |
 |---|---|---|---|
-| IO34 | 5 | I2S_BCLK_F | in, the ring's BCLK |
-| IO35 | 6 | I2S_LRCK_F | in |
-| IO27 | 11 | I2S_DIN_F (through R21) | out, our audio |
-| IO33 | 8 | UART_TX_F | in, control blocks, 3 Mbaud |
-| IO32 | 7 | OPT_ERR | in, the S/PDIF receiver's ERROR: 1 = no lock or a parity error |
-| IO25 | 9 | UART_RX_F (through R20) | out, host commands, 3 Mbaud |
+| IO22 | 22 | I2S_BCLK_F | in, the ring's BCLK |
+| IO23 | 21 | I2S_LRCK_F | in |
+| IO21 | 25 | I2S_DIN_F (through R21) | out, our audio |
+| IO4 | 32 | UART_TX_F | in, control blocks, 3 Mbaud |
+| IO13 | 15 | OPT_ERR | in, the S/PDIF receiver's ERROR: 1 = no lock or a parity error |
+| IO15 | 35 | UART_RX_F (through R20) | out, host commands, 3 Mbaud |
+
+All but OPT_ERR sit on the DevKitC's row next to the FPGA module, each
+opposite the FPGA pin it meets (board v1.2). IO15 is a strapping pin (MTDO);
+the FPGA's pull-up on UART_RX holds it high through reset, which is what
+the ESP32 expects there.
 
 The console (UART0, the DevKitC's USB port) runs at 921600 baud, for the
 telegram trace; `idf.ps1 monitor` takes the rate from the configuration.

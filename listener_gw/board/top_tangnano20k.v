@@ -20,27 +20,31 @@ module top_tangnano20k (
     // ring: pins shared only with the empty LCD connector (datasheet v1.3 p. 5)
     input  wire rx_in,           // pin 27 LCD_B7   from U3 (RX_BUF isolation buffer)
     output wire tx_pre,          // pin 28 LCD_B6   to U9.D: retimed there on the Si514 CLK-, then U2.I1
-    output wire lock,            // pin 49 LCD_BL   to U11 CLR; U11 Q drives U2.S while TX toggles
+    output wire lock,            // pin 31 LCD_B3   to U11 CLR (U11 Q drives U2.S while TX toggles) and U15 XSMT
     input  wire clk_1024,        // pin 77 GCLKT_1  Si514 CLK+ (1024 Fs)
     input  wire tx_fb,           // pin 25 LCD_HS   our TX, fed back (IDES8; its pair's pin 26 unused)
     inout  wire si_scl,          // pin 29 LCD_B5   Si514 I2C, its own bus
     inout  wire si_sda,          // pin 30 LCD_B4
-    output wire tdm_bclk,        // pin 42 LCD_R3
-    output wire tdm_fs,          // pin 41 LCD_R4
-    output wire tdm_sd0,         // pin 48 LCD_DE
-    output wire tdm_sd1,         // pin 80 SDIO_D2  (TF slot, empty)
-    // not ring-critical: BL616 HSPI lines, used as GPIO by Sipeed's examples
-    output wire uart_tx,         // pin 72 HSPI_DIN1
-    output wire mclk,            // pin 71 HSPI_DIN0  MCLK = 512 Fs, to J2
-    input  wire uart_rx,         // pin 73 HSPI_DIN2  host commands (stereo byte positions)
-    output wire i2s_bclk,        // pin 74 HSPI_DIN3  stereo I2S, BCLK = 64 Fs
-    output wire i2s_lrck,        // pin 75 HSPI_DIR
-    output wire i2s_dout,        // pin 76 HSPI_DAT
-    output wire i2s_mclk,        // pin 85 SDIO_D1    MCLK again, for J3 (TF slot left empty)
+    output wire tdm_bclk,        // pin 41 LCD_R4
+    output wire tdm_fs,          // pin 48 LCD_DE
+    output wire tdm_sd0,         // pin 49 LCD_BL
+    output wire spdif,           // pin 42 LCD_R3   J3's L R as S/PDIF: TOSLINK transmitter and coax
+    // not ring-critical: the BL616 HSPI lines (used as GPIO by Sipeed's examples),
+    // the onboard audio amplifier's inputs (kept shut down by pa_en) and the
+    // HDMI DDC pair (EDID)
+    output wire tdm_sd1,         // pin 55 I2S_LRCK   (onboard amplifier input)
+    output wire uart_tx,         // pin 56 I2S_BCLK   (onboard amplifier input)
+    output wire mclk,            // pin 54 I2S_DIN    (onboard amplifier input) MCLK = 512 Fs, to J2
+    input  wire uart_rx,         // pin 76 HSPI_DAT   host commands (stereo byte positions)
+    output wire i2s_bclk,        // pin 72 HSPI_DIN1  stereo I2S, BCLK = 64 Fs
+    output wire i2s_lrck,        // pin 71 HSPI_DIN0
+    output wire i2s_dout,        // pin 53 EDID_CLK
+    output wire i2s_mclk,        // pin 52 EDID_DAT   MCLK again, for J3
     input  wire i2s_din,         // pin 86 HSPI_CSN   audio in from the host, injected into the ring
-    input  wire i2s_din2,        // pin 54 I2S_DIN    audio in from the S/PDIF receiver's ASRC (the onboard
-                                 //                   audio DAC's data input; its amplifier stays disabled)
-    output wire spdif,           // pin 31 LCD_B3     J3's L R as S/PDIF: TOSLINK transmitter and coax
+    input  wire i2s_din2,        // pin 75 HSPI_DIR   audio in from the S/PDIF receiver's ASRC (U13)
+    output wire src_bclk,        // pin 73 HSPI_DIN2  BCLK again, for U13 (SRC4192)
+    output wire src_lrck,        // pin 74 HSPI_DIN3  LRCK again, for U13
+    output wire pa_en,           // pin 51 PA_EN      the onboard amplifier, held shut down
     output wire [5:0] led_n      // pins 15 16 17 18 19 20, onboard, active low
 );
     // ------------------------------------------------------------- clocks
@@ -105,8 +109,16 @@ module top_tangnano20k (
         .i2c_scl_o(scl_o), .i2c_sda_o(sda_o), .i2c_sda_i(si_sda),
         .status(status));
 
-    // J3 gets its own MCLK pin: one driver per connector, no stub between them
+    // J3 gets its own MCLK pin: one driver per connector, no stub between them.
+    // U13 gets its own BCLK and LRCK the same way: it sits north of the bus that
+    // goes to J3, the DAC and the host, and a branch of that bus to it would
+    // cross every line on the way (board v1.2).
     assign i2s_mclk = mclk;
+    assign src_bclk = i2s_bclk;
+    assign src_lrck = i2s_lrck;
+
+    // the module's own audio amplifier shares pins 54..56 with J2: kept shut down
+    assign pa_en = 1'b0;
 
     // open drain: R11/R12 (2k to 3V3_SW) pull high
     assign si_scl = scl_o ? 1'bz : 1'b0;

@@ -72,15 +72,20 @@ and the 5 V rails, vias 0.6/0.3 and 0.8/0.4 mm - and `most_listener.kicad_dru`,
 which lets one resolved thermal spoke connect a pad to a pour. The reasons
 behind every part's place are in the generator's table.
 
-The routing: the bottom is one ground plane, crossed only by short jumpers
-(75 of them, 174 mm in all, the longest 6.5 mm); signals and supplies run on
-top, the supplies as wide tracks that change layer nowhere but at two 3V3_AON
-jumpers, and the top's ground pour is stitched to the plane by vias about every
-6 mm. Every SMD ground pad has a via of its own beside it. The 5 V trunk runs
-1 mm wide from C7 up the left edge under J1 and along the top edge; the host's
-switch U10 sits at M2's 5 V pin. Most jumpers are under M2, where the buses
-from M1 to J2, J3, M2 and U13 cross: the modules' pin order does not follow the
-headers'.
+The routing (board v1.2): the bottom is one ground plane, crossed only by
+short jumpers (33 of them, 76 mm in all, the longest 6.8 mm); signals and
+supplies run on top, the supplies as wide tracks that change layer nowhere but
+at two 3V3_AON jumpers, and the top's ground pour is stitched to the plane by
+vias about every 6 mm. Every SMD ground pad has a via of its own beside it. The
+5 V trunk runs 1 mm wide from C7 up the left edge under J1 and along the top
+edge; the host's switch U10 sits at M2's 5 V pin with 10 uF at its input (the
+radio's pulses come out of it, not over the trunk), U16's capacitors at U16.
+v1.2 put every line bound for the right half of the board on M1's right row, in
+the order it meets J2, J3, the DAC and the host there, and the host's lines on
+M2's row that faces M1, so the bus under M2 runs without a crossing (v1.1 had 75
+jumpers, 174 mm). J2's and J3's contact order changed with it - J2: 1 SD0,
+2 SD1, 3 FS, 4 MCLK, 5 UART_TX, 6 BCLK; J3: 1 MCLK, 2 DOUT, 3 LRCK, 4 BCLK -
+and the silk names every contact.
 
 Every footprint is linked to its symbol, so after a change of the sheet: run
 `gen_listener.py`, then in the PCB editor Tools > Update PCB from Schematic. `python check_all.py` runs KiCad's DRC on

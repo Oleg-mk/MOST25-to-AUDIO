@@ -4,8 +4,12 @@
 // VCCIO 3.3 V.
 // Rule: anything on the ring or its clock uses only pins whose sole other
 // connection on the board is the (empty) LCD FPC connector. The BL616 HSPI
-// lines (71..76, 86) and the TF slot lines 80, 85 carry only the host UART, the
-// audio and TDM SD1, none of which can touch the ring.
+// lines (71..76, 86), the onboard amplifier's inputs (54..56, the amplifier
+// held shut down on 51) and the HDMI DDC pair (52, 53) carry only the host
+// UART, the audio and TDM SD1, none of which can touch the ring.
+// Board v1.2: every line that leaves for the right half of the board sits on
+// the module's right row, in the order the lines reach J2, J3, the DAC and the
+// host there; U13's clocks and data come over the top from the left row.
 IO_LOC "clk27" 4;
 IO_PORT "clk27" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
 
@@ -14,7 +18,7 @@ IO_LOC "rx_in" 27;                 // LCD_B7
 IO_PORT "rx_in" IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
 IO_LOC "tx_pre" 28;                // LCD_B6, to the retiming flip-flop U9
 IO_PORT "tx_pre" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "lock" 49;                  // LCD_BL
+IO_LOC "lock" 31;                  // LCD_B3, left row: U11 beside it, U15 at the end of the bus
 IO_PORT "lock" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 IO_LOC "clk_1024" 77;              // LCD_CLK, GCLKT_1
 IO_PORT "clk_1024" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
@@ -28,40 +32,50 @@ IO_LOC "si_sda" 30;                // LCD_B4
 IO_PORT "si_sda" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 OPEN_DRAIN=ON BANK_VCCIO=3.3;
 
 // TDM - LCD-only pins, except SD1
-IO_LOC "tdm_bclk" 42;              // LCD_R3
+IO_LOC "tdm_bclk" 41;              // LCD_R4
 IO_PORT "tdm_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "tdm_fs" 41;                // LCD_R4
+IO_LOC "tdm_fs" 48;                // LCD_DE
 IO_PORT "tdm_fs" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "tdm_sd0" 48;               // LCD_DE
+IO_LOC "tdm_sd0" 49;               // LCD_BL
 IO_PORT "tdm_sd0" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "tdm_sd1" 80;               // SDIO_D2 (TF slot, left empty) - LCD_BL went to LOCK
+IO_LOC "tdm_sd1" 55;               // I2S_LRCK of the onboard amplifier (shut down)
 IO_PORT "tdm_sd1" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 
-// not ring-critical - BL616 HSPI lines, which Sipeed's own examples use as GPIO
-IO_LOC "uart_tx" 72;               // HSPI_DIN1
+// S/PDIF out: the TOSLINK transmitter's input and the coax divider (~12 mA) on one pin
+IO_LOC "spdif" 42;                 // LCD_R3
+IO_PORT "spdif" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;
+
+// host UART and J2's MCLK
+IO_LOC "uart_tx" 56;               // I2S_BCLK of the onboard amplifier (shut down)
 IO_PORT "uart_tx" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "mclk" 71;                  // HSPI_DIN0
+IO_LOC "mclk" 54;                  // I2S_DIN of the onboard amplifier (shut down)
 IO_PORT "mclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "uart_rx" 73;               // HSPI_DIN2; pulled up: an unplugged host reads as idle
+IO_LOC "uart_rx" 76;               // HSPI_DAT; pulled up: an unplugged host reads as idle
 IO_PORT "uart_rx" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
 
-// stereo I2S (J3): out, and DIN = audio in for injection
+// stereo I2S (J3, the DAC, the host): out, and DIN = audio in for injection
+IO_LOC "i2s_bclk" 72;              // HSPI_DIN1
+IO_PORT "i2s_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_lrck" 71;              // HSPI_DIN0
+IO_PORT "i2s_lrck" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_dout" 53;              // EDID_CLK (HDMI DDC)
+IO_PORT "i2s_dout" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_mclk" 52;              // EDID_DAT (HDMI DDC)
+IO_PORT "i2s_mclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 IO_LOC "i2s_din" 86;               // HSPI_CSN; pulled down: nothing plugged in reads as silence
 IO_PORT "i2s_din" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
-IO_LOC "i2s_din2" 54;              // I2S_DIN of the onboard audio DAC (its amplifier is never enabled)
+
+// U13 (SRC4192): its own copies of the I2S clocks, and its audio back
+IO_LOC "src_bclk" 73;              // HSPI_DIN2
+IO_PORT "src_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "src_lrck" 74;              // HSPI_DIN3
+IO_PORT "src_lrck" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "i2s_din2" 75;              // HSPI_DIR; pulled down: no receiver reads as silence
 IO_PORT "i2s_din2" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
 
-// S/PDIF out: the TOSLINK transmitter's input and the coax divider (~12 mA) on one pin
-IO_LOC "spdif" 31;                 // LCD_B3, the last free LCD-only pin
-IO_PORT "spdif" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;
-IO_LOC "i2s_bclk" 74;              // HSPI_DIN3
-IO_PORT "i2s_bclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "i2s_lrck" 75;              // HSPI_DIR
-IO_PORT "i2s_lrck" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "i2s_dout" 76;              // HSPI_DAT
-IO_PORT "i2s_dout" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
-IO_LOC "i2s_mclk" 85;              // SDIO_D1 (TF slot, left empty)
-IO_PORT "i2s_mclk" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+// the module's audio amplifier: its inputs carry J2's lines, so it stays shut down
+IO_LOC "pa_en" 51;                 // PA_EN
+IO_PORT "pa_en" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 
 // onboard LEDs, active low
 IO_LOC "led_n[0]" 15;

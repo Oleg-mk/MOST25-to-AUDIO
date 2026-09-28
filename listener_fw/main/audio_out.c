@@ -1,9 +1,10 @@
 // audio_out.c - see audio_out.h.
 //
 // Pins (listener board, block 8; M2 = ESP32-DevKitC):
-//   IO34 <- I2S_BCLK_F  (pad 5)   input only, no pull: the listener drives it
-//   IO35 <- I2S_LRCK_F  (pad 6)
-//   IO27 -> R21 -> I2S_DIN_F (pad 11)
+//   IO22 <- I2S_BCLK_F  (pad 22)  the listener drives it
+//   IO23 <- I2S_LRCK_F  (pad 21)
+//   IO21 -> R21 -> I2S_DIN_F (pad 25)
+// All three on the header row that faces M1, next to the FPGA pins they meet.
 // Format as the listener's DIN takes it: I2S (Philips), 32-bit slots, the
 // sample in the top 24 bits, BCLK = 64 Fs.
 //
@@ -29,9 +30,9 @@
 #include "freertos/task.h"
 #include "rate_match.h"
 
-#define PIN_BCLK    34
-#define PIN_LRCK    35
-#define PIN_DIN     27
+#define PIN_BCLK    22
+#define PIN_LRCK    23
+#define PIN_DIN     21
 #define BLOCK       240                 // frames per write: 5 ms at 48 kHz
 #define TARGET_MS   200.0               // what ratematch keeps buffered
 #define CAP_PSRAM   16384               // frames in the ring buffer (PSRAM)

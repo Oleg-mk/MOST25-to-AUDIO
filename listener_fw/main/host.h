@@ -1,8 +1,8 @@
 // host.h - M2 as the listener's host.
 //
-// Control blocks come in from the FPGA on UART (IO33, 3 Mbaud); the host
+// Control blocks come in from the FPGA on UART (IO4, 3 Mbaud); the host
 // decodes the MOST control telegrams, follows which synchronous channels the
-// AUX source and the amplifier use, and tells the FPGA (IO25) where to put
+// AUX source and the amplifier use, and tells the FPGA (IO15) where to put
 // our audio (command 02) and which channels to put out on J3 (command 01).
 // Never a word on the MOST control channel itself: the listener only listens.
 #pragma once

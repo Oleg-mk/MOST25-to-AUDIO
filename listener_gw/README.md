@@ -267,12 +267,16 @@ rtl/  rx_runlen    run lengths from 8 samples per clock (IDES8, 792 Msps), and e
 board/ top_tangnano20k.v  rPLL 396 MHz, CLKDIV 99 MHz, two IDES8 (RX_IN, TX_FB);
        pins as in the schematic. Pins follow the Sipeed datasheet v1.3
        (corrected pinout): ring and Si514 signals only on pins shared with the
-       empty LCD connector; the BL616 HSPI lines and the TF slot lines 80, 85
-       carry only the host UART, MCLK, I2S and TDM SD1. TX_FB comes in through
-       IDES8 on pin 25; an 8:1 deserialiser takes the whole IOB pair, so pin 26
-       stays unused. S/PDIF leaves on pin 31 (LCD_B3, the last free LCD-only
-       pin); DIN2, the S/PDIF receiver's ASRC, comes in on pin 54, the onboard
-       audio DAC's data input (that amplifier is never enabled)
+       empty LCD connector; the BL616 HSPI lines, the onboard amplifier's
+       inputs (54..56, the amplifier held shut down on pin 51) and the HDMI DDC
+       pair (52, 53) carry only the host UART, MCLK, I2S and TDM SD1. TX_FB
+       comes in through IDES8 on pin 25; an 8:1 deserialiser takes the whole
+       IOB pair, so pin 26 stays unused. Board v1.2: every line bound for the
+       right half of the board leaves on the module's right row, in the order
+       it meets J2, J3, the DAC and the host there; S/PDIF on pin 42 (LCD_R3);
+       LOCK on pin 31 (LCD_B3), on the left row beside U11; U13 (SRC4192) gets
+       its own copies of BCLK and LRCK (pins 73, 74) and returns DIN2 on 75,
+       all three over the top of the module
        tangnano20k.cst / .sdc / build.tcl   Gowin EDA batch build
 sim/  make_stim.py  frames from virtual_most_source, distorted to the SP4 limits, sampled at
                     792 Msps; the preamble's run pattern is a parameter (--preamble)

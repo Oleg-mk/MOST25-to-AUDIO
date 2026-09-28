@@ -1,15 +1,16 @@
 // host.c - see host.h.
 //
 // UART2 at 3 Mbaud 8N1, as the FPGA's ctrl_uart / uart_rx:
-//   IO33 <- UART_TX_F  control blocks (M2 pad 8)
-//   IO25 -> R20 -> UART_RX_F  commands (M2 pad 9)
+//   IO4  <- UART_TX_F  control blocks (M2 pad 32)
+//   IO15 -> R20 -> UART_RX_F  commands (M2 pad 35); IO15 is a strapping pin
+//        (MTDO), and the FPGA's pull-up on UART_RX holds it high through reset
 //
 // Every control block: most_msg decodes it, amp_model and sound follow it.
 // Three decisions come from them:
 //   02  our audio into the AUX source's frame bytes - while an amplifier sink
 //       is connected to them AND the source is live: the phone streaming, or,
 //       with the board's TOSLINK input chosen (key i), its S/PDIF receiver
-//       locked (IO32 <- DIR9001 ERROR, M2 pad 7). Otherwise the car's own AUX
+//       locked (IO13 <- DIR9001 ERROR, M2 pad 15). Otherwise the car's own AUX
 //       passes untouched: we take nothing away from the car.
 //   01  J3 plays what the amplifier's sink 1 (the main zone) plays...
 //   03  ...with the head unit's volume, mute, balance, bass, treble and
@@ -66,8 +67,8 @@
 #include "sound.h"
 
 #define HOST_UART   UART_NUM_2
-#define PIN_RX      33
-#define PIN_TX      25
+#define PIN_RX      4
+#define PIN_TX      15
 #define BAUD        3000000
 #define RESEND_US   2000000
 #define STALE_US    500000
@@ -76,7 +77,7 @@
 #define SAVE_US     10000000            // settings to flash 10 s after the last change
 #define SND_MAGIC   0x534E4431u         // "SND1": the stored layout
 #define CAP_RUNS    65536u              // the FPGA's capture buffer (CAP_AW 16)
-#define PIN_OPT_ERR 32                  // DIR9001 ERROR (M2 pad 7): high = the S/PDIF input has no lock
+#define PIN_OPT_ERR 13                  // DIR9001 ERROR (M2 pad 15): high = the S/PDIF input has no lock
 #define CAP_PKTS    (CAP_RUNS / 32)
 
 static const char *TAG = "host";
