@@ -8,10 +8,11 @@
 // Every control block: most_msg decodes it, amp_model and sound follow it.
 // Three decisions come from them:
 //   02  our audio into the AUX source's frame bytes - while an amplifier sink
-//       is connected to them AND the source is live: the phone streaming, or,
-//       with the board's TOSLINK input chosen (key i), its S/PDIF receiver
-//       locked (IO13 <- DIR9001 ERROR, M2 pad 15). Otherwise the car's own AUX
-//       passes untouched: we take nothing away from the car.
+//       is connected to them AND one of our sources is live: the phone while
+//       it streams, otherwise the board's TOSLINK input once its S/PDIF
+//       receiver holds lock on PCM (IO13 <- DIR9001 ERROR, M2 pad 15; IO27 <-
+//       DIR9001 AUDIO, M2 pad 11; ain.h). Otherwise the car's own AUX passes
+//       untouched: we take nothing away from the car.
 //   01  J3 plays what the amplifier's sink 1 (the main zone) plays...
 //   03  ...with the head unit's volume, mute, balance, bass, treble and
 //       loudness: dsp_img turns them into the FPGA's coefficient set, written
@@ -50,6 +51,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ain.h"
 #include "amp_model.h"
 #include "audio_out.h"
 #include "driver/uart.h"
@@ -78,6 +80,7 @@
 #define SND_MAGIC   0x534E4431u         // "SND1": the stored layout
 #define CAP_RUNS    65536u              // the FPGA's capture buffer (CAP_AW 16)
 #define PIN_OPT_ERR 13                  // DIR9001 ERROR (M2 pad 15): high = the S/PDIF input has no lock
+#define PIN_OPT_NPCM 27                 // DIR9001 AUDIO (M2 pad 11, board v1.3): high = not PCM (AC-3, DTS)
 #define CAP_PKTS    (CAP_RUNS / 32)
 
 static const char *TAG = "host";
@@ -91,8 +94,8 @@ static am_pos_t s_aux_sent, s_main_sent;
 static int64_t s_last_locked;
 static int s_stale = 1;
 static volatile int s_streaming;
-static volatile int s_ain_spdif;                     // audio in from the TOSLINK input, not the phone (key i)
-static int s_ain_sent = -1, s_opt_seen = -1;
+static ain_t s_ain;                                  // our source: the phone or the TOSLINK input
+static int s_ain_sent = -1, s_src_seen = -1, s_opt_seen = -1;
 static uint32_t s_fpga_dropped;
 static snd_t s_snd;
 static int s_img_dirty = 1, s_muted_sent = -1;
@@ -114,6 +117,22 @@ static void log_pos(const char *what, const am_pos_t *p)
                  p->l[0], p->l[1], p->l[2], p->r[0], p->r[1], p->r[2]);
     else
         ESP_LOGI(TAG, "%s: off", what);
+}
+
+static const char *src_name(int src)
+{
+    return src == AIN_PHONE ? "the phone" : src == AIN_TOSLINK ? "the TOSLINK input" : "none";
+}
+
+// the TOSLINK input's state: 0 no signal, 1 locked on PCM, 2 not PCM
+static int opt_state(void)
+{
+    return s_ain.npcm ? 2 : s_ain.locked;
+}
+
+static const char *opt_name(int st)
+{
+    return st == 2 ? "not PCM (AC-3/DTS?): not used - set the source to PCM" : st ? "locked" : "no signal";
 }
 
 // ------------------------------------------------ the sound settings, kept
@@ -177,27 +196,33 @@ static void send_image(void)
 static void decide(int force)
 {
     static const am_pos_t off = {0};
-    // the source is live: the phone streams, or the S/PDIF receiver is locked
-    const int opt_ok = gpio_get_level(PIN_OPT_ERR) == 0;
-    if (opt_ok != s_opt_seen) {
-        ESP_LOGI(TAG, "TOSLINK in: %s", opt_ok ? "locked" : "no signal");
-        s_opt_seen = opt_ok;
+    // our source: the phone while it streams, otherwise the TOSLINK input once it holds lock on PCM
+    const int src = ain_pick(&s_ain, s_streaming, gpio_get_level(PIN_OPT_ERR), gpio_get_level(PIN_OPT_NPCM),
+                             esp_timer_get_time());
+    if (opt_state() != s_opt_seen) {
+        s_opt_seen = opt_state();
+        ESP_LOGI(TAG, "TOSLINK in: %s", opt_name(s_opt_seen));
     }
-    const int live = s_ain_spdif ? opt_ok : s_streaming;
-    const am_pos_t aux = live ? am_aux_playing(&s_am) : off, main_zone = am_main(&s_am);
+    if (src != s_src_seen) {
+        ESP_LOGI(TAG, "audio in: %s", src_name(src));
+        s_src_seen = src;
+    }
+    const int spdif = src == AIN_TOSLINK;
+    const am_pos_t aux = src != AIN_NONE ? am_aux_playing(&s_am) : off, main_zone = am_main(&s_am);
     uint8_t c[LSN_CMD_LEN];
     if (am_main_muted(&s_am) != s_muted_sent || audio_out_ring_rate() != s_fs_sent)
         s_img_dirty = 1;
     // the set first: a source switched on is heard with its gains, never at full scale
     if (force || (s_img_dirty && esp_timer_get_time() - s_img_sent >= IMG_MIN_US))
         send_image();
-    if (force || !pos_eq(&aux, &s_aux_sent) || s_ain_spdif != s_ain_sent) {
-        lsn_cmd_inject(c, aux.bits, 0, s_ain_spdif, aux.l, aux.r);
+    if (force || !pos_eq(&aux, &s_aux_sent) || spdif != s_ain_sent) {
+        lsn_cmd_inject(c, aux.bits, 0, spdif, aux.l, aux.r);
         uart_write_bytes(HOST_UART, c, sizeof c);
         if (!pos_eq(&aux, &s_aux_sent))
-            log_pos(s_ain_spdif ? "the TOSLINK input into AUX" : "our audio into AUX", &aux);
+            log_pos(!aux.bits ? "our audio into AUX" : spdif ? "the TOSLINK input into AUX"
+                                                             : "the phone into AUX", &aux);
         s_aux_sent = aux;
-        s_ain_sent = s_ain_spdif;
+        s_ain_sent = spdif;
     }
     if (force || !pos_eq(&main_zone, &s_main_sent)) {
         lsn_cmd_stereo(c, main_zone.bits, main_zone.l, main_zone.r);
@@ -290,15 +315,9 @@ static void cap_print(void)
 static void console_key(uint8_t ch)
 {
     uint8_t c[LSN_CMD_LEN];
-    if (ch == 'i') {
-        s_ain_spdif = !s_ain_spdif;
-        ESP_LOGI(TAG, "audio in: %s", s_ain_spdif ? "the TOSLINK input" : "the phone (Bluetooth)");
-        return;
-    }
     if (ch == 'h' || ch == '?') {
         ESP_LOGI(TAG, "keys: c = capture %u runs now and dump when full, d = dump what was captured "
-                 "(after power-up: the ring's start-up), i = audio in from the phone / the TOSLINK input",
-                 (unsigned)CAP_RUNS);
+                 "(after power-up: the ring's start-up)", (unsigned)CAP_RUNS);
         return;
     }
     if (ch != 'c' && ch != 'd')
@@ -378,14 +397,12 @@ static void host_task(void *arg)
         if (now > next_status) {
             ESP_LOGI(TAG, "packets %lu (bad %lu, lost in the FPGA %lu), telegrams %lu, refused %lu, "
                      "segments dropped %lu, trace lost %lu, capture packets %lu (bad %lu), dumps %lu, "
-                     "audio in %s%s",
+                     "audio in %s (phone %s, TOSLINK %s)",
                      (unsigned long)s_rx.good, (unsigned long)s_rx.bad,
                      (unsigned long)s_fpga_dropped, (unsigned long)s_mm.telegrams, (unsigned long)s_mm.rejected,
                      (unsigned long)s_mm.seg_dropped, (unsigned long)s_trace_lost, (unsigned long)s_rx.cap_good,
-                     (unsigned long)s_rx.cap_bad, (unsigned long)s_cap_dumps,
-                     s_ain_spdif ? "TOSLINK" : "phone",
-                     s_ain_spdif ? (s_opt_seen == 1 ? " (locked)" : " (no signal)")
-                                 : (s_streaming ? " (streaming)" : " (idle)"));
+                     (unsigned long)s_rx.cap_bad, (unsigned long)s_cap_dumps, src_name(s_src_seen),
+                     s_streaming ? "streaming" : "idle", s_opt_seen == 2 ? "not PCM" : opt_name(s_opt_seen));
             next_status += STATUS_US;
         }
     }
@@ -396,6 +413,7 @@ void host_start(void)
     lsn_rx_init(&s_rx);
     mm_init(&s_mm);
     am_init(&s_am);
+    ain_init(&s_ain);
     snd_load();
     s_trace = xQueueCreate(64, sizeof(mm_tel_t));
     ESP_ERROR_CHECK(s_trace ? ESP_OK : ESP_ERR_NO_MEM);
@@ -413,9 +431,11 @@ void host_start(void)
     ESP_ERROR_CHECK(uart_set_pin(HOST_UART, PIN_TX, PIN_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     // the console's UART, receive side only: the keys (its output stays the log's)
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, 256, 0, 0, NULL, 0));
-    // the S/PDIF receiver's ERROR (DIR9001 pin 27): high = no lock. Pulled up, so a
-    // board without the receiver never injects from the TOSLINK input.
-    const gpio_config_t opt = {.pin_bit_mask = 1ULL << PIN_OPT_ERR, .mode = GPIO_MODE_INPUT,
+    // the S/PDIF receiver's ERROR (DIR9001 pin 27): high = no lock; its AUDIO (pin 1):
+    // high = not PCM. Both pulled up, so a board without the receiver never injects
+    // from the TOSLINK input.
+    const gpio_config_t opt = {.pin_bit_mask = (1ULL << PIN_OPT_ERR) | (1ULL << PIN_OPT_NPCM),
+                               .mode = GPIO_MODE_INPUT,
                                .pull_up_en = GPIO_PULLUP_ENABLE, .pull_down_en = GPIO_PULLDOWN_DISABLE,
                                .intr_type = GPIO_INTR_DISABLE};
     ESP_ERROR_CHECK(gpio_config(&opt));

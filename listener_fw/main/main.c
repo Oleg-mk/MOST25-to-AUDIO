@@ -5,9 +5,9 @@
 // a2dp_dec decodes the media packets, audio_out plays the PCM on the
 // listener's DIN at the ring's pace.
 //
-// host follows the control channel: it puts our audio into the AUX source's
-// frame bytes while the amplifier plays them and the phone streams, and the
-// amplifier's main zone out on J3.
+// host follows the control channel: it puts our audio - the phone while it
+// streams, otherwise the board's TOSLINK input - into the AUX source's frame
+// bytes while the amplifier plays them, and the amplifier's main zone out on J3.
 #include <string.h>
 
 #include "a2dp_dec.h"

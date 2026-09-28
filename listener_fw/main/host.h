@@ -9,6 +9,7 @@
 
 void host_start(void);
 
-// The phone is streaming (A2DP started) or not: our audio goes into the AUX
-// channels only while it is.
+// The phone is streaming (A2DP started) or not: while it is, the phone goes
+// into the AUX channels; while it is not, the board's TOSLINK input does, if
+// its receiver holds lock on PCM (ain.h).
 void host_streaming(int on);

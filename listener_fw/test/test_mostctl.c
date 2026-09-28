@@ -1,9 +1,11 @@
-// test_mostctl.c - host tests for components/mostctl: most_msg and amp_model.
+// test_mostctl.c - host tests for components/mostctl: most_msg, amp_model and
+// ain.
 //
 // Blocks are built to the layout in docs/host_control_formats.md:
 // 0-3 arbitration, 4-5 target, 6-7 source, 8 message type, 9 FBlockID,
 // 10 InstID, 11-12 FktID:OPType, 13 TelID:TelLen, 14-25 data, 26-27 CRC,
 // 28-29 transmission status.
+#include "ain.h"
 #include "amp_model.h"
 #include "most_msg.h"
 
@@ -243,11 +245,56 @@ static void test_chain(void)
     CHECK(pos_is(am_aux_playing(&chain_am), 16, 9, 10, 11, 12), "blocks -> telegrams -> AUX at 9..12");
 }
 
+// our source, read every 10 ms as the host's loop does: us of readings, the last one's pick
+static int ain_for(ain_t *a, int64_t *t, int64_t us, int streaming, int err, int npcm)
+{
+    int src = AIN_NONE;
+    for (const int64_t end = *t + us; *t < end; *t += 10000)
+        src = ain_pick(a, streaming, err, npcm, *t);
+    return src;
+}
+
+static void test_ain(void)
+{
+    ain_t a;
+    int64_t t = 0;
+    printf("audio in:\n");
+    ain_init(&a);
+    CHECK(ain_for(&a, &t, 3000000, 0, 1, 1) == AIN_NONE, "no receiver (ERROR, AUDIO pulled up), the phone idle: none");
+    CHECK(ain_for(&a, &t, 100000, 1, 1, 1) == AIN_PHONE, "the phone streams");
+    // the TOSLINK input locks at 3.1 s, while the phone plays; its lock time runs meanwhile
+    CHECK(ain_for(&a, &t, 900000, 1, 0, 0) == AIN_PHONE && !a.locked, "0.9 s of lock: not settled yet");
+    CHECK(ain_for(&a, &t, 200000, 1, 0, 0) == AIN_PHONE && a.locked, "settled; the phone still wins");
+    CHECK(ain_pick(&a, 0, 0, 0, t) == AIN_TOSLINK, "the phone stops: the TOSLINK input at once");
+    t += 10000;
+    CHECK(ain_for(&a, &t, 1000000, 0, 0, 0) == AIN_TOSLINK, "and it stays");
+    // a parity error: ERROR high for a moment
+    CHECK(ain_pick(&a, 0, 1, 0, t) == AIN_TOSLINK, "a parity error's blip: kept");
+    t += 10000;
+    CHECK(ain_for(&a, &t, 80000, 0, 1, 0) == AIN_TOSLINK, "90 ms of ERROR: kept (the receiver sends zeros)");
+    CHECK(ain_for(&a, &t, 50000, 0, 0, 0) == AIN_TOSLINK, "lock back within 100 ms: no new settle time");
+    // the source turns to AC-3: still locked, AUDIO high
+    CHECK(ain_pick(&a, 0, 0, 1, t) == AIN_NONE && a.npcm, "not PCM: dropped at the first reading");
+    t += 10000;
+    CHECK(ain_for(&a, &t, 3000000, 0, 0, 1) == AIN_NONE, "and kept off while it lasts");
+    CHECK(ain_for(&a, &t, 990000, 0, 0, 0) == AIN_NONE && !a.npcm, "PCM again: not before 1 s");
+    CHECK(ain_for(&a, &t, 20000, 0, 0, 0) == AIN_TOSLINK, "then the TOSLINK input");
+    CHECK(ain_for(&a, &t, 100000, 1, 0, 1) == AIN_PHONE, "not PCM does not touch the phone");
+    CHECK(ain_for(&a, &t, 1500000, 1, 0, 0) == AIN_PHONE && a.locked, "PCM, settled under the phone");
+    // unplugged
+    CHECK(ain_for(&a, &t, 90000, 0, 1, 0) == AIN_TOSLINK, "ERROR for 90 ms: still kept");
+    CHECK(ain_for(&a, &t, 20000, 0, 1, 0) == AIN_NONE && !a.locked, "ERROR for 100 ms: lost, the car's AUX passes");
+    CHECK(ain_for(&a, &t, 990000, 0, 0, 0) == AIN_NONE, "plugged in again: not before 1 s of lock");
+    CHECK(ain_for(&a, &t, 20000, 0, 0, 0) == AIN_TOSLINK, "then the TOSLINK input");
+    CHECK(ain_for(&a, &t, 100000, 1, 0, 0) == AIN_PHONE, "the phone takes over again");
+}
+
 int main(void)
 {
     test_decode();
     test_model();
     test_chain();
+    test_ain();
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

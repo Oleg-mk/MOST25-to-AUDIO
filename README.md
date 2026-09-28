@@ -15,10 +15,10 @@ carries into audio and data the owner can use:
   J2 and J3 show the frame as it leaves the listener: when the phone plays
   into the car's AUX channels, they carry the phone, as the factory
   amplifier after the listener does;
-- **phone audio into the car**: a phone's Bluetooth stream, or whatever
-  plays into the board's TOSLINK input, replaces the bytes of the car's own
-  AUX source while the amplifier plays them, so it is heard through the
-  factory system with the factory controls.
+- **phone audio into the car**: a phone's Bluetooth stream while it plays,
+  otherwise whatever plays into the board's TOSLINK input, replaces the bytes
+  of the car's own AUX source while the amplifier plays them, so it is heard
+  through the factory system with the factory controls.
 
 If anything fails, the ring passes straight through: a multiplexer on the
 board falls back to the fibre's own signal, and a watchdog does so even if
@@ -72,8 +72,8 @@ and the 5 V rails, vias 0.6/0.3 and 0.8/0.4 mm - and `most_listener.kicad_dru`,
 which lets one resolved thermal spoke connect a pad to a pour. The reasons
 behind every part's place are in the generator's table.
 
-The routing (board v1.2): the bottom is one ground plane, crossed only by
-short jumpers (33 of them, 76 mm in all, the longest 6.8 mm); signals and
+The routing (board v1.3): the bottom is one ground plane, crossed only by
+short jumpers (37 of them, 83 mm in all, the longest 6.8 mm); signals and
 supplies run on top, the supplies as wide tracks that change layer nowhere but
 at two 3V3_AON jumpers, and the top's ground pour is stitched to the plane by
 vias about every 6 mm. Every SMD ground pad has a via of its own beside it. The
@@ -85,7 +85,11 @@ the order it meets J2, J3, the DAC and the host there, and the host's lines on
 M2's row that faces M1, so the bus under M2 runs without a crossing (v1.1 had 75
 jumpers, 174 mm). J2's and J3's contact order changed with it - J2: 1 SD0,
 2 SD1, 3 FS, 4 MCLK, 5 UART_TX, 6 BCLK; J3: 1 MCLK, 2 DOUT, 3 LRCK, 4 BCLK -
-and the silk names every contact.
+and the silk names every contact. v1.3 took two flags of the TOSLINK input
+further: the S/PDIF receiver's AUDIO (channel-status bit 1) to the host's IO27,
+so a source that sends AC-3 or DTS - which the DIR9001 passes on untouched - is
+never put into the car, and the SRC4192's RDY to its own MUTE, so it stays silent
+while it settles on a new rate; four short jumpers more.
 
 Every footprint is linked to its symbol, so after a change of the sheet: run
 `gen_listener.py`, then in the PCB editor Tools > Update PCB from Schematic. `python check_all.py` runs KiCad's DRC on
