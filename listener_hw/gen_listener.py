@@ -1644,7 +1644,7 @@ def testpoint_block(sh):
         q = (x - 7.62, y)
         sh.wire(tp.p("1"), q); sh.up(rail, q, 2.54)
         y += 7.62
-    for i, ref in enumerate(("TP8", "TP9")):
+    for i, ref in enumerate(("TP8", "TP9", "TP10")):
         xx = x + 15.24 * i
         tp = sh.at_pin("TP", ref, "GND", "1", (xx, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
                        ref_at=(xx + 2.54, y - 1.27), val_at=(xx + 2.54, y + 1.27), fjust=("left", "left"))

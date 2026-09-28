@@ -266,8 +266,12 @@ def texts(fp):
         t = v
         v.SetLayer(pcbnew.F_SilkS)
         v.SetVisible(True)
-        x, y, just = TPTEXT[ref]
-        pos = pt(x, y)
+        if ref in TPTEXT:
+            x, y, just = TPTEXT[ref]
+            pos = pt(x, y)
+        else:                                   # a test point the table does not know: below it
+            just = 0
+            pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetBottom() + mm(0.8))
         if just < 0:
             v.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
     t.SetTextSize(pcbnew.VECTOR2I(mm(0.8), mm(0.8)))
