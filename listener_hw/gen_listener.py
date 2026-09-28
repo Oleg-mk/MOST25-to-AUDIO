@@ -1629,8 +1629,9 @@ def digital_audio_block(sh):
 def testpoint_block(sh):
     sh.frame(411.48, 289.56, 523.24, 360.68, "10. ТЕСТОВІ ТОЧКИ (стенд)")
     x = 467.36
-    rows = [("TP1", "RX_BUF", "net"), ("TP2", "TX_REGEN", "net"), ("TP3", "TX_SEL", "net"),
-            ("TP4", "WAKE", "net"), ("TP5", "RT_CLK", "net")]
+    # no probe points on TX_REGEN (U9's output into the ring) and RT_CLK (the Si514's clock
+    # into U9): their stubs would load the two edges the regenerator's jitter depends on
+    rows = [("TP1", "RX_BUF", "net"), ("TP3", "TX_SEL", "net"), ("TP4", "WAKE", "net")]
     y = 299.72
     for ref, name, kind in rows:
         tp = sh.at_pin("TP", ref, name, "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
@@ -1650,8 +1651,8 @@ def testpoint_block(sh):
                        ref_at=(xx + 2.54, y - 1.27), val_at=(xx + 2.54, y + 1.27), fjust=("left", "left"))
         q = (xx - 5.08, y)
         sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
-    sh.text("Під щуп на стенді (обхід -> регенерація -> ін'єкція): RX_BUF за U1, TX_REGEN з U9,", 414.02, 353.06, 1.27)
-    sh.text("TX_SEL (обхід чи регенерація), WAKE, такт Si514 на U9 (RT_CLK), шини і земля. Виводи FPGA - на M1.", 414.02, 356.87, 1.27)
+    sh.text("Під щуп на стенді: RX_BUF за U1, TX_SEL (обхід чи регенерація), WAKE, шини і земля. TX_REGEN і RT_CLK", 414.02, 353.06, 1.27)
+    sh.text("без точок: відвід на фронтах регенератора зайвий; їх видно на виводах U9 і на M1 (TX_FB).", 414.02, 356.87, 1.27)
 
 
 def line_out_block(sh):
