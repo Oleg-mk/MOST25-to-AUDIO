@@ -781,7 +781,8 @@ def tangnano_footprint():
     """Sipeed Tang Nano 20K (data sheet v1.3 p.6): 54.04 x 22.55 mm, two rows of 20 on 2.54, rows
     20.32 apart (the board's width less two edge margins); pad 1 at the USB-C end, left row,
     as the pinout drawing (p.5) and the schematic symbol number them. The HDMI connector
-    stands 8 mm past the far end, the USB-C 1.5 mm past the near one: both in the courtyard."""
+    stands 8 mm past the far end, the USB-C 1.5 mm past the near one. The module stands on
+    8.5 mm sockets, so the courtyard is the two socket rows and low parts may sit under it."""
     items = []
     for i in range(20):
         y = -24.13 + 2.54 * i
@@ -791,7 +792,10 @@ def tangnano_footprint():
     x0, x1, y0, y1 = -11.275, 11.275, -27.02, 27.02
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "tnfab"))
     items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "tnsilk"))
-    items.append(_fpbox(x0 - 0.25, y0 - 1.75, x1 + 0.25, y1 + 8.25, "F.CrtYd", 0.05, "tncrt"))
+    # on 8.5 mm sockets: the courtyard is the two socket rows (2.54 wide), so low parts may
+    # sit under the module between them; its outline stays on F.Fab and the silk
+    for side, x in (("l", -10.16), ("r", 10.16)):
+        items.append(_fpbox(x - 1.52, -24.13 - 1.52, x + 1.52, 24.13 + 1.52, "F.CrtYd", 0.05, f"tncrt{side}"))
     items.append(_fptext("USB-C", 0, -25.6, "F.Fab", 0.8, "tnusb"))
     items.append(_fptext("HDMI, +8 mm", 0, 25.6, "F.Fab", 0.8, "tnhdmi"))
     items.append(_fpdot(-11.9, -24.13, "tnpin1"))
@@ -1364,26 +1368,25 @@ def clock_block(sh):
 def output_block(sh):
     sh.frame(208.28, 203.2, 406.4, 284.48, "7. ВИХОДИ   J2: аналізатор (MCLK, 2 x TDM8, UART_TX);   J3: стерео I2S для ЦАП / DSP")
 
-    def series(j, rows, rn_ref, singles):
-        """rows: (src label, connector pin) through one 4x33 array, top to bottom;
-        singles: (src label, connector pin, ref, text side) through their own 33 R;
-        the reference and value go on the side where no wire runs."""
-        top = j.p(rows[0][1])
-        rn = sh.at_pin("RN4", rn_ref, "4x33", "4", (top[0] - 20.32, top[1]), r=90,
-                       fp="Resistor_SMD:R_Array_Convex_4x0603",
-                       ref_at=(top[0] - 25.4, top[1] - 5.08), val_at=(top[0] - 20.32, top[1] - 5.08))
-        xlab = rn.p("8")[0] - 20.32
-        # RN4 rotated 90: left pins 5,6,7,8 top->bottom, right pins 4,3,2,1
-        for (src, jp), lp, rp in zip(rows, "5678", "4321"):
-            sh.wire(rn.p(rp), j.p(jp))
-            sh.lbl(src, rn.p(lp), rn.p(lp)[0] - xlab, "L")
-        for src, jp, ref, side in singles:
+    def series(j, lines):
+        """lines: (src label, connector pin, ref) top to bottom, each through its own 33R. The
+        connector's pins are 2.54 apart, the resistors 5.08, so each line jogs from its pin to
+        its resistor: the outer lines jog nearest the connector and the inner ones further out,
+        so no wire crosses another; the jogs start 7.62 out, clear of the ground pins below."""
+        n = len(lines)
+        y0 = j.p(lines[0][1])[1]
+        xj = j.p(lines[0][1])[0]
+        jmax = (n - 1) // 2
+        xr = round(xj - 7.62 - 2.54 * jmax - 5.08, 3)          # every resistor's pin 2
+        for k, (src, jp, ref) in enumerate(lines):
             m = j.p(jp)
-            dy = -2.54 if side == "up" else 2.54
-            r = sh.at_pin("R", ref, "33", "2", (xlab + 10.16, m[1]), r=90, fp=SMD["R"],
-                          ref_at=(xlab + 6.35, m[1] + dy), val_at=(xlab + 11.43, m[1] + dy))
-            sh.wire(r.p("2"), m)
-            sh.lbl(src, r.p("1"), r.p("1")[0] - xlab, "L")
+            yr = round(y0 + 5.08 * k - 1.27 * (n - 1), 3)
+            xjog = round(xj - 7.62 - 2.54 * min(k, n - 1 - k), 3)
+            r = sh.at_pin("R", ref, "33", "2", (xr, yr), r=90, fp=SMD["R"],
+                          ref_at=(xr - 5.715, yr - 1.905), val_at=(xr - 1.905, yr - 1.905),
+                          fjust=(None, None))
+            sh.wire(m, (xjog, m[1]), (xjog, yr), r.p("2"))
+            sh.lbl(src, r.p("1"), 5.08, "L")
 
     def grounds(j, pins, stub=2.54):
         gx = j.p(pins[0])[0] - 5.08
@@ -1395,15 +1398,15 @@ def output_block(sh):
     # J2: analyser (TDM, raw control blocks)
     j2 = sh.add("CONN8", "J2", "ANALYSER", 373.38, 232.41,
                 fp="Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
-    series(j2, [("BCLK_F", "2"), ("FS_F", "3"), ("SD0_F", "4"), ("SD1_F", "5")], "RN1",
-           [("MCLK_F", "1", "R19", "up"), ("UART_TX_F", "6", "R18", "down")])
+    series(j2, [("MCLK_F", "1", "R19"), ("BCLK_F", "2", "R34"), ("FS_F", "3", "R35"), ("SD0_F", "4", "R36"),
+                ("SD1_F", "5", "R37"), ("UART_TX_F", "6", "R18")])
     grounds(j2, ("7", "8"))
 
     # J3: stereo I2S to a DAC / DSP
     j3 = sh.add("CONN_I2S", "J3", "I2S", 289.56, 233.68,
                 fp="Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical")
-    series(j3, [("I2S_MCLK_F", "1"), ("I2S_BCLK_F", "2"), ("I2S_LRCK_F", "3"), ("I2S_DOUT_F", "4")],
-           "RN2", [])
+    series(j3, [("I2S_MCLK_F", "1", "R38"), ("I2S_BCLK_F", "2", "R39"), ("I2S_LRCK_F", "3", "R40"),
+                ("I2S_DOUT_F", "4", "R41")])
     grounds(j3, ("5", "6"))
 
     y = 252.73
@@ -1412,7 +1415,7 @@ def output_block(sh):
         "J2 UART_TX: сирі керувальні блоки (ті самі, що читає M2).",
         "J3: I2S, BCLK 64 Fs, слоти 32 біт, 24 біт з регулюваннями ГУ; те саме S/PDIF - J6, J7 (блок 9).",
         "Входів на J2 і J3 немає: хост один - M2 (блок 8).",
-        "RN1, RN2, R18..R21 (33 Ом) - біля виводів FPGA.",
+        "R18..R21, R34..R41 (33 Ом): кожен під M1 біля свого виводу FPGA (узгодження джерела).",
         "MCLK на J2 і J3 - з окремих виводів FPGA, без відгалуження.",
     ):
         sh.text(line, 213.36, y, 1.27)
