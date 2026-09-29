@@ -7,9 +7,10 @@ carries into audio and data the owner can use:
 
 - **J3: what the factory amplifier would play**, as stereo I2S and, the
   same stream, as S/PDIF on TOSLINK and coax: the main source with the head
-  unit's volume, mute, balance, bass, treble and loudness applied, so
-  speakers moved to an amplifier or DSP of the owner's choice keep the car's
-  controls;
+  unit's volume, mute, balance, bass, treble and loudness applied, and the
+  amplifier's other sinks - navigation, phone, chimes - mixed in at their own
+  levels, so speakers moved to an amplifier or DSP of the owner's choice keep
+  the car's controls and its voices;
 - **J2: everything, raw**: every frame byte on two TDM8 lines, the control
   channel's blocks on UART, MCLK from the ring - for an analyser or a DSP.
   J2 and J3 show the frame as it leaves the listener: when the phone plays
@@ -109,8 +110,11 @@ no warning and nothing unconnected.
 - **Cars whose AUX is not a MOST source** - mixed inside the head unit - have
   no AUX bytes to replace; the phone cannot be injected there. Listening
   (J2, J3) works everywhere.
-- **The per-car scales** - volume and tone, which sinks carry navigation and
-  phone - are placeholders until a real ring is recorded.
+- **The per-car scales** - volume, tone, the other sinks' mixer levels - are
+  placeholders until a real ring is recorded.
+- **What an amplifier does on its own** is not on the bus: if it turns the
+  music down while a prompt plays, J3 does not; it follows what the head unit
+  sends (levels, mutes).
 
 ## Bring-up, in this order
 
@@ -141,8 +145,7 @@ diode before the TVS clamped it.
 Everything above is verified in simulation, host tests and builds; nothing
 has run on hardware yet. The PCB is placed, routed and passes DRC; no board
 has been ordered. The per-car
-pieces - the volume and tone scales,
-which amplifier sinks carry navigation and phone - wait for a recording of a
+pieces - the volume, tone and mixer-level scales - wait for a recording of a
 real ring; the listener's own trace is the tool that makes it.
 
 This repository starts from the earlier `most-bus` project (commit 08ea5fb,

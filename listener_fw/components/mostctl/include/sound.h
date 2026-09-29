@@ -21,6 +21,18 @@
 // Fader (0x204, 0x221) is not used: J3 is stereo, front and rear are for
 // whatever follows it.
 //
+// The amplifier's other sinks - navigation, phone, chimes, J3's streams 1
+// and 2 - play at their own level where a car sends one, else at the volume:
+//   0x22.0x46D SpeakerLevel to that sink      dB, the loudest speaker (JLR AUD3)
+//   0xF0.0x409 byte 8                          raw, navigation and phone (Jaguar XF)
+// and every sink, the main one too, at its MixerLevel on top:
+//   0x22.0x467 MixerLevel  Pos {x = SinkNr, 0 = every sink; y = 0}, then per
+//                          sink InputLevel, Balance, Fader (TSByte each; a
+//                          balance of 0x80 follows the main one) - catalogue
+//                          2V4-3, 2.1.31; InputLevel in mix_db_step per step
+// Whether an amplifier also turns the music down by itself while a prompt
+// plays is not on the bus; J3 follows only what the head unit sends.
+//
 // The scales (raw volume -> dB, dB per tone and balance step) are not known
 // for any car but JLR AUD3 (dB on the wire); snd_cfg_t holds them, and the
 // defaults are placeholders until a car is recorded. Values are taken from
@@ -35,6 +47,8 @@
 
 enum { SND_VOL_46D, SND_VOL_BMW, SND_VOL_F0, SND_VOL_STD, SND_VOL_N };
 
+#define SND_SINKS 8                 // levels kept for SinkNr 1..8
+
 typedef struct {
     uint8_t vol_max[SND_VOL_N];     // raw value at 0 dB, per source (46D: unused)
     float   tone_db_step;           // bass and treble, dB per step
@@ -44,6 +58,7 @@ typedef struct {
     float   bass_hz, treble_hz;     // shelf corners
     float   loud_db_max;            // loudness: bass boost at the quietest
     float   loud_db_at;             // ...reached at this volume (dB), 0 at 0 dB
+    float   mix_db_step;            // MixerLevel InputLevel, dB per step
 } snd_cfg_t;
 
 extern const snd_cfg_t snd_cfg_default;
@@ -55,6 +70,14 @@ typedef struct {
     float   vol_db[SND_VOL_N];      // per source; -inf / below -120 = silent
     int8_t  balance, bass, treble;  // steps, as sent
     uint8_t loudness;
+    // per sink, index SinkNr - 1, bit SinkNr - 1
+    uint8_t spk_have;               // SpeakerLevel to that sink (2 and up)
+    float   spk_db[SND_SINKS];      // ...its loudest speaker, dB
+    uint8_t mix_have;               // MixerLevel for that sink
+    int8_t  mix_level[SND_SINKS];   // ...InputLevel, steps
+    uint8_t mix_bal[SND_SINKS];     // ...Balance, 0x80 = the main balance
+    uint8_t annc_have;              // Jaguar XF's navigation and phone volume
+    float   annc_db;                // ...dB
 } snd_t;
 
 #define SND_H_BAL    0x01
@@ -72,6 +95,14 @@ int snd_tel(snd_t *s, const snd_cfg_t *cfg, const mm_tel_t *t);
 // The volume in dB from the best source heard; SND_SILENT if none, or if
 // the best one says silence.
 float snd_volume_db(const snd_t *s);
+
+// The level a sink plays at, dB: sink 1 at the volume, another at its own
+// SpeakerLevel, else Jaguar XF's navigation/phone volume, else the volume;
+// then its MixerLevel on top. SND_SILENT if silent or nothing is known.
+float snd_sink_db(const snd_t *s, const snd_cfg_t *cfg, int sink);
+
+// A sink's balance in steps: its MixerLevel balance, or the main one.
+int snd_sink_balance(const snd_t *s, int sink);
 
 // raw -> dB on the default curve: 0 = silence, else 40 log10(raw / max),
 // i.e. amplitude as the square of the knob (half way is -12 dB)

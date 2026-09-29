@@ -27,8 +27,9 @@ What it does now:
   FPGA's UART, decoded into MOST telegrams; a model of what the amplifier is
   told; from it the commands to the FPGA - our audio into the AUX source's
   frame bytes (02), the amplifier's main zone out on J3 (01) with the head
-  unit's volume, mute, balance, bass, treble and loudness (03). Never a word
-  on the MOST control channel: the listener has no address.
+  unit's volume, mute, balance, bass, treble and loudness (03), and two more
+  of its sinks - navigation, phone, chimes - mixed in at their own levels.
+  Never a word on the MOST control channel: the listener has no address.
 - **The board's TOSLINK input as the second source**, chosen by itself
   (`components/mostctl/ain`): the phone while it streams, otherwise the
   TOSLINK input once its receiver has held lock on PCM for 1 s (IO13 reads the
@@ -43,8 +44,7 @@ What it does now:
   set the source to PCM. Its lock time runs while the phone plays, so when the
   phone stops the TOSLINK input takes over at once.
 
-Next: navigation and phone mixed into J3 (the FPGA already takes three
-sources), and the per-car scales from a recording of a real ring.
+Next: the per-car scales from a recording of a real ring.
 
 ## Pins (listener board, block 8)
 
@@ -117,10 +117,13 @@ injection is off after a core reset; a repeated command changes nothing):
   amplifier it always does. For listening (J2, J3) any place will do.
 - 01: J3 plays the amplifier's sink 1 (the main zone), from the frame as it
   leaves the listener - our audio included while it replaces the AUX source's
-  bytes and the amplifier plays them.
+  bytes and the amplifier plays them; and on streams 1 and 2 two more of its
+  connected sinks (`am_extras`: SinkNr 2 and up on sink 1's amplifier
+  instance, lowest first; 2 or 3 channels are 16/24-bit mono, fed to both
+  sides, 4 or 6 stereo).
 - 03: J3's coefficient set (section below), sent first so that a source is
   never heard at full scale before its gains; while the settings change, at
-  most one set every 20 ms.
+  most one set every 20 ms, and at once when a sink comes or goes.
 
 No packet for 0.5 s means the ring is down or restarting. A restart hands the
 channels out anew, and a model that kept the old ones could put our audio into
@@ -149,12 +152,26 @@ The settings are kept in NVS 10 s after the last change: after a restart J3
 starts where it was, as the factory amplifier does. Until a volume has been
 heard once, J3 is silent.
 
+The amplifier's other sinks - navigation, phone, chimes: whatever it mixes
+into its speakers, under whichever sink numbers a car gives them - go to J3
+on streams 1 and 2, so J3 is what the factory amplifier would play and no
+per-brand table of which sink is which is needed. Each plays at its own level
+where the car sends one: SpeakerLevel to that sink (JLR AUD3, dB), else byte
+8 of 0xF0.0x409 (Jaguar XF: navigation and phone), else the volume; then
+every sink, sink 1 too, at its MixerLevel on top (0x22.0x467, catalogue 2V4-3
+2.1.31: InputLevel, Balance, Fader per sink, the whole array or one sink by
+its position; a balance of 0x80 follows the main one). Each is silent while
+its own Mute (0x113) is on; the main sink's mute is the main sink's only.
+No tone on them, as an amplifier plays prompts. If an amplifier also turns
+the music down by itself while a prompt plays, the bus does not say so, and
+J3 does not do it.
+
 The scales are placeholders (`snd_cfg_default`) for every car but JLR AUD3,
 whose SpeakerLevel carries dB: raw volume -> dB on a square law over an
 assumed maximum (BMW 63, known; 40 elsewhere, a guess), 1 dB per bass /
 treble step (+-12 dB), 2 dB per balance step with the other side silent from
-10 steps, loudness +8 dB of bass at -40 dB and below. A recording of the
-car's ring while stepping each control fixes them.
+10 steps, loudness +8 dB of bass at -40 dB and below, 1 dB per MixerLevel
+step. A recording of the car's ring while stepping each control fixes them.
 
 **Capture** (`listener_gw/rtl/capture.v`, command 04): the FPGA keeps the
 line's first 65536 runs after power-up - the ring's start-up - and captures
@@ -216,7 +233,8 @@ make -C test
 4. `test_lsn_link`: packets as `ctrl_uart.v` sends them, with noise between
    them, a corrupted byte, a lost byte and A5 5A inside the payload; capture
    packets among them (one corrupted, a trailer); the command packets byte
-   for byte, the inject command from the TOSLINK input among them.
+   for byte, the inject command from the TOSLINK input among them, J3's
+   stream 1 in mono and stream 2 in stereo and off.
 5. `test_mostctl`: blocks built to the documented layout. Decoding: fields;
    5 kinds of block refused, system and MOST High Protocol messages skipped;
    11 bytes to a group address; a segmented message with a segment sent
@@ -224,18 +242,27 @@ make -C test
    The model: the head unit puts AUX on the amplifier and takes it off in
    every order; the amplifier moves to another source; Ack forms; the state
    rebuilt from SourceInfo / SinkInfo alone; 0xFF lists; lists that make no
-   sense; 24 bit; Mute. And the chain, raw blocks to the decision. The
+   sense; 24 bit; Mute. The other sinks for J3: 16-bit mono and 24-bit
+   stereo, the lowest two SinkNr on sink 1's instance, a second instance
+   passed over, Mute, DisConnect, a list J3 cannot take passed over, no main
+   sink. And the chain, raw blocks to the decision. The
    source (`ain`), read every 10 ms: no receiver; the phone over a locked
    TOSLINK input; the lock's 1 s, run while the phone plays; a parity blip
    and 90 ms of ERROR kept; AC-3 dropped at once, PCM again after 1 s, the
    phone untouched by it; 100 ms of ERROR lost; plugged in again.
 6. `test_sound`: every volume source and their order, tone and loudness
-   telegrams, Increment ignored, repeats no change; the coefficient words for
-   flat tone, volume, balance (to one side, to silence), mute, clamps; both
-   shelves at -12..+12 dB at 44.1 and 48 kHz judged on the rounded words.
-7. `check_image.py`: one set from `test_sound` (volume -20 dB, balance +4,
-   bass +6, treble -4) run through the FPGA engine's bit-exact model
-   (`listener_gw/sim/dsp_asm.py`) with sines at 50 Hz, 1 kHz and 12 kHz.
+   telegrams, Increment ignored, repeats no change; the other sinks' levels -
+   MixerLevel for every sink and for one, a record's field (y) ignored, its
+   balance or the main one, Jaguar XF's byte 8, SpeakerLevel to a sink over
+   both, a sink beyond 8; the coefficient words for flat tone, volume, balance
+   (to one side, to silence), mute, clamps, streams 1 and 2 (a level, muted,
+   the main balance or their own, off); both shelves at -12..+12 dB at 44.1
+   and 48 kHz judged on the rounded words.
+7. `check_image.py`: two sets from `test_sound` run through the FPGA engine's
+   bit-exact model (`listener_gw/sim/dsp_asm.py`): volume -20 dB, balance
+   +4, bass +6, treble -4 with sines at 50 Hz, 1 kHz and 12 kHz; and three
+   sinks mixed - sink 1 at -20 dB, sink 2 on stream 1 in mono at -10 dB,
+   sink 3 on stream 2 at -26 dB with a balance of its own - a sine on each.
 
 ## Verified
 
@@ -255,9 +282,11 @@ make -C test
 | Model: AUX on and off in every order, Ack forms, Info recovery, 24 bit | each decision as expected |
 | The source: phone and TOSLINK input, lock, settle, blips, not PCM, loss | each pick as expected; seven broken variants of `ain.c` each caught |
 | Sound settings from telegrams: 4 volume sources, tone, loudness, balance | each as sent; the source order holds |
+| The other sinks: which ones, their levels, balance and mute | each as expected; eight broken variants of `amp_model.c`, `sound.c` and `dsp_img.c` each caught |
 | Shelves on the rounded words, -12..+12 dB, 44.1 and 48 kHz | full gain within 0.008 dB (15 Hz, 0.45 fs), the other band within 0.001 dB; every setting stable |
 | The firmware's set through the FPGA engine's model | L and R within 0.0002 dB of volume + balance + shelves at 50 Hz, 1 kHz, 12 kHz |
-| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, the host and J3's sound | no compiler warnings; app 979 KB of a 1.5 MB partition (4 MB flash) |
+| Three sinks mixed, through the same model | every sink's sine on L and R within 0.0003 dB of its level and balance, the mono one on both sides |
+| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, the host and J3's sound | no compiler warnings; app 982 KB of a 1.5 MB partition (4 MB flash) |
 
 Not proved: nothing has run on an ESP32 yet, and the decoder has never seen
 a real control block - which blocks the checks let through, whether the

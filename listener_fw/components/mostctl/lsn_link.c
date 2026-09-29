@@ -97,9 +97,15 @@ static uint8_t width(int bits)
     return bits == 24 ? 3 : bits == 16 ? 2 : 0;
 }
 
+void lsn_cmd_source(uint8_t out[LSN_CMD_LEN], int stream, int bits, int mono, const uint8_t l[3],
+                    const uint8_t r[3])
+{
+    cmd(out, 0x01, (uint8_t)(width(bits) | (mono ? 0x04 : 0) | ((stream & 3) << 4)), l, mono ? NULL : r);
+}
+
 void lsn_cmd_stereo(uint8_t out[LSN_CMD_LEN], int bits, const uint8_t l[3], const uint8_t r[3])
 {
-    cmd(out, 0x01, width(bits), l, r);
+    lsn_cmd_source(out, 0, bits, 0, l, r);
 }
 
 void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity, int spdif_in,

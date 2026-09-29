@@ -63,7 +63,9 @@ static void test_decode(void)
     feed(&s, 0x20, 0x200, MM_OP_STATUS, 1, bmw);
     CHECK(fabsf(snd_volume_db(&s)) < 0.01f, "BMW 63 of 63 = 0 dB, over 0xF0");
     const uint8_t spk_nav[] = {0x00, 0x02, 0xE2, 0xE2, 0xE2, 0xE2, 0xE2, 0xE2, 0xE2};
-    CHECK(feed(&s, 0x22, 0x46D, MM_OP_SET, 9, spk_nav) == 0, "SpeakerLevel to sink 2: not the main zone");
+    CHECK(feed(&s, 0x22, 0x46D, MM_OP_SET, 9, spk_nav) == 1 && fabsf(snd_volume_db(&s)) < 0.01f &&
+          s.spk_have == 0x02 && fabsf(snd_sink_db(&s, &snd_cfg_default, 2) + 30.0f) < 0.01f,
+          "SpeakerLevel to sink 2: that sink's level, not the volume");
     const uint8_t spk[] = {0x00, 0x01, 0xE2, 0xE1, 0xE2, 0xE4, 0xE2, 0xE2, 0xE2};   // -30 -31 -30 -28 ...
     feed(&s, 0x22, 0x46D, MM_OP_SET, 9, spk);
     CHECK(fabsf(snd_volume_db(&s) - (-28.0f)) < 0.01f, "SpeakerLevel dB on the wire, the loudest: %.1f",
@@ -73,6 +75,49 @@ static void test_decode(void)
     CHECK(s.balance == 4, "BMW balance");
     CHECK(snd_curve_db(80, 40) == 0.0f && snd_curve_db(10, 40) < -24.0f, "the curve clamps at 0 dB");
     printf("  volume sources heard 0x%X, volume %.1f dB\n", s.vol_have, snd_volume_db(&s));
+}
+
+// the amplifier's other sinks: their levels and balance
+static void test_sinks(void)
+{
+    printf("sinks:\n");
+    const snd_cfg_t *cfg = &snd_cfg_default;
+    snd_t s;
+    snd_init(&s);
+    CHECK(snd_sink_db(&s, cfg, 2) <= SND_SILENT, "no volume heard: every sink silent");
+    const uint8_t v20[] = {20};
+    feed(&s, 0x22, 0x400, MM_OP_STATUS, 1, v20);                    // -12.04 dB
+    CHECK(fabsf(snd_sink_db(&s, cfg, 3) + 12.041f) < 0.01f, "nothing of its own: a sink at the volume");
+    // MixerLevel, the whole array: Pos {0, 0}, then {InputLevel, Balance, Fader} for sinks 1..3
+    const uint8_t mix[] = {0, 0, 0xFD, 0x80, 0x80, 0xF6, 0x80, 0x80, 0xEC, 0x05, 0x80};
+    CHECK(feed(&s, 0x22, 0x467, MM_OP_STATUS, 11, mix) == 1 && s.mix_have == 0x07, "MixerLevel, all sinks");
+    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 15.041f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 2) + 22.041f) < 0.01f &&
+          fabsf(snd_sink_db(&s, cfg, 3) + 32.041f) < 0.01f, "InputLevel on top of the volume: %.2f %.2f %.2f",
+          snd_sink_db(&s, cfg, 1), snd_sink_db(&s, cfg, 2), snd_sink_db(&s, cfg, 3));
+    CHECK(feed(&s, 0x22, 0x467, MM_OP_SET, 11, mix) == 0, "the same again is no change");
+    const uint8_t mix2[] = {2, 0, 0xFA, 0x80, 0x80};                  // sink 2 alone
+    CHECK(feed(&s, 0x22, 0x467, MM_OP_SET, 5, mix2) == 1 && s.mix_level[1] == -6 && s.mix_level[2] == -20,
+          "MixerLevel, one sink by its Pos");
+    const uint8_t mix_y[] = {2, 1, 0x10, 0x80, 0x80};
+    CHECK(feed(&s, 0x22, 0x467, MM_OP_SET, 5, mix_y) == 0, "one field of a record (y != 0): ignored");
+    s.have |= SND_H_BAL;
+    s.balance = -3;
+    CHECK(snd_sink_balance(&s, 2) == -3 && snd_sink_balance(&s, 3) == 5 && snd_sink_balance(&s, 4) == -3,
+          "balance 0x80 follows the main one, another is the sink's own");
+    // Jaguar XF: byte 8 of 0xF0.0x409 is navigation and phone
+    const uint8_t xf[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 10, 0, 3};
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_SET, 11, xf) == 1 && s.annc_have, "0xF0.0x409 byte 8");
+    CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 24.082f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 3) + 44.082f) < 0.01f,
+          "a sink at that level, its MixerLevel on top: %.2f %.2f", snd_sink_db(&s, cfg, 4),
+          snd_sink_db(&s, cfg, 3));
+    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 15.041f) < 0.01f, "...but not sink 1");
+    const uint8_t spk2[] = {0x00, 0x02, 0xEC, 0xEE, 0xEC};           // -20 -18 -20
+    feed(&s, 0x22, 0x46D, MM_OP_SET, 5, spk2);
+    CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 24.0f) < 0.01f, "SpeakerLevel to sink 2 wins, MixerLevel on top: %.2f",
+          snd_sink_db(&s, cfg, 2));
+    const uint8_t spk9[] = {0x00, 0x09, 0xEC};
+    CHECK(feed(&s, 0x22, 0x46D, MM_OP_SET, 3, spk9) == 0 && snd_sink_db(&s, cfg, 9) <= SND_SILENT,
+          "sink 9: beyond what is kept");
 }
 
 // |H| of one biquad as the engine holds it (b0 b1 b2 -a1 -a2, Q4.28), in dB
@@ -97,7 +142,7 @@ static void test_image(void)
     s.loudness = 0;
     s.vol_have = 1u << SND_VOL_STD;
     s.vol_db[SND_VOL_STD] = -20.0f;
-    CHECK(dsp_image(&s, &snd_cfg_default, 0, 48000, w) == 0, "flat set");
+    CHECK(dsp_image(&s, &snd_cfg_default, 0, NULL, 48000, w) == 0, "flat set");
     int flat = 1;
     for (int b = 0; b < DSP_N_BQ; b++)
         flat &= w[DSP_C_BQ(b, 0)] == (1 << DSP_FRAC) && !w[DSP_C_BQ(b, 1)] && !w[DSP_C_BQ(b, 2)] &&
@@ -106,20 +151,44 @@ static void test_image(void)
     const double k = 1.0 / 256.0;
     CHECK(fabs(w[DSP_C_KT(0, 0)] / one / k - 0.1) < 1e-6 && w[DSP_C_KT(0, 1)] == w[DSP_C_KT(0, 0)],
           "-20 dB: L and R x 0.1 (%.7f)", w[DSP_C_KT(0, 0)] / one / k);
-    CHECK(w[DSP_C_KT(1, 0)] == 0 && w[DSP_C_KT(2, 1)] == 0, "navigation and phone silent");
+    CHECK(w[DSP_C_KT(1, 0)] == 0 && w[DSP_C_KT(1, 1)] == 0 && w[DSP_C_KT(2, 0)] == 0 && w[DSP_C_KT(2, 1)] == 0,
+          "no other sink: streams 1 and 2 silent");
     CHECK(w[DSP_C_1MK] == (int32_t)lround(one * (1 - k)), "1 - k");
 
     s.have |= SND_H_BAL;
     s.balance = 4;                                  // to the left: R turned down 8 dB
-    dsp_image(&s, &snd_cfg_default, 0, 48000, w);
+    dsp_image(&s, &snd_cfg_default, 0, NULL, 48000, w);
     const double rl = 20 * log10((double)w[DSP_C_KT(0, 1)] / w[DSP_C_KT(0, 0)]);
     CHECK(fabs(rl + 8.0) < 0.001, "balance +4: R %.3f dB under L", rl);
     s.balance = -10;
-    dsp_image(&s, &snd_cfg_default, 0, 48000, w);
+    dsp_image(&s, &snd_cfg_default, 0, NULL, 48000, w);
     CHECK(w[DSP_C_KT(0, 0)] == 0 && w[DSP_C_KT(0, 1)] > 0, "balance -10: L silent");
     s.balance = 0;
-    dsp_image(&s, &snd_cfg_default, 1, 48000, w);
+    dsp_image(&s, &snd_cfg_default, 1, NULL, 48000, w);
     CHECK(w[DSP_C_KT(0, 0)] == 0 && w[DSP_C_KT(0, 1)] == 0, "muted: both silent");
+
+    // streams 1, 2: sink 2 at -10 dB on top of the volume, sink 3 muted; the main mute is not theirs
+    s.mix_have = 0x02;
+    s.mix_level[1] = -10;
+    s.mix_bal[1] = 0x80;
+    const dsp_extra_t ex[2] = {{2, 0}, {3, 1}};
+    dsp_image(&s, &snd_cfg_default, 1, ex, 48000, w);
+    CHECK(fabs(w[DSP_C_KT(1, 0)] / one / k - 0.031623) < 1e-5 && w[DSP_C_KT(1, 1)] == w[DSP_C_KT(1, 0)],
+          "sink 2: -20 - 10 dB = x %.6f, the main sink muted", w[DSP_C_KT(1, 0)] / one / k);
+    CHECK(w[DSP_C_KT(2, 0)] == 0 && w[DSP_C_KT(2, 1)] == 0 && w[DSP_C_KT(0, 0)] == 0, "sink 3 muted: silent");
+    s.balance = 4;
+    dsp_image(&s, &snd_cfg_default, 0, ex, 48000, w);
+    const double rl1 = 20 * log10((double)w[DSP_C_KT(1, 1)] / w[DSP_C_KT(1, 0)]);
+    CHECK(fabs(rl1 + 8.0) < 0.001, "sink 2 follows the main balance: R %.3f dB under L", rl1);
+    s.mix_bal[1] = (uint8_t)-4;
+    dsp_image(&s, &snd_cfg_default, 0, ex, 48000, w);
+    CHECK(w[DSP_C_KT(1, 0)] < w[DSP_C_KT(1, 1)] && w[DSP_C_KT(0, 0)] > w[DSP_C_KT(0, 1)],
+          "sink 2 with a balance of its own (-4): L under R, the main one as it was");
+    const dsp_extra_t off[2] = {{0, 0}, {0, 0}};
+    dsp_image(&s, &snd_cfg_default, 0, off, 48000, w);
+    CHECK(w[DSP_C_KT(1, 0)] == 0 && w[DSP_C_KT(2, 0)] == 0, "streams off: silent");
+    s.mix_have = 0;
+    s.balance = 0;
 
     // shelves, judged on the rounded words: the full gain well inside the
     // shelf (15 Hz; 0.45 fs), nothing well outside it (3 kHz; 300 Hz)
@@ -130,7 +199,7 @@ static void test_image(void)
         s.have |= SND_H_BASS | SND_H_TREBLE;
         for (int st = -12; st <= 12; st += 4) {
             s.bass = (int8_t)st; s.treble = (int8_t)-st;
-            CHECK(dsp_image(&s, &snd_cfg_default, 0, fs, w) == 0, "stable at %d / %d, %.0f Hz", st, -st, fs);
+            CHECK(dsp_image(&s, &snd_cfg_default, 0, NULL, fs, w) == 0, "stable at %d / %d, %.0f Hz", st, -st, fs);
             e_lo = fmax(e_lo, fabs(resp_db(&w[DSP_C_BQ(0, 0)], fs, 15) - st));
             e_hi = fmax(e_hi, fabs(resp_db(&w[DSP_C_BQ(1, 0)], fs, 0.45 * fs) + st));
             e_flat = fmax(e_flat, fabs(resp_db(&w[DSP_C_BQ(0, 0)], fs, 3000)));
@@ -165,10 +234,32 @@ static void test_image(void)
     s.vol_db[SND_VOL_STD] = -20.0f;
     s.have = SND_H_BAL | SND_H_BASS | SND_H_TREBLE;
     s.balance = 4; s.bass = 6; s.treble = -4;
-    dsp_image(&s, &snd_cfg_default, 0, 48000, w);
+    dsp_image(&s, &snd_cfg_default, 0, NULL, 48000, w);
     FILE *f = fopen("image_example.txt", "w");
     if (f) {
         fprintf(f, "# fs 48000, volume -20 dB, balance +4 (R -8 dB), bass +6 dB, treble -4 dB\n");
+        for (int a = 0; a < DSP_C_IMAGE; a++)
+            fprintf(f, "%d\n", (int)w[a]);
+        fclose(f);
+    }
+
+    // ...and the mix: sink 1 flat at -20 dB, sink 2 (stream 1, mono) 10 dB above it,
+    // sink 3 (stream 2) at its own SpeakerLevel -26 dB with a balance of +4 of its own
+    snd_init(&s);
+    s.loudness = 0;
+    s.vol_have = 1u << SND_VOL_STD;
+    s.vol_db[SND_VOL_STD] = -20.0f;
+    s.mix_have = 0x06;
+    s.mix_level[1] = 10; s.mix_bal[1] = 0x80;
+    s.mix_level[2] = 0;  s.mix_bal[2] = 4;
+    s.spk_have = 0x04;
+    s.spk_db[2] = -26.0f;
+    const dsp_extra_t mixex[2] = {{2, 0}, {3, 0}};
+    dsp_image(&s, &snd_cfg_default, 0, mixex, 48000, w);
+    f = fopen("image_mix.txt", "w");
+    if (f) {
+        fprintf(f, "# fs 48000, sink 1 -20 dB flat; sink 2 (stream 1) -10 dB; sink 3 (stream 2) -26 dB, "
+                   "balance +4 (R -8 dB)\n");
         for (int a = 0; a < DSP_C_IMAGE; a++)
             fprintf(f, "%d\n", (int)w[a]);
         fclose(f);
@@ -178,6 +269,7 @@ static void test_image(void)
 int main(void)
 {
     test_decode();
+    test_sinks();
     test_image();
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;

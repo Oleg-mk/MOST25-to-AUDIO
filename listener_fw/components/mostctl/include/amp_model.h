@@ -58,3 +58,19 @@ am_pos_t am_main(const am_t *a);
 
 // That sink is muted (Mute 0x113 to it, or to all sinks).
 int am_main_muted(const am_t *a);
+
+// One of the amplifier's other sinks as J3 mixes it in.
+typedef struct {
+    am_pos_t pos;               // bits 0: none
+    uint8_t mono;               // one channel (pos.l), fed to both sides
+    uint8_t nr;                 // its SinkNr
+    uint8_t muted;
+} am_sink_t;
+
+// Everything the amplifier plays besides sink 1 - navigation, phone, chimes,
+// whichever sink numbers a car gives them: up to n connected sinks with
+// SinkNr >= 2 on the main sink's instance (without a main sink, on the lowest
+// instance that has one J3 can take), lowest SinkNr first. A channel list 2,
+// 3, 4 or 6 long is 16/24-bit mono or stereo; other lengths are left out.
+// Returns how many were found; the rest of out[] is cleared.
+int am_extras(const am_t *a, am_sink_t *out, int n);

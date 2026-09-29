@@ -170,6 +170,14 @@ static void test_cmd(void)
     CHECK(c[2] == 0x02 && c[3] == 0x07 && c[4] == 5 && c[7] == 7, "inject 24 bit from the S/PDIF input");
     lsn_cmd_stereo(c, 24, l, r);
     CHECK(c[2] == 0x01 && c[3] == 0x03, "stereo 24 bit");
+    lsn_cmd_source(c, 1, 16, 1, l, r);
+    const uint8_t s1[LSN_CMD_LEN] = {0xA5, 0x5A, 0x01, 0x16, 5, 6, 0, 0, 0, 0,
+                                     (uint8_t)(0xA5 ^ 0x5A ^ 0x01 ^ 0x16 ^ 5 ^ 6)};
+    CHECK(memcmp(c, s1, sizeof s1) == 0, "stream 1, 16-bit mono: P = 16h, the right bytes zero");
+    lsn_cmd_source(c, 2, 24, 0, l, r);
+    CHECK(c[3] == 0x23 && c[7] == 7 && c[8] == 8, "stream 2, 24-bit stereo: P = 23h");
+    lsn_cmd_source(c, 2, 0, 0, NULL, NULL);
+    CHECK(c[3] == 0x20 && c[4] == 0, "stream 2 off: P = 20h");
     lsn_cmd_word(c, 46, (int32_t)0xFF012345, 1);
     const uint8_t w46[LSN_CMD_LEN] = {0xA5, 0x5A, 0x03, 46, 0xFF, 0x01, 0x23, 0x45, 0x01, 0x00,
                                       (uint8_t)(0xA5 ^ 0x5A ^ 0x03 ^ 46 ^ 0xFF ^ 0x01 ^ 0x23 ^ 0x45 ^ 0x01)};

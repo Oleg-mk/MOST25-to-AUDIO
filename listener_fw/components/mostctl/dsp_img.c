@@ -2,6 +2,7 @@
 #include "dsp_img.h"
 
 #include <math.h>
+#include <stddef.h>
 
 #define K_GLIDE   (1.0 / 256.0)
 #define ONE       ((double)(1L << DSP_FRAC))
@@ -21,16 +22,21 @@ static double clamp(double v, double lo, double hi)
     return v < lo ? lo : v > hi ? hi : v;
 }
 
-void dsp_levels(const snd_t *s, const snd_cfg_t *cfg, int muted, double *gl, double *gr,
-                double *bass_db, double *treble_db)
+// a level into L and R: the side the balance turns away from is attenuated
+static void side_gains(const snd_cfg_t *cfg, double v, int bal, double *gl, double *gr)
 {
-    const double vdb = snd_volume_db(s);
-    const double v = (muted || vdb <= SND_SILENT + 1.0) ? 0.0 : pow(10.0, vdb / 20.0);
-    const int bal = (s->have & SND_H_BAL) ? s->balance : 0;     // positive: to the left
-    const int n = bal < 0 ? -bal : bal;
+    const int n = bal < 0 ? -bal : bal;                         // positive: to the left
     const double away = n >= cfg->bal_mute_steps ? 0.0 : pow(10.0, -n * cfg->bal_db_step / 20.0);
     *gl = v * (bal < 0 ? away : 1.0);
     *gr = v * (bal > 0 ? away : 1.0);
+}
+
+void dsp_levels(const snd_t *s, const snd_cfg_t *cfg, int muted, double *gl, double *gr,
+                double *bass_db, double *treble_db)
+{
+    const double vdb = snd_sink_db(s, cfg, 1);
+    const double v = (muted || vdb <= SND_SILENT + 1.0) ? 0.0 : pow(10.0, vdb / 20.0);
+    side_gains(cfg, v, (s->have & SND_H_BAL) ? s->balance : 0, gl, gr);
     const double tmax = cfg->tone_db_max;
     double loud = 0.0;
     if (s->loudness && v > 0.0 && cfg->loud_db_at < 0.0)
@@ -83,7 +89,19 @@ static int biquad(int32_t *w, int high, double fs, double f0, double gdb)
     return 0;
 }
 
-int dsp_image(const snd_t *s, const snd_cfg_t *cfg, int muted, double fs, int32_t w[DSP_C_IMAGE])
+void dsp_extra_levels(const snd_t *s, const snd_cfg_t *cfg, const dsp_extra_t *ex, double *gl, double *gr)
+{
+    *gl = *gr = 0.0;
+    if (!ex || !ex->sink || ex->muted)
+        return;
+    const double db = snd_sink_db(s, cfg, ex->sink);
+    if (db <= SND_SILENT + 1.0)
+        return;
+    side_gains(cfg, pow(10.0, db / 20.0), snd_sink_balance(s, ex->sink), gl, gr);
+}
+
+int dsp_image(const snd_t *s, const snd_cfg_t *cfg, int muted, const dsp_extra_t ex[2], double fs,
+              int32_t w[DSP_C_IMAGE])
 {
     double gl, gr, bass, treble;
     dsp_levels(s, cfg, muted, &gl, &gr, &bass, &treble);
@@ -92,11 +110,13 @@ int dsp_image(const snd_t *s, const snd_cfg_t *cfg, int muted, double fs, int32_
     r |= biquad(&w[DSP_C_BQ(1, 0)], 1, fs, cfg->treble_hz, treble);
     for (int b = 2; b < DSP_N_BQ; b++)
         straight(&w[DSP_C_BQ(b, 0)]);
-    for (int st = 0; st < DSP_N_STREAMS; st++)
-        for (int o = 0; o < DSP_N_OUT; o++)
-            w[DSP_C_KT(st, o)] = 0;
     w[DSP_C_KT(0, 0)] = q28(K_GLIDE * gl);
     w[DSP_C_KT(0, 1)] = q28(K_GLIDE * gr);
+    for (int st = 1; st < DSP_N_STREAMS; st++) {
+        dsp_extra_levels(s, cfg, ex ? &ex[st - 1] : NULL, &gl, &gr);
+        w[DSP_C_KT(st, 0)] = q28(K_GLIDE * gl);
+        w[DSP_C_KT(st, 1)] = q28(K_GLIDE * gr);
+    }
     w[DSP_C_1MK] = q28(1.0 - K_GLIDE);
     return r;
 }

@@ -30,6 +30,6 @@ run: test_rate_match test_lsn_link test_mostctl test_sound
 
 clean:
 	rm -f test_rate_match test_rate_match.exe test_lsn_link test_lsn_link.exe test_mostctl test_mostctl.exe \
-	      test_sound test_sound.exe image_example.txt
+	      test_sound test_sound.exe image_example.txt image_mix.txt
 
 .PHONY: all run clean

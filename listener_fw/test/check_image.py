@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""check_image.py - the firmware's coefficient set through the FPGA engine's model.
+"""check_image.py - the firmware's coefficient sets through the FPGA engine's model.
 
-test_sound writes one set (image_example.txt: 48 kHz, volume -20 dB, balance
-+4 = R 8 dB down, bass +6 dB, treble -4 dB). This runs it through the
+test_sound writes two sets. image_example.txt: 48 kHz, volume -20 dB, balance
++4 = R 8 dB down, bass +6 dB, treble -4 dB. This runs it through the
 bit-exact model of dsp_core (listener_gw/sim/dsp_asm.py): a sine on stream 0,
 both sides, until the gains have glided to their targets, then L and R are
 measured. They must be what the settings say, on the same shelves - which
 proves the firmware and the gateware agree on the map, the number format and
-the arithmetic.
+the arithmetic. image_mix.txt: the amplifier's three sinks mixed - sink 1 on
+stream 0 flat at -20 dB, sink 2 on stream 1 (mono, the same sample on both
+of its inputs, as amp_out feeds a mono stream) at -10 dB, sink 3 on stream 2
+at -26 dB with R 8 dB down; a sine of its own on each stream, and each must
+come out of L and R at its level.
 """
 import math
 import sys
@@ -54,7 +58,47 @@ def main():
     ok = worst < 0.01
     print(f"engine model: {'PASS' if ok else 'FAIL'}  the firmware's set does what it says, "
           f"within {worst:.4f} dB")
-    return 0 if ok else 1
+    return 0 if ok and check_mix() else 1
+
+
+def level_db(ys, side, f, amp, lo, hi):
+    """The amplitude of f in ys[lo:hi][side], in dB against amp (least squares on sin, cos)."""
+    sss = scc = ssc = ys_ = yc_ = 0.0
+    for i in range(lo, hi):
+        sv, cv = math.sin(2 * math.pi * f * i / FS), math.cos(2 * math.pi * f * i / FS)
+        y = ys[i][side]
+        sss += sv * sv; scc += cv * cv; ssc += sv * cv; ys_ += y * sv; yc_ += y * cv
+    det = sss * scc - ssc * ssc
+    a_s, a_c = (ys_ * scc - yc_ * ssc) / det, (yc_ * sss - ys_ * ssc) / det
+    return 20 * math.log10(math.hypot(a_s, a_c) / amp)
+
+
+def check_mix():
+    words = [int(l) for l in (HERE / "image_mix.txt").read_text().split("\n")
+             if l.strip() and not l.startswith("#")]
+    c = words + [0] * (da.C_WORDS - len(words))
+    # a whole number of cycles in the measured half, so the three do not leak into each other
+    f0, f1, f2 = 1008, 432, 3008
+    amp = 0.25 * 2 ** 23
+    n = 6000
+    eng = da.Engine()
+    ys = []
+    for i in range(n):
+        x0 = int(round(amp * math.sin(2 * math.pi * f0 * i / FS)))
+        x1 = int(round(amp * math.sin(2 * math.pi * f1 * i / FS)))
+        x2 = int(round(amp * math.sin(2 * math.pi * f2 * i / FS)))
+        ys.append(eng.run(c, [x0, x0, x1, x1, x2, x2]))
+    want = {f0: (-20.0, -20.0), f1: (-10.0, -10.0), f2: (-26.0, -34.0)}
+    worst = 0.0
+    for f, (wl, wr) in want.items():
+        got = (level_db(ys, 0, f, amp, n // 2, n), level_db(ys, 1, f, amp, n // 2, n))
+        worst = max(worst, abs(got[0] - wl), abs(got[1] - wr))
+        print(f"  {f:5d} Hz (stream {[f0, f1, f2].index(f)}): L {got[0]:+.3f} dB (want {wl:+.3f}), "
+              f"R {got[1]:+.3f} dB (want {wr:+.3f})")
+    ok = worst < 0.01
+    print(f"engine model: {'PASS' if ok else 'FAIL'}  the three sinks mixed as the firmware says, "
+          f"within {worst:.4f} dB")
+    return ok
 
 
 if __name__ == "__main__":

@@ -79,9 +79,12 @@ void lsn_rx_init(lsn_rx_t *r);
 void lsn_rx_feed(lsn_rx_t *r, const uint8_t *p, size_t n, lsn_block_cb cb, void *ctx);
 
 // Commands. bits: 0 (off), 16 or 24. l, r: the sample's frame bytes, MSB first
-// (the third one unused at 16 bits). lsn_cmd_stereo is stream 0 in stereo.
-// spdif_in: the samples come from the board's S/PDIF input (its ASRC on the
-// FPGA's DIN2) instead of M2's I2S.
+// (the third one unused at 16 bits; r unused when mono). lsn_cmd_source picks
+// J3's stream 0..2, mono feeding l to both sides; lsn_cmd_stereo is stream 0
+// in stereo. spdif_in: the samples come from the board's S/PDIF input (its
+// ASRC on the FPGA's DIN2) instead of M2's I2S.
+void lsn_cmd_source(uint8_t out[LSN_CMD_LEN], int stream, int bits, int mono, const uint8_t l[3],
+                    const uint8_t r[3]);
 void lsn_cmd_stereo(uint8_t out[LSN_CMD_LEN], int bits, const uint8_t l[3], const uint8_t r[3]);
 void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity, int spdif_in,
                     const uint8_t l[3], const uint8_t r[3]);

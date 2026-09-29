@@ -253,3 +253,53 @@ int am_main_muted(const am_t *a)
     const int best = main_sink(a);
     return best >= 0 && a->sink[best].muted;
 }
+
+// a channel list as J3 takes it: 2 / 3 channels mono, 4 / 6 stereo, 16 / 24 bit
+static int sink_pos(const am_list_t *l, am_sink_t *s)
+{
+    if (l->n == 4 || l->n == 6) {
+        s->pos = pos_of(l);
+        s->mono = 0;
+        return 1;
+    }
+    if (l->n == 2 || l->n == 3) {
+        memset(&s->pos, 0, sizeof s->pos);
+        s->pos.bits = l->n == 2 ? 16 : 24;
+        for (int i = 0; i < l->n; i++)
+            s->pos.l[i] = l->ch[i] + 1;
+        s->mono = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int am_extras(const am_t *a, am_sink_t *out, int n)
+{
+    memset(out, 0, sizeof *out * (size_t)(n > 0 ? n : 0));
+    const int m = main_sink(a);
+    int inst = m >= 0 ? a->sink[m].inst : -1;
+    am_sink_t probe;
+    if (inst < 0)
+        for (int k = 0; k < AM_SINKS; k++)
+            if (a->sink[k].used && a->sink[k].connected && a->sink[k].nr >= 2 &&
+                sink_pos(&a->sink[k].ch, &probe) && (inst < 0 || a->sink[k].inst < inst))
+                inst = a->sink[k].inst;
+    int got = 0, last = 1;                      // SinkNr taken so far, ascending
+    while (got < n) {
+        int best = -1;
+        for (int k = 0; k < AM_SINKS; k++)
+            if (a->sink[k].used && a->sink[k].connected && a->sink[k].inst == inst && a->sink[k].nr > last &&
+                (best < 0 || a->sink[k].nr < a->sink[best].nr))
+                best = k;
+        if (best < 0)
+            break;
+        last = a->sink[best].nr;
+        am_sink_t s = {0};
+        if (!sink_pos(&a->sink[best].ch, &s))
+            continue;                           // a list J3 cannot take: skipped, the next one tried
+        s.nr = a->sink[best].nr;
+        s.muted = a->sink[best].muted;
+        out[got++] = s;
+    }
+    return got;
+}

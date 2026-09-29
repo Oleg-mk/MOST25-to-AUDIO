@@ -221,6 +221,62 @@ static void test_model(void)
     CHECK(a.sink[0].muted == 0 && !am_main_muted(&a), "unmute sink 1");
 }
 
+// the amplifier's other sinks, as J3's streams 1 and 2 take them
+static void connect(am_t *a, uint8_t inst, const uint8_t *d, int n)
+{
+    mm_tel_t t = tel(HU, AMP, 0x22, 0x111, MM_OP_STARTRESULT, d, n);
+    t.inst = inst;
+    am_tel(a, &t);
+    t = tel(AMP, HU, 0x22, 0x111, MM_OP_RESULT, d, 1);
+    t.inst = inst;
+    am_tel(a, &t);
+}
+
+static void test_extras(void)
+{
+    am_t a;
+    am_sink_t ex[2];
+    printf("amp_model, other sinks:\n");
+    am_init(&a);
+    CHECK(am_extras(&a, ex, 2) == 0 && ex[0].pos.bits == 0 && ex[1].pos.bits == 0, "none connected");
+    const uint8_t s1[] = {1, 0, 8, 9, 10, 11}, s3[] = {3, 0, 20, 21, 22, 23, 24, 25}, s2[] = {2, 0, 30, 31},
+                  s4[] = {4, 0, 40, 41, 42, 43}, s5[] = {5, 0, 50, 51, 52, 53, 54};
+    connect(&a, 1, s1, 6);
+    connect(&a, 1, s3, 8);
+    connect(&a, 1, s2, 4);
+    CHECK(am_extras(&a, ex, 2) == 2, "two found");
+    CHECK(ex[0].nr == 2 && ex[0].mono && ex[0].pos.bits == 16 && ex[0].pos.l[0] == 31 && ex[0].pos.l[1] == 32,
+          "stream 1: sink 2, 16-bit mono at bytes 31, 32");
+    CHECK(ex[1].nr == 3 && !ex[1].mono && ex[1].pos.bits == 24 && ex[1].pos.l[0] == 21 && ex[1].pos.r[2] == 26,
+          "stream 2: sink 3, 24-bit stereo at 21..26");
+    connect(&a, 1, s4, 6);
+    const uint8_t s2b[] = {2, 0, 36, 37, 38};
+    connect(&a, 2, s2b, 5);                          // another amplifier instance
+    am_extras(&a, ex, 2);
+    CHECK(ex[0].nr == 2 && ex[1].nr == 3 && ex[0].pos.l[0] == 31, "the lowest two SinkNr on sink 1's instance");
+    const uint8_t mute3[] = {3, 1};
+    FEED(&a, HU, AMP, 0x22, 0x113, MM_OP_SETGET, mute3, 2);
+    am_extras(&a, ex, 2);
+    CHECK(!ex[0].muted && ex[1].muted, "sink 3 muted");
+    const uint8_t dis2[] = {2};
+    FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, dis2, 1);
+    am_extras(&a, ex, 2);
+    CHECK(ex[0].nr == 3 && ex[1].nr == 4 && ex[1].pos.bits == 16 && !ex[1].mono, "sink 2 disconnected: 3 and 4");
+    const uint8_t s2x[] = {2, 0, 30, 31, 32, 33, 34};
+    connect(&a, 1, s2x, 7);                          // sink 2 back with five channels
+    CHECK(am_extras(&a, ex, 2) == 2 && ex[0].nr == 3 && ex[1].nr == 4, "a list J3 cannot take is passed over");
+    connect(&a, 1, s5, 7);                           // five channels: no format J3 knows
+    const uint8_t dis4[] = {4};
+    FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, dis4, 1);
+    CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 3 && ex[1].pos.bits == 0, "sink 5's list skipped, the rest cleared");
+    const uint8_t dis1[] = {1};
+    FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, dis1, 1);
+    CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 3, "no main sink: the lowest instance that has one");
+    FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, (const uint8_t[]){3}, 1);
+    CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 2 && ex[0].mono && ex[0].pos.bits == 24,
+          "only the other instance's sink 2 left: 24-bit mono");
+}
+
 // the whole chain, blocks in, decisions out
 static am_t chain_am;
 static void chain_tel(void *ctx, const mm_tel_t *t)
@@ -293,6 +349,7 @@ int main(void)
 {
     test_decode();
     test_model();
+    test_extras();
     test_chain();
     test_ain();
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);

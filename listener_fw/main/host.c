@@ -13,13 +13,17 @@
 //       receiver holds lock on PCM (IO13 <- DIR9001 ERROR, M2 pad 15; IO27 <-
 //       DIR9001 AUDIO, M2 pad 11; ain.h). Otherwise the car's own AUX passes
 //       untouched: we take nothing away from the car.
-//   01  J3 plays what the amplifier's sink 1 (the main zone) plays...
+//   01  J3 plays what the amplifier's sink 1 (the main zone) plays, and on
+//       streams 1 and 2 two more of its sinks - navigation, phone, chimes,
+//       whatever it mixes in (am_extras: connected, SinkNr 2 and up, lowest
+//       first)...
 //   03  ...with the head unit's volume, mute, balance, bass, treble and
-//       loudness: dsp_img turns them into the FPGA's coefficient set, written
-//       word by word and committed with the last (at most every 20 ms while
-//       the knob turns). The settings are kept in NVS, so after a restart J3
-//       starts where it was, as the factory amplifier does; until a volume
-//       has been heard once, J3 is silent.
+//       loudness, and each other sink at its own level and mute: dsp_img
+//       turns them into the FPGA's coefficient set, written word by word and
+//       committed with the last (at most every 20 ms while the knob turns;
+//       at once when a sink comes or goes). The settings are kept in NVS, so
+//       after a restart J3 starts where it was, as the factory amplifier
+//       does; until a volume has been heard once, J3 is silent.
 // A command goes out when its decision changes, at start-up (an ESP32 reset
 // must not leave the FPGA injecting), and again every 2 s: after a core reset
 // the FPGA's injection is off until told, and a repeated command changes
@@ -77,7 +81,7 @@
 #define STATUS_US   10000000
 #define IMG_MIN_US  20000               // coefficient sets at most 50 a second
 #define SAVE_US     10000000            // settings to flash 10 s after the last change
-#define SND_MAGIC   0x534E4431u         // "SND1": the stored layout
+#define SND_MAGIC   0x534E4432u         // "SND2": the stored layout (per-sink levels)
 #define CAP_RUNS    65536u              // the FPGA's capture buffer (CAP_AW 16)
 #define PIN_OPT_ERR 13                  // DIR9001 ERROR (M2 pad 15): high = the S/PDIF input has no lock
 #define PIN_OPT_NPCM 27                 // DIR9001 AUDIO (M2 pad 11, board v1.3): high = not PCM (AC-3, DTS)
@@ -91,6 +95,8 @@ static am_t s_am;
 static QueueHandle_t s_trace;
 static uint32_t s_trace_lost;
 static am_pos_t s_aux_sent, s_main_sent;
+static am_sink_t s_ex_sent[2];                       // J3's streams 1, 2 as last sent
+static dsp_extra_t s_dx[2];                          // ...and as the coefficient set has them
 static int64_t s_last_locked;
 static int s_stale = 1;
 static volatile int s_streaming;
@@ -117,6 +123,11 @@ static void log_pos(const char *what, const am_pos_t *p)
                  p->l[0], p->l[1], p->l[2], p->r[0], p->r[1], p->r[2]);
     else
         ESP_LOGI(TAG, "%s: off", what);
+}
+
+static int sink_eq(const am_sink_t *x, const am_sink_t *y)
+{
+    return pos_eq(&x->pos, &y->pos) && x->mono == y->mono && x->nr == y->nr;
 }
 
 static const char *src_name(int src)
@@ -173,7 +184,7 @@ static void send_image(void)
     int32_t w[DSP_C_IMAGE];
     const uint32_t fs = audio_out_ring_rate();
     const int muted = am_main_muted(&s_am);
-    if (dsp_image(&s_snd, &snd_cfg_default, muted, fs ? fs : 48000, w) != 0)
+    if (dsp_image(&s_snd, &snd_cfg_default, muted, s_dx, fs ? fs : 48000, w) != 0)
         ESP_LOGW(TAG, "a tone shelf would not be stable once rounded: left flat");
     uint8_t c[LSN_CMD_LEN];
     for (int a = 0; a < DSP_C_IMAGE; a++) {
@@ -184,7 +195,15 @@ static void send_image(void)
         double gl, gr, bass, treble;
         dsp_levels(&s_snd, &snd_cfg_default, muted, &gl, &gr, &bass, &treble);
         ESP_LOGI(TAG, "J3: volume %.1f dB%s, L x %.4f, R x %.4f, bass %+.1f dB, treble %+.1f dB, %lu Hz",
-                 snd_volume_db(&s_snd), muted ? " (muted)" : "", gl, gr, bass, treble, (unsigned long)fs);
+                 snd_sink_db(&s_snd, &snd_cfg_default, 1), muted ? " (muted)" : "", gl, gr, bass, treble,
+                 (unsigned long)fs);
+        for (int k = 0; k < 2; k++)
+            if (s_dx[k].sink) {
+                dsp_extra_levels(&s_snd, &snd_cfg_default, &s_dx[k], &gl, &gr);
+                ESP_LOGI(TAG, "J3 stream %d: sink %d at %.1f dB%s, L x %.4f, R x %.4f", k + 1, s_dx[k].sink,
+                         snd_sink_db(&s_snd, &snd_cfg_default, s_dx[k].sink), s_dx[k].muted ? " (muted)" : "",
+                         gl, gr);
+            }
     }
     s_img_dirty = 0;
     s_muted_sent = muted;
@@ -209,11 +228,24 @@ static void decide(int force)
     }
     const int spdif = src == AIN_TOSLINK;
     const am_pos_t aux = src != AIN_NONE ? am_aux_playing(&s_am) : off, main_zone = am_main(&s_am);
+    // the amplifier's other sinks, J3's streams 1 and 2
+    am_sink_t ex[2];
+    am_extras(&s_am, ex, 2);
+    dsp_extra_t dx[2];
+    for (int k = 0; k < 2; k++) {
+        dx[k].sink = ex[k].pos.bits ? ex[k].nr : 0;
+        dx[k].muted = ex[k].muted;
+    }
+    const int ex_changed = memcmp(dx, s_dx, sizeof dx) != 0;
+    if (ex_changed) {
+        memcpy(s_dx, dx, sizeof dx);
+        s_img_dirty = 1;
+    }
     uint8_t c[LSN_CMD_LEN];
     if (am_main_muted(&s_am) != s_muted_sent || audio_out_ring_rate() != s_fs_sent)
         s_img_dirty = 1;
     // the set first: a source switched on is heard with its gains, never at full scale
-    if (force || (s_img_dirty && esp_timer_get_time() - s_img_sent >= IMG_MIN_US))
+    if (force || ex_changed || (s_img_dirty && esp_timer_get_time() - s_img_sent >= IMG_MIN_US))
         send_image();
     if (force || !pos_eq(&aux, &s_aux_sent) || spdif != s_ain_sent) {
         lsn_cmd_inject(c, aux.bits, 0, spdif, aux.l, aux.r);
@@ -231,6 +263,18 @@ static void decide(int force)
             log_pos("J3 stereo (amp sink 1)", &main_zone);
         s_main_sent = main_zone;
     }
+    for (int k = 0; k < 2; k++)
+        if (force || !sink_eq(&ex[k], &s_ex_sent[k])) {
+            lsn_cmd_source(c, 1 + k, ex[k].pos.bits, ex[k].mono, ex[k].pos.l, ex[k].pos.r);
+            uart_write_bytes(HOST_UART, c, sizeof c);
+            if (!sink_eq(&ex[k], &s_ex_sent[k])) {
+                char what[40];
+                snprintf(what, sizeof what, "J3 stream %d (amp sink %d%s)", k + 1, ex[k].nr,
+                         ex[k].mono ? ", mono" : "");
+                log_pos(what, &ex[k].pos);
+            }
+            s_ex_sent[k] = ex[k];
+        }
 }
 
 static void on_tel(void *ctx, const mm_tel_t *t)
