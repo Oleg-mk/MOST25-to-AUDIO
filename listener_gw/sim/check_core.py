@@ -18,7 +18,8 @@
         offset from the ring's own frame edge, to the sample (1.26 ns)
   INJ   the regenerated line, decoded: frames unchanged before and after
         injection, and while injecting only the chosen bytes carry the audio
-        in, with the parity XOR kept
+        in - each pair exactly the source's times the fade's gain, the gain
+        stepping as inject.v says - with the parity XOR kept
 Exit 0 only if all of them hold.
 """
 import json
@@ -251,18 +252,45 @@ def masked_index(f, truth, inj):
     return next((k for k, t in enumerate(truth) if key(t) == kf), None)
 
 
-def check_inject(d, truth):
-    """What the ring gets while our audio goes in (tb: bytes 1..6, 24 bit,
-    L = 5A nnnn, R = C3 (nnnn + 1234) from the DSP model, n + 1 per frame):
+# The tb's two audio sources (tb_core.v, the DSP model) on one counter n, + 1
+# per frame: (L's top byte, R's top byte, R's offset from n)
+SOURCES = {"DIN": (0x5A, 0xC3, 0x1234), "DIN2": (0x3C, 0xA5, 0x4321)}
+INJ_HOLD = 3                                   # inject.v HOLD
+
+
+def _s24(v):
+    return v - (1 << 24) if v & 0x800000 else v
+
+
+def _source_pair(src, n):
+    hl, hr, off = SOURCES[src]
+    return _s24(hl << 16 | (n & 0xFFFF)), _s24(hr << 16 | ((n + off) & 0xFFFF))
+
+
+def _scaled(x, g):
+    """inject.v's arithmetic: x g / 256, rounded down, as 24 bits."""
+    return ((x * g) >> 8) & 0xFFFFFF
+
+
+def check_inject(d, truth, fade_log2=0, want_order=("DIN",)):
+    """What the ring gets while our audio goes in (tb: bytes 1..6, 24 bit, the
+    DSP model's L = 5A nnnn, R = C3 (nnnn + 1234) on DIN and L = 3C nnnn,
+    R = A5 (nnnn + 4321) on DIN2, n + 1 per frame):
       * frames before and after injection equal the ring's frames bit for bit;
       * injected frames equal them except the injected bytes and the parity bit;
-        those bytes carry consecutive samples; the XOR of bits 4..511 (what
-        any XOR parity rule sees) is unchanged;
+        the XOR of bits 4..511 (what any XOR parity rule sees) is unchanged;
+      * the injected bytes are exactly the source's pair times g/256 (inject.v's
+        rounding), n continuing one per frame through every source and gain;
+      * g moves by 256 >> fade_log2 at most per frame: HOLD + 2 frames of
+        silence at the start, then up; after "off" down, the last injected
+        frame at one step; a source changes only across HOLD + 2 silent frames,
+        and the sources come in the order want_order;
       * frames stay consecutive, order: original, injected, original;
       * the command naming byte 61 changed nothing (else byte 61 would move).
     """
     INJ = inj_positions(d) or (1, 2, 3, 4, 5, 6)
     assert len(INJ) == 6, "the tb injects 24 bit"
+    step = 256 >> fade_log2
     tb = [bytes.fromhex(t) for t in truth]
     skip = set(INJ) | {0, 63}
 
@@ -272,7 +300,8 @@ def check_inject(d, truth):
     def xor_bits(f):
         return bin(int.from_bytes(f, "big") & ((1 << 508) - 1)).count("1") & 1
 
-    phase, last, n_inj, n_orig, bad, prev_n = 0, None, [0, 0], 0, 0, None
+    phase, last, n_orig, bad = 0, None, 0, 0
+    inj = []                                               # (k, L, R) of the injected frames, in order
     for k, f, injected in match_tx(d, truth, INJ):
         if k is None:
             bad += 1
@@ -287,26 +316,81 @@ def check_inject(d, truth):
                 phase = 2
             n_orig += 1
             continue
-        # injected
         if phase == 2:
             bad += 1
             print("      injection came back after it was turned off")
         phase = 1
-        L = f[INJ[0]] << 16 | f[INJ[1]] << 8 | f[INJ[2]]
-        R = f[INJ[3]] << 16 | f[INJ[4]] << 8 | f[INJ[5]]
-        n = L & 0xFFFF
-        good = (f[INJ[0]] == 0x5A and f[INJ[3]] == 0xC3 and (R & 0xFFFF) == ((n + 0x1234) & 0xFFFF)
-                and (prev_n is None or n == (prev_n + 1) & 0xFFFF)
-                and xor_bits(f) == xor_bits(t) and key(f) == key(t))
-        if not good:
+        if xor_bits(f) != xor_bits(t) or key(f) != key(t):
             bad += 1
-            print(f"      bad injected frame {k}: L={L:06x} R={R:06x} prev n={prev_n} "
-                  f"parity {xor_bits(f)} vs {xor_bits(t)}")
-        prev_n = n
-        n_inj[0] += 1
-    ok = bad == 0 and n_inj[0] >= 8 and phase == 2 and n_orig + n_inj[0] + bad >= 40
-    print(f"INJ : {'PASS' if ok else 'FAIL'}  {n_orig + n_inj[0] + bad} TX frames decoded: {n_orig} unchanged, "
-          f"{n_inj[0]} injected (samples consecutive, parity XOR kept), {bad} bad, "
+            print(f"      injected frame {k}: parity {xor_bits(f)} vs {xor_bits(t)}, "
+                  f"untouched bytes {'kept' if key(f) == key(t) else 'CHANGED'}")
+        inj.append((k, f[INJ[0]] << 16 | f[INJ[1]] << 8 | f[INJ[2]], f[INJ[3]] << 16 | f[INJ[4]] << 8 | f[INJ[5]]))
+
+    # n from any frame at full gain; every other frame's n follows from its index
+    anchor = None
+    for k, L, R in inj:
+        for src, (hl, hr, off) in SOURCES.items():
+            if L >> 16 == hl and R >> 16 == hr and (R & 0xFFFF) == ((L & 0xFFFF) + off) & 0xFFFF:
+                anchor = (k, L & 0xFFFF)
+                break
+        if anchor:
+            break
+    gains, srcs = [], []
+    for k, L, R in inj:
+        if L == 0 and R == 0:
+            gains.append(0); srcs.append(None)
+            continue
+        found = None
+        if anchor:
+            n = (anchor[1] + k - anchor[0]) & 0xFFFF
+            for src in SOURCES:
+                xl, xr = _source_pair(src, n)
+                g0 = round(_s24(L) * 256 / xl)
+                for g in (g0 - 1, g0, g0 + 1):
+                    if 0 < g <= 256 and _scaled(xl, g) == L and _scaled(xr, g) == R:
+                        found = (g, src)
+        if found is None:
+            bad += 1
+            print(f"      injected frame {k}: L={L:06x} R={R:06x} is no source's pair at any gain "
+                  f"(anchor {anchor})")
+            gains.append(None); srcs.append(None)
+            continue
+        gains.append(found[0]); srcs.append(found[1])
+
+    # the fades
+    shape = []
+    if gains and None not in gains:
+        lead = next((i for i, g in enumerate(gains) if g), len(gains))
+        if lead < INJ_HOLD + 2 and not inject_before_lock(d):     # (else it began before the TX log)
+            shape.append(f"{lead} silent frames at the start (want {INJ_HOLD + 2})")
+        for i in range(1, len(gains)):
+            if gains[i] % step or abs(gains[i] - gains[i - 1]) > step:
+                shape.append(f"g {gains[i - 1]} -> {gains[i]} at frame {inj[i][0]} (step {step})")
+                break
+        if phase == 2 and gains[-1] != step:
+            shape.append(f"the last injected frame at g {gains[-1]}, not one step ({step})")
+        seen = [(i, s) for i, s in enumerate(srcs) if s]
+        for (i, a), (j, b) in zip(seen, seen[1:]):
+            if a != b and sum(1 for x in gains[i + 1:j] if x == 0) < INJ_HOLD + 2:
+                shape.append(f"{a} to {b} at frame {inj[j][0]} without {INJ_HOLD + 2} silent frames")
+    bad += len(shape)
+    for s in shape:
+        print("      fade:", s)
+
+    n_inj = len(inj)
+    full = sum(1 for g in gains if g == 256)
+    ramp = sum(1 for g in gains if g and g != 256)
+    order = []
+    for s in srcs:
+        if s and (not order or order[-1] != s):
+            order.append(s)
+    if tuple(order) != tuple(want_order):
+        bad += 1
+        print(f"      sources {' then '.join(order) or 'none'}, want {' then '.join(want_order)}")
+    ok = bad == 0 and full >= 8 and phase == 2 and n_orig + n_inj + bad >= 40
+    print(f"INJ : {'PASS' if ok else 'FAIL'}  {n_orig + n_inj + bad} TX frames decoded: {n_orig} unchanged, "
+          f"{n_inj} injected ({gains.count(0)} silent, {ramp} fading, {full} full; {' then '.join(order) or '-'}; "
+          f"samples consecutive, parity XOR kept), {bad} bad, "
           f"{'returned to pass-through' if phase == 2 else 'NEVER returned to pass-through'}")
     return ok
 

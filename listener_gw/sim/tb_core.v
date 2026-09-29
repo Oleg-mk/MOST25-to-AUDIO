@@ -17,6 +17,8 @@ module tb_core;
     parameter real  SI_START_HZ = 49.152e6;          // the model's factory start-up frequency
     parameter       INJ_EARLY = 0;                   // 1: "inject" sent before the Si514 is centred
     parameter       NO_INJECT = 0;                   // 1: never inject (the line must stay as it came)
+    parameter       FADE_LOG2 = 0;                   // the injector's fades: 2^FADE_LOG2 frames (0: one step)
+    parameter       FADE_TEST = 0;                   // 1: inject DIN, switch to DIN2, off - long enough for full fades
     parameter       CAPTURE = 0;                     // 1: dump the power-up capture, then capture and dump anew
     parameter real  GAP_AFTER_LOCK_US = -1.0;        // > 0: the line dies this long after LOCK...
     parameter real  GAP_US  = 20.0;                  // ...for this long (logged in out_gap.txt)
@@ -101,7 +103,8 @@ module tb_core;
     wire ibclk, ilrck, isd, injact, spdif;
     reg  urx = 1'b1;                                 // host command line, idle high
     reg  idin = 1'b0;                                // audio in, from the DSP model
-    listener_core #(.HOLD(8), .HOLD_RE(24), .SI_QDIV(4), .SI_FCAL(24'd2000),
+    reg  idin2 = 1'b0;                               // audio in 2 (the S/PDIF receiver's place)
+    listener_core #(.HOLD(8), .HOLD_RE(24), .SI_QDIV(4), .SI_FCAL(24'd2000), .INJ_FADE_LOG2(FADE_LOG2),
                     .L_FRAMES(8), .LN48(22'd132000), .LN44(22'd143673), .LSPLIT(22'd137836),
                     .LDEV(22'd175), .K48(20'd275050), .K44(20'd253277),
                     .UPD(4), .LOCK_N(4), .SHIFT_ACC(16), .LOCK_ACC(32), .UNLOCK_ACC(256),
@@ -111,7 +114,7 @@ module tb_core;
         .fs_word(fs_word), .fs_late(fs_late), .tx_regen(tx), .lock(lock),
         .tdm_bclk(bclk), .tdm_fs(fs), .tdm_sd0(sd0), .tdm_sd1(sd1), .uart_tx(utx), .mclk(mclk),
         .uart_rx(urx), .i2s_bclk(ibclk), .i2s_lrck(ilrck), .i2s_dout(isd),
-        .i2s_din(idin), .i2s_din2(1'b0), .spdif(spdif), .inj_active(injact),
+        .i2s_din(idin), .i2s_din2(idin2), .spdif(spdif), .inj_active(injact),
         .i2c_scl_o(scl_o), .i2c_sda_o(sda_o), .i2c_sda_i(sda), .status(status));
 
     // ------------------------------------------------------------ loggers
@@ -239,19 +242,22 @@ module tb_core;
     // L = 5A nnnn, R = C3 (nnnn + 1234) (24 bit), n + 1 every frame; the
     // changed bits' XOR then varies from frame to frame, so parity is exercised.
     // It goes into bytes 1..6, the bytes J3's two configurations pick from, so
-    // that J3 and TDM are seen to carry the frame as it left us
+    // that J3 and TDM are seen to carry the frame as it left us. DIN2 carries
+    // L = 3C nnnn, R = A5 (nnnn + 4321) on the same n, so a switch shows which
+    // source every frame came from
     integer slot = 0; reg lr_d = 1'b0; reg [15:0] cnt = 16'd0;
-    reg [23:0] dl = 24'd0, dr = 24'd0;
+    reg [23:0] dl = 24'd0, dr = 24'd0, dl2 = 24'd0, dr2 = 24'd0;
     always @(negedge ibclk) begin
         #1;
         if (!ilrck && lr_d) begin
             slot = 0; cnt = cnt + 16'd1;
             dl = {8'h5A, cnt}; dr = {8'hC3, cnt + 16'h1234};
+            dl2 = {8'h3C, cnt}; dr2 = {8'hA5, cnt + 16'h4321};
         end else slot = slot + 1;
         lr_d = ilrck;
-        if (slot >= 1 && slot <= 24)       idin = dl[24 - slot];
-        else if (slot >= 33 && slot <= 56) idin = dr[56 - slot];
-        else                               idin = 1'b0;
+        if (slot >= 1 && slot <= 24)       begin idin = dl[24 - slot]; idin2 = dl2[24 - slot]; end
+        else if (slot >= 33 && slot <= 56) begin idin = dr[56 - slot]; idin2 = dr2[56 - slot]; end
+        else                               begin idin = 1'b0; idin2 = 1'b0; end
     end
     initial begin
         #1;
@@ -272,19 +278,31 @@ module tb_core;
         send_cmd(8'h01, 8'd3, 8'd4, 8'd1, 8'd3, 8'd2, 8'd4, 8'd1, 1'b1);   // wrong XOR: must be ignored
         send_cmd(8'h01, 8'd3, 8'd3, 8'd4, 8'd1, 8'd2, 8'd1, 8'd4, 1'b0);   // A: 24 bit, scrambled
         repeat (50000) @(posedge clk_s);
-        if (!INJ_EARLY && !NO_INJECT) begin
+        if (FADE_TEST) begin
+            // DIN until well past the rise (256 frames at 48 kHz = 5.3 ms), then
+            // DIN2: down, the switch, up again; then off, down to the ring's line
+            send_cmd(8'h02, 8'd3, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);
+            repeat (620000) @(posedge clk_s);
+            send_cmd(8'h02, 8'd7, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);
+            repeat (600000) @(posedge clk_s);
+            send_cmd(8'h01, 8'd2, 8'd1, 8'd2, 8'd0, 8'd3, 8'd4, 8'd0, 1'b0);   // B: J3 16 bit, bytes 1..4
+            repeat (556000) @(posedge clk_s);
+            send_cmd(8'h02, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);
+        end else begin
+            if (!INJ_EARLY && !NO_INJECT) begin
 `ifdef NOFIX
-            send_cmd(8'h02, 8'h83, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);   // (mutation: parity not fixed)
+                send_cmd(8'h02, 8'h83, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);   // (mutation: parity not fixed)
 `else
-            send_cmd(8'h02, 8'd3, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);    // inject 24 bit into 1..6
+                send_cmd(8'h02, 8'd3, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);    // inject 24 bit into 1..6
 `endif
+            end
+            repeat (20000) @(posedge clk_s);
+            send_cmd(8'h02, 8'd3, 8'd11, 8'd12, 8'd61, 8'd14, 8'd15, 8'd16, 1'b0); // names byte 61: refused
+            repeat (20000) @(posedge clk_s);
+            send_cmd(8'h01, 8'd2, 8'd1, 8'd2, 8'd0, 8'd3, 8'd4, 8'd0, 1'b0);   // B: 16 bit, bytes 1..4
+            repeat (20000) @(posedge clk_s);
+            send_cmd(8'h02, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);   // injection off
         end
-        repeat (20000) @(posedge clk_s);
-        send_cmd(8'h02, 8'd3, 8'd11, 8'd12, 8'd61, 8'd14, 8'd15, 8'd16, 1'b0); // names byte 61: refused
-        repeat (20000) @(posedge clk_s);
-        send_cmd(8'h01, 8'd2, 8'd1, 8'd2, 8'd0, 8'd3, 8'd4, 8'd0, 1'b0);   // B: 16 bit, bytes 1..4
-        repeat (20000) @(posedge clk_s);
-        send_cmd(8'h02, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);   // injection off
         if (CAPTURE) begin
             repeat (100000) @(posedge clk_s);
             send_cmd(8'h04, 8'd2, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);   // dump the power-up capture

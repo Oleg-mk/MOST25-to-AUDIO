@@ -49,12 +49,32 @@
 // the line changed under us, or the first frame was anchored on a preamble's
 // second run, and this run is the right anchor.
 //
-// Safety. Injection runs only while: the command is on, this block has seen
-// INJ_LOCK frames in a row exactly 1024 UI apart, this frame opened on time,
-// and the I2S clocks run. Any of these lost stops it at once, mid-frame; a new
-// frame starts it again. It never touches the preamble or bytes 0 and 61..63.
+// Fades. Every change the host asks for reaches the line through silence,
+// so a switch between the phone and the TOSLINK input, a start or a stop is
+// never a step in the amplifier. The samples go out times g/256, and g moves
+// by 256 >> FADE_LOG2 once per frame: 2^FADE_LOG2 frames from 0 to 256 (the
+// default 256 frames: 5.3 ms at 48 kHz, 5.8 ms at 44.1 kHz).
+//   on:            HOLD frames of silence, then g rises from 0
+//   off:           g falls to 0 on the bytes in use, then the line is the
+//                  ring's again
+//   other source:  g falls to 0, DIN switches, HOLD more frames at 0 while
+//                  the new source's first pair comes through, then g rises
+//   other bytes:   at once, silence and a rise as for "on" - the old bytes
+//                  may already be another source's
+// The gain in a frame is the one decided at the frame before (the product is
+// registered). DIN switches only while nothing goes out or at g = 0, and the
+// HOLD frames cover the pair a switch cuts, wherever the pair's last slot
+// falls against the frame start.
+//
+// Safety. Injection runs only while: the command is on (or fading out after
+// it), this block has seen INJ_LOCK frames in a row exactly 1024 UI apart,
+// this frame opened on time, and the I2S clocks run. Any of these lost stops
+// it at once, mid-frame, with no fade; a new frame starts it again, from
+// silence. It never touches the preamble or bytes 0 and 61..63.
 module inject #(
-    parameter INJ_LOCK = 8                  // frames in a row before injecting
+    parameter INJ_LOCK  = 8,                // frames in a row before injecting
+    parameter FADE_LOG2 = 8,                // a fade takes 2^FADE_LOG2 frames (0..8)
+    parameter HOLD      = 3                 // frames at 0 after DIN switches
 ) (
     input  wire        clk_s,
     input  wire        rst_s,
@@ -144,18 +164,29 @@ module inject #(
     // ------------------------------------------------- audio in (clk_r)
     // amp_out raises BCLK on the clock where phase_n[3:0] = 8; the sender
     // changes DIN after the falling edge, so DIN is taken there, mid-bit.
-    // Which DIN is the command's M[2] (r_m, the ring-domain copy).
+    // Which DIN is `cur`: the command's M[2] while nothing goes out, and
+    // while injecting it changes only at g = 0 (the fade, below).
+    reg        on;                          // injecting in this frame
+    reg        cur = 1'b0;                  // the source in use: 0 DIN, 1 DIN2
+    reg [8:0]  g = 9'd0;                    // the gain, 0..256 = 0..1
     reg        din_q;
     reg [63:0] sr;                          // sr[63 - s] = slot s
     reg [23:0] in_l, in_r;                  // last complete pair
     always @(posedge clk_r) begin
-        din_q <= r_m[2] ? din2 : din;
+        din_q <= cur ? din2 : din;
         if (phase_n[3:0] == 4'd8) sr <= {sr[62:0], din_q};
         if (phase_n == 10'd1017) begin      // slot 63 has just been taken
             in_l <= sr[62:39];              // slots 1..24
             in_r <= sr[30:7];               // slots 33..56
         end
     end
+    // the pair times g/256, registered: |x g / 256| <= |x|, so 24 bits hold it
+    reg signed [33:0] pl, pr;
+    always @(posedge clk_r) begin
+        pl <= $signed(in_l) * $signed({1'b0, g});
+        pr <= $signed(in_r) * $signed({1'b0, g});
+    end
+    wire [23:0] gl = pl[31:8], gr = pr[31:8];
     // I2S alive: phase_n must keep moving; checked once per frame
     reg [1:0] irun;
     always @(posedge clk_r) irun <= {irun[0], i2s_run};
@@ -172,12 +203,23 @@ module inject #(
     wire       lost   = inf && nxt > 11'd1024;           // no preamble where one was due
 
     // this frame's settings and samples, taken at its first UI
-    reg        on;                          // injecting in this frame
     reg        fix;
     reg        w3;
     reg [5:0]  fpos [0:5];
     reg [7:0]  val  [0:5];
     reg        delta;                       // XOR of all changed bits so far
+    reg [1:0]  hold;                        // frames left at g = 0 after DIN switched
+    localparam [8:0] GSTEP = 9'd256 >> FADE_LOG2;
+    localparam [1:0] HOLD2 = HOLD;
+
+    // the command against what is in use
+    wire       want = r_m[1:0] != 2'd0;
+    reg        moved;                       // other bytes, or another width
+    always @* begin
+        moved = w3 != (r_m[1:0] == 2'd3);
+        for (k = 0; k < 6; k = k + 1)
+            if (fpos[k] != r_pos[k]) moved = 1'b1;
+    end
 
     // is UI u inside a chosen byte, and which new bit goes there
     wire [5:0] byte_u = u[9:4];
@@ -200,15 +242,16 @@ module inject #(
                                                 st;
 
     always @(posedge clk_r) begin
+        if (!on) cur <= r_m[2];             // nothing goes out: DIN follows the command
         if (rst_r) begin
             inf <= 1'b0; nxt <= 11'd0; good <= 4'd0; on <= 1'b0; active <= 1'b0;
-            tx <= 1'b0; delta <= 1'b0; fix <= 1'b0; w3 <= 1'b0;
+            tx <= 1'b0; delta <= 1'b0; fix <= 1'b0; w3 <= 1'b0; g <= 9'd0; hold <= 2'd0;
             prev_on <= 1'b0; prev_w3 <= 1'b0; prev_pos <= 36'd0; prev_val <= 48'd0;
         end else begin
             tx <= tx ^ f_out;
             if (go && hit && u[0]) delta <= delta ^ nb ^ st;
             if (lost) begin
-                inf <= 1'b0; good <= 4'd0; on <= 1'b0; active <= 1'b0;
+                inf <= 1'b0; good <= 4'd0; on <= 1'b0; active <= 1'b0; g <= 9'd0; hold <= 2'd0;
             end else if (fstart) begin
                 inf <= 1'b1; nxt <= 11'd1;
                 if (!intime) good <= 4'd0;
@@ -219,18 +262,35 @@ module inject #(
                     prev_pos[6 * k +: 6] <= fpos[k];
                     prev_val[8 * k +: 8] <= val[k];
                 end
-                // take this frame's settings and the newest sample pair
-                on     <= (r_m[1:0] != 2'd0) && intime && good >= INJ_LOCK && irun[1];
-                active <= (r_m[1:0] != 2'd0) && intime && good >= INJ_LOCK && irun[1];
-                fix    <= ~r_m[7];
-                w3     <= (r_m[1:0] == 2'd3);
+                // the newest sample pair, at the gain decided a frame ago
                 delta  <= 1'b0;
-                for (k = 0; k < 6; k = k + 1) fpos[k] <= r_pos[k];
-                val[0] <= in_l[23:16]; val[1] <= in_l[15:8]; val[2] <= in_l[7:0];
-                val[3] <= in_r[23:16]; val[4] <= in_r[15:8]; val[5] <= in_r[7:0];
+                val[0] <= gl[23:16]; val[1] <= gl[15:8]; val[2] <= gl[7:0];
+                val[3] <= gr[23:16]; val[4] <= gr[15:8]; val[5] <= gr[7:0];
+                if (!(intime && good >= INJ_LOCK && irun[1])) begin
+                    // not safe to touch the line: stop at once, no fade
+                    on <= 1'b0; active <= 1'b0; g <= 9'd0; hold <= 2'd0;
+                end else if (on && (!want || r_m[2] != cur)) begin
+                    // off, or another source: down on the bytes in use...
+                    if (g != 9'd0) g <= g - GSTEP;
+                    else if (!want) begin on <= 1'b0; active <= 1'b0; end   // ...then the ring's line
+                    else begin                                              // ...then the new source
+                        cur <= r_m[2]; hold <= HOLD2;
+                        fix <= ~r_m[7]; w3 <= (r_m[1:0] == 2'd3);
+                        for (k = 0; k < 6; k = k + 1) fpos[k] <= r_pos[k];
+                    end
+                end else if (want) begin
+                    // a start, or other bytes: from silence, after HOLD frames (DIN may
+                    // have followed a new M[2] a moment ago, cutting a pair)
+                    if (!on || moved) begin g <= 9'd0; hold <= HOLD2; end
+                    else if (hold != 2'd0) hold <= hold - 2'd1;
+                    else if (g != 9'd256) g <= g + GSTEP;
+                    on <= 1'b1; active <= 1'b1;
+                    fix <= ~r_m[7]; w3 <= (r_m[1:0] == 2'd3);
+                    for (k = 0; k < 6; k = k + 1) fpos[k] <= r_pos[k];
+                end
             end else if (inf) begin
                 nxt <= nxt + 11'd1;
-                if (!irun[1]) begin on <= 1'b0; active <= 1'b0; end
+                if (!irun[1]) begin on <= 1'b0; active <= 1'b0; g <= 9'd0; hold <= 2'd0; end
             end
         end
     end

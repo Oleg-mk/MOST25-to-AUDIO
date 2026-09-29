@@ -43,6 +43,12 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              else, the UART must carry good blocks again after the damaged one.
              As first written, the framer unlocked on the first error, the
              regenerator emptied its FIFO and LOCK fell for HOLD_RE
+  fade       core48 over 1400 frames with the injector's real fades (256 frames):
+             DIN on, then DIN2 (the S/PDIF input's place), then off. Every check
+             must pass; INJ sees every injected pair as the source's pair times
+             g/256, g up after HOLD + 2 silent frames, down to the switch, HOLD + 2
+             silent frames, up on DIN2, down after "off" - one step per frame
+             (the other corners fade in one step: FADE_LOG2 0)
 The corners run one after another (about a minute each); --only NAME runs one.
 
 Usage: python run_core.py [--only NAME]      needs oss-cad-suite on PATH
@@ -90,6 +96,9 @@ CORNERS = [
     ("capture",   ["--fs", "48000", "--frames", "840", "--pwd", "0.316", "--jit", "0.195",
                    "--ppm", "0", "--seed", "7"], ["-Ptb_core.MAXCLK=1750000", "-Ptb_core.NO_INJECT=1",
                                                   "-Ptb_core.CAPTURE=1"]),
+    ("fade",      ["--fs", "48000", "--frames", "1400", "--pwd", "0.316", "--jit", "0.195",
+                   "--ppm", "0", "--seed", "7"], ["-Ptb_core.MAXCLK=3000000", "-Ptb_core.FADE_TEST=1",
+                                                  "-Ptb_core.FADE_LOG2=8"]),
 ]
 
 
@@ -103,7 +112,7 @@ def prepare(name, stim, opts, work):
     return d
 
 
-def full_checks(d):
+def full_checks(d, fade_log2=0, order=("DIN",)):
     truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
     runs = [int(x, 16) for x in (d / "runs.hex").read_text().split()]
     cc.d_truth_ref = truth
@@ -112,7 +121,7 @@ def full_checks(d):
     names = ["SI", "TX", "TDM", "UART", "MCLK", "I2S", "SPDF", "INJ", "FS", "WD"]
     res = [cc.check_si514(d), cc.check_tx(d, runs), cc.check_tdm(d, left),
            cc.check_uart(d, truth), cc.check_mclk(d), cc.check_i2s(d, left), cc.check_spdif(d, fs),
-           cc.check_inject(d, truth), cc.check_fs(d), cc.check_wd(d)]
+           cc.check_inject(d, truth, fade_log2, order), cc.check_fs(d), cc.check_wd(d)]
     return dict(zip(names, res))
 
 
@@ -142,7 +151,7 @@ def main():
             truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
             ok = cc.check_capture(d) & cc.check_uart(d, truth) & cc.check_wd(d)
         else:
-            r = full_checks(d)
+            r = full_checks(d, 8, ("DIN", "DIN2")) if name == "fade" else full_checks(d)
             if name == "mut_nofix":
                 ok = not r["INJ"] and all(v for k, v in r.items() if k != "INJ")
                 print(f"MUT : {'PASS' if ok else 'FAIL'}  with the parity fix off, INJ "
