@@ -23706,6 +23706,17 @@
 			(uuid "6fb7d5e9-c18e-4406-a31d-67c7563c934f")
 		)
 		(embedded_fonts no)
+		(model "${KIPRJMOD}/most_listener.3dshapes/TE_MOST_Pigtail_FOT_2+0.step"
+			(offset
+				(xyz 0 0 0)
+			)
+			(scale
+				(xyz 1 1 1)
+			)
+			(rotate
+				(xyz 0 0 0)
+			)
+		)
 	)
 	(footprint "Capacitor_SMD:C_0603_1608Metric"
 		(layer "F.Cu")

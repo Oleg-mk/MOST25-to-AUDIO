@@ -849,6 +849,7 @@ def te_fot_footprint():
     items.append(_fptext("TX 1..4", 5.7, 5.3, "F.Fab", 0.6, "fottx"))
     items.append(_fptext("RX 5..8", -5.7, 5.3, "F.Fab", 0.6, "fotrx"))
     items.append(_fpdot(11.7, 7.07, "fotpin1"))
+    items.append(_own_model(FP_FOT))
     return _fp(FP_FOT, "TE MOST25 pigtail FOT unit with header (1-1394640-1, drawing C-2-2141577-1): 8 pins 0.5 mm "
                "in one row on 2.54 with 3.86 between 4 and 5, two 2.0 mm standoffs, two action pins in 1.8 mm "
                "holes (pad 0), four guide legs; the optical face at -y overhangs the board edge; pin 1 (TX data) "
@@ -856,6 +857,33 @@ def te_fot_footprint():
 
 
 T10_PEG, T10_FOOT, T10_PORT, T10_REAR = 2.63, 8.76, 11.11, -2.39     # from the pins, towards the port
+
+
+def te_fot_body():
+    """The TE pigtail FOT unit from the customer view model drawing C-2-2141577-1 (2:1 DXF,
+    third-angle; its four views give x, depth and height, and its pegs and pins fall on this
+    footprint's holes): the housing 25.2 wide, 12.8 high on 0.45 mm standoffs round the two pegs,
+    its front at y -15.4; the header behind it, from y 4.0 to 9.35, 10.0 high; the oval port
+    sleeve 12 x 6 standing 3.5 out of the front, the two fibre axes 6.0 apart at x +-3.0 (TX at +x,
+    over pins 1..4) and 6.85 up; the eight pins 0.5 x 0.25, the action pins and guide legs 0.4,
+    2.75 below the board, the pegs (2.0) 3.5."""
+    za, yf, yn = 6.85, -15.4, -18.9
+    solids = [(BLACK, _box(-14.1, 11.1, yf, 4.0, 0.45, 13.25)),
+              (BLACK, _box(-12.25, 10.25, 4.0, 9.35, 0.45, 10.0)),
+              (BLACK, _box(-3.0, 3.0, yn, yf, za - 3.0, za + 3.0)),
+              (BLACK, _cyl("y", (-3.0, za), 3.0, yn, yf)),
+              (BLACK, _cyl("y", (3.0, za), 3.0, yn, yf))]
+    for x in (-3.0, 3.0):
+        solids.append((PORT_DARK, _cyl("y", (x, za), 2.0, yn - 0.05, yn)))
+    for (x, y), (ya, yb) in (((7.6, 1.0), (-1.0, 3.0)), ((-6.1, -10.4), (-12.4, -9.3))):
+        solids.append((BLACK, _box(x - 2.0, x + 2.0, ya, yb, 0.0, 0.45)))
+        solids.append((BLACK, _cyl("z", (x, y), 1.0, -3.5, 0.0, 16)))
+    for i in range(8):
+        x = 9.55 - 2.54 * i - (3.86 - 2.54 if i >= 4 else 0)
+        solids.append((TIN, _box(x - 0.25, x + 0.25, 7.07 - 0.125, 7.07 + 0.125, -2.75, 0.45)))
+    for x, y in ((10.85, -8.3), (-12.85, -8.3), (0.0, 4.45), (-12.85, 6.2), (-4.47, 9.15), (7.01, 9.15)):
+        solids.append((TIN, _box(x - 0.2, x + 0.2, y - 0.2, y + 0.2, -2.75, 0.45)))
+    return solids
 
 
 def toslink_t10_footprint():
@@ -2093,7 +2121,7 @@ def main():
         (HERE / f"{LIB}.pretty" / f"{name}.kicad_mod").write_text(make(), encoding="utf-8")
         print("wrote", name)
     (HERE / MODELS).mkdir(exist_ok=True)
-    for name, body in ((FP_T10, t10_body), (FP_RCA, bkl_rca_body)):
+    for name, body in ((FP_FOT, te_fot_body), (FP_T10, t10_body), (FP_RCA, bkl_rca_body)):
         (HERE / MODELS / f"{name}.step").write_text(_step(name, body()), encoding="utf-8")
         print("wrote", f"{MODELS}/{name}.step")
     (HERE / "fp-lib-table").write_text(

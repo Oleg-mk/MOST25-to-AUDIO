@@ -42,4 +42,9 @@
 	(fp_text user "TX 1..4" (at 5.7 5.3 0) (layer "F.Fab") (uuid "92e51fc1-345f-5a16-b24d-9be8adc75c76") (effects (font (size 0.6 0.6) (thickness 0.09))))
 	(fp_text user "RX 5..8" (at -5.7 5.3 0) (layer "F.Fab") (uuid "2503c717-2ae5-5440-b032-889ae0087ce5") (effects (font (size 0.6 0.6) (thickness 0.09))))
 	(fp_circle (center 11.7 7.07) (end 11.85 7.07) (stroke (width 0.1) (type solid)) (fill yes) (layer "F.SilkS") (uuid "0a24ae7e-bffa-59e5-b43f-07b87f4e9c19"))
+	(model "${KIPRJMOD}/most_listener.3dshapes/TE_MOST_Pigtail_FOT_2+0.step"
+		(offset (xyz 0 0 0))
+		(scale (xyz 1 1 1))
+		(rotate (xyz 0 0 0))
+	)
 )
