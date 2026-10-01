@@ -9,7 +9,7 @@
 	(paper "A4")
 	(title_block
 		(title "MOST25 to AUDIO: listener board")
-		(date "2026-09-28")
+		(date "2026-10-01")
 		(rev "1.4")
 		(comment 1 "Generated sheet: listener_hw/gen_listener.py")
 	)
