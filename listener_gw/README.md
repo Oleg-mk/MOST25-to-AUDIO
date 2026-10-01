@@ -225,8 +225,9 @@ letter after "514" in its part number is C, M or N. Nothing else in the part
 number matters. Start-up frequency and stability are overwritten by the
 centring, and nothing runs on the start-up frequency (corner `si_start`
 powers the model up at 250 MHz). The I2C address is found: before the first centring the FPGA
-probes 0x08..0x77 and takes the address that answers. U7's footprint carries
-all three packages (5x7, 3.2x5, 2.5x3.2), and one of them is soldered.
+probes 0x08..0x77 and takes the address that answers. U7's land pattern
+takes the 3.2x5 and the 2.5x3.2 package alike (the 5x7 was dropped in board
+v1.4: it does not nest, and the shelf stock is 3.2x5).
 
 The phase detector works on the 1.26 ns sample grid on purpose: frame edges
 on the 99 MHz clock would let 8-11 ns of beat wander through any PLL (report
