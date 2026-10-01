@@ -22,7 +22,8 @@ Two layers, 130 x 90 mm, origin at the top left, y down. What sits where, and wh
                board under the module is free for tracks, only its two pin columns are not
   right        M2, the DevKitC, its USB at the right edge, the PCB-antenna end inside the
                board under a copper keep-out (the VIE module works from its IPEX antenna)
-  top right    block 9: the TOSLINK modules and the RCA jack flush with the top edge,
+  top right    block 9: the TOSLINK modules on their front feet at the top edge (the ports
+               2.6 mm past it) and the RCA jack flush with it,
                DIR9001 turned so its receiver side faces J5, SRC4192 next to it, its I2S
                side over M2's I2S pins, X1 between J6 and J7, the coax divider under J7
   corridor     x 64..75 between M1 and M2: D3 at M1's 5 V pin, under it U14 (block 9's LDO,
@@ -98,14 +99,14 @@ PLACE = {
     "J3": (81.0, 87.5, 90),
     "J2": (127.5, 61.0, 0), "R19": (122.5, 65.0, 0), "R18": (122.5, 75.0, 0),
     # ---- block 9, digital audio, along the top edge
-    "J5": (77.5, 1.24, 180), "R25": (70.5, 12.5, 270), "C30": (76.5, 12.1, 0), "FB3": (80.5, 12.1, 0),
+    "J5": (77.5, 8.5, 180), "R25": (70.5, 12.5, 270), "C30": (76.5, 12.1, 0), "FB3": (80.5, 12.1, 0),
     "U12": (78.5, 18.1, 180),
     "C28": (72.8, 15.4, 0), "R24": (72.8, 18.0, 0), "C27": (69.3, 18.0, 0), "C34": (72.8, 20.6, 0),
     "C35": (72.5, 23.5, 0), "R30": (69.3, 20.6, 0), "C40": (69.3, 23.2, 0),
     "C32": (83.7, 18.4, 90), "C33": (83.5, 22.6, 90),
     "U13": (89.5, 18.0, 0), "C36": (95.3, 18.0, 90), "C37": (95.5, 22.6, 90), "C38": (95.3, 14.0, 90),
     "R29": (99.5, 15.5, 90),
-    "J6": (89.5, 1.24, 180), "R28": (96.5, 4.0, 90), "C31": (96.5, 8.0, 90),
+    "J6": (89.5, 8.5, 180), "R28": (96.5, 4.0, 90), "C31": (96.5, 8.0, 90),
     "X1": (101.5, 6.5, 0), "C39": (101.5, 10.5, 0),
     "J7": (112.5, 12.8, 180), "R26": (108.0, 19.0, 0), "R27": (108.0, 21.6, 0), "C29": (112.5, 19.0, 0),
     "D4": (116.5, 19.0, 0),

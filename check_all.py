@@ -109,7 +109,7 @@ def main():
         # everything the schematic generator writes, not the sheet alone
         step("schematic: the generator reproduces the committed files",
              ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
-              "most_listener.pretty", "fp-lib-table", "sym-lib-table"], hw)
+              "most_listener.pretty", "most_listener.3dshapes", "fp-lib-table", "sym-lib-table"], hw)
 
     print("\n" + "=" * 60)
     for name, verdict, dt in results:

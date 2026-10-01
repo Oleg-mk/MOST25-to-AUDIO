@@ -39,8 +39,10 @@ Every pinout below was checked against the maker's data sheet:
   PLR135/T10, PLT133/T10W (TOSLINK)                - Everlight data sheets DPL-135-017
                                                      Rev 2 (1 Vcc, 2 GND, 3 Vout) and
                                                      DPL-0000049 Rev.5 (1 Vin, 2 Vcc, 3 GND):
-                                                     pin functions and the PCB layouts
-  BKL 0101153 RCA jack                             - BKL TDS drawing (P.C.B Layout 2:1)
+                                                     pin functions, the PCB layouts and the
+                                                     package drawing (third-angle)
+  BKL 0101153 RCA jack                             - BKL TDS drawing (P.C.B Layout 2:1,
+                                                     side and front views)
   Tang Nano 20K, ESP32-DevKitC V4 outlines         - Sipeed data sheet v1.3 p.5-6;
                                                      Espressif dimensions drawing
   ASE-xxxMHz oscillator, Conn_Coaxial              - KiCad 10 library symbols
@@ -673,6 +675,127 @@ def _fpmodel(lib, name, x, y):
             f'\t\t(offset (xyz {f(x)} {f(-y)} 0))\n\t\t(scale (xyz 1 1 1))\n\t\t(rotate (xyz 0 0 0))\n\t)')
 
 
+# ------------------------------------------- 3D bodies from the same drawings, as STEP
+MODELS = f"{LIB}.3dshapes"      # next to the project; the footprints reach it through ${KIPRJMOD}
+
+
+def _own_model(name):
+    """The body this script writes for footprint `name` (MODELS/name.step), at the footprint's origin."""
+    return (f'\t(model "${{KIPRJMOD}}/{MODELS}/{name}.step"\n'
+            f'\t\t(offset (xyz 0 0 0))\n\t\t(scale (xyz 1 1 1))\n\t\t(rotate (xyz 0 0 0))\n\t)')
+
+
+def _box(x0, x1, y0, y1, z0, z1):
+    """A box in the footprint's frame (y as the footprint's, z up from the board), as its six faces."""
+    p = [(x, y, z) for z in (z0, z1) for y in (y0, y1) for x in (x0, x1)]
+    return [[p[i] for i in q] for q in ((0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4), (2, 3, 7, 6), (0, 2, 6, 4),
+                                        (1, 3, 7, 5))]
+
+
+def _cyl(axis, c, r, a0, a1, n=32):
+    """A cylinder of radius r along the footprint's y or z through c (the other two coordinates,
+    (x, z) or (x, y)), from a0 to a1, as an n-sided prism."""
+    ring = [(r * math.cos(2 * math.pi * (k + 0.5) / n), r * math.sin(2 * math.pi * (k + 0.5) / n)) for k in range(n)]
+
+    def pt(u, v, a):
+        return (c[0] + u, a, c[1] + v) if axis == "y" else (c[0] + u, c[1] + v, a)
+    e0, e1 = [pt(u, v, a0) for u, v in ring], [pt(u, v, a1) for u, v in ring]
+    return [e0, e1] + [[e0[k], e0[(k + 1) % n], e1[(k + 1) % n], e1[k]] for k in range(n)]
+
+
+def _step(name, solids):
+    """An AP214 STEP file of convex, planar-faced solids [(rgb, faces)], each face a list of
+    corners in the footprint's frame. KiCad's model frame has the footprint's x, the other y and z
+    up, so y is turned over here; every face is then wound so that its normal points away from
+    its solid's centre. The date is fixed, so the file is the same on every run."""
+    ents = []
+
+    def e(text):
+        ents.append(text)
+        return f"#{len(ents)}"
+
+    def r(v, d=4):
+        t = (f"%.{d}f" % v).rstrip("0")
+        return "0." if t in ("0.", "-0.") else t
+
+    def cp(p):
+        return e(f"CARTESIAN_POINT('',({r(p[0])},{r(p[1])},{r(p[2])}))")
+
+    def dr(v):
+        n = math.sqrt(sum(c * c for c in v))
+        return e(f"DIRECTION('',({r(v[0] / n, 6)},{r(v[1] / n, 6)},{r(v[2] / n, 6)}))")
+
+    app = e("APPLICATION_CONTEXT('core data for automotive mechanical design processes')")
+    e(f"APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,{app})")
+    pc = e(f"PRODUCT_CONTEXT('',{app},'mechanical')")
+    prod = e(f"PRODUCT('{name}','{name}','',({pc}))")
+    pdf = e(f"PRODUCT_DEFINITION_FORMATION('','',{prod})")
+    pdc = e(f"PRODUCT_DEFINITION_CONTEXT('part definition',{app},'design')")
+    pdef = e(f"PRODUCT_DEFINITION('design','',{pdf},{pdc})")
+    pds = e(f"PRODUCT_DEFINITION_SHAPE('','',{pdef})")
+    mm = e("( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )")
+    rad = e("( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )")
+    sr = e("( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )")
+    unc = e(f"UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),{mm},'distance_accuracy_value',"
+            f"'confusion accuracy')")
+    ctx = e(f"( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT(({unc})) "
+            f"GLOBAL_UNIT_ASSIGNED_CONTEXT(({mm},{rad},{sr})) "
+            f"REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY') )")
+    o, z, x = cp((0, 0, 0)), dr((0, 0, 1)), dr((1, 0, 0))
+    items, styles = [e(f"AXIS2_PLACEMENT_3D('',{o},{z},{x})")], []
+    for k, (rgb, faces) in enumerate(solids):
+        faces = [[(round(p[0], 4), round(-p[1], 4), round(p[2], 4)) for p in fc] for fc in faces]
+        corners = [p for fc in faces for p in fc]
+        mid = [sum(p[i] for p in corners) / len(corners) for i in range(3)]
+        verts, edges, fents = {}, {}, []
+        for fc in faces:
+            n = [0.0, 0.0, 0.0]                     # Newell's normal
+            for i, a in enumerate(fc):
+                b = fc[(i + 1) % len(fc)]
+                n[0] += (a[1] - b[1]) * (a[2] + b[2])
+                n[1] += (a[2] - b[2]) * (a[0] + b[0])
+                n[2] += (a[0] - b[0]) * (a[1] + b[1])
+            fm = [sum(p[i] for p in fc) / len(fc) for i in range(3)]
+            if sum(n[i] * (fm[i] - mid[i]) for i in range(3)) < 0:
+                fc, n = fc[::-1], [-v for v in n]
+            for p in fc:
+                if p not in verts:
+                    verts[p] = e(f"VERTEX_POINT('',{cp(p)})")
+            oes = []
+            for i, a in enumerate(fc):
+                b = fc[(i + 1) % len(fc)]
+                key = (a, b) if a < b else (b, a)
+                if key not in edges:
+                    d = [key[1][j] - key[0][j] for j in range(3)]
+                    vec = e(f"VECTOR('',{dr(d)},{r(math.sqrt(sum(v * v for v in d)))})")
+                    line = e(f"LINE('',{cp(key[0])},{vec})")
+                    edges[key] = e(f"EDGE_CURVE('',{verts[key[0]]},{verts[key[1]]},{line},.T.)")
+                oes.append(e(f"ORIENTED_EDGE('',*,*,{edges[key]},{'.T.' if key == (a, b) else '.F.'})"))
+            loop = e(f"EDGE_LOOP('',({','.join(oes)}))")
+            bound = e(f"FACE_OUTER_BOUND('',{loop},.T.)")
+            ax = e(f"AXIS2_PLACEMENT_3D('',{cp(fc[0])},{dr(n)},{dr([fc[1][j] - fc[0][j] for j in range(3)])})")
+            fents.append(e(f"ADVANCED_FACE('',({bound}),{e(f'PLANE({chr(39) * 2},{ax})')},.T.)"))
+        shell = e(f"CLOSED_SHELL('',({','.join(fents)}))")
+        brep = e(f"MANIFOLD_SOLID_BREP('{name}_{k}',{shell})")
+        items.append(brep)
+        col = e(f"COLOUR_RGB('',{r(rgb[0])},{r(rgb[1])},{r(rgb[2])})")
+        fill = e(f"FILL_AREA_STYLE('',({e(f'FILL_AREA_STYLE_COLOUR({chr(39) * 2},{col})')}))")
+        side = e(f"SURFACE_SIDE_STYLE('',({e(f'SURFACE_STYLE_FILL_AREA({fill})')}))")
+        psa = e(f"PRESENTATION_STYLE_ASSIGNMENT(({e(f'SURFACE_STYLE_USAGE(.BOTH.,{side})')}))")
+        styles.append(e(f"STYLED_ITEM('color',({psa}),{brep})"))
+    shape = e(f"ADVANCED_BREP_SHAPE_REPRESENTATION('{name}',({','.join(items)}),{ctx})")
+    e(f"SHAPE_DEFINITION_REPRESENTATION({pds},{shape})")
+    e(f"MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',({','.join(styles)}),{ctx})")
+    return ("ISO-10303-21;\nHEADER;\n"
+            f"FILE_DESCRIPTION(('{name}, drawn by gen_listener.py from the makers drawing'),'2;1');\n"
+            f"FILE_NAME('{name}.step','2026-10-01T00:00:00',(''),(''),'gen_listener.py','gen_listener.py','');\n"
+            "FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n"
+            + "".join(f"#{i + 1}={t};\n" for i, t in enumerate(ents)) + "ENDSEC;\nEND-ISO-10303-21;\n")
+
+
+BLACK, PORT_DARK, TIN, GOLD = (0.1, 0.1, 0.1), (0.02, 0.02, 0.02), (0.82, 0.82, 0.84), (0.86, 0.69, 0.3)
+
+
 def _fp(name, descr, tags, attr, items, ref_y, val_y):
     props = [_fptext("REF**", 0, ref_y, "F.SilkS", 1.0, "fpr" + name, "Reference"),
              _fptext(name, 0, val_y, "F.Fab", 1.0, "fpv" + name, "Value")]
@@ -732,30 +855,59 @@ def te_fot_footprint():
                "at +x", "TE MOST FOT pigtail 1394640 2141577", "through_hole", items, -17.0, 10.8)
 
 
+T10_PEG, T10_FOOT, T10_PORT, T10_REAR = 2.63, 8.76, 11.11, -2.39     # from the pins, towards the port
+
+
 def toslink_t10_footprint():
-    """PLR135/T10 and PLT133/T10W share the housing: 3 pins 0.80 on 2.54, two pegs 1.10 at
-    5.08 spacing 2.63 behind the pins (the PCB layouts), body 9.70 wide x 10.00 deep, the pins
-    8.76 from the rear face, so the port face is 1.24 in front of them (the side views). The
-    port faces +y; pin 1 is at -x, as seen from the port (the front views)."""
+    """PLR135/T10 and PLT133/T10W share the housing; the drawings are third-angle (the bottom
+    view, pins numbered, sits under the front view; the side view, right of it, has the port face
+    at its left edge). 3 pins 0.80 on 2.54; two pegs 1.10 at 5.08 spacing 2.63 in front of the
+    pins, towards the port (the PCB layouts); the body 9.70 wide, 13.50 deep, 10.00 high, the pins
+    2.39 from its rear face and 11.11 from the port face; its front foot 2.35 behind the port face,
+    8.76 in front of the pins - the side view dimensions the pins from it, and the board's edge
+    belongs there, the port overhanging it. The port faces +y; pin 1 is at -x, as seen from the
+    port (the front views). Up to v1.4 the pegs stood behind the pins and the port 1.24 in front
+    of them, a first-angle reading that put the real part's pegs past the board's edge."""
     items = []
     for i in range(3):
         items.append(_fppad(str(i + 1), "thru_hole", "rect" if i == 0 else "circle", -2.54 + 2.54 * i, 0,
                             1.6, 1.6, 0.9, f"t10p{i}"))
     for i, x in enumerate((-2.54, 2.54)):
-        items.append(_fppad("", "np_thru_hole", "circle", x, -2.63, 1.2, 1.2, 1.2, f"t10g{i}"))
-    x0, x1, y0, y1 = -4.85, 4.85, -8.76, 1.24
+        items.append(_fppad("", "np_thru_hole", "circle", x, T10_PEG, 1.2, 1.2, 1.2, f"t10g{i}"))
+    x0, x1, y0, y1 = -4.85, 4.85, T10_REAR, T10_PORT
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "t10fab"))
-    # silk on three sides: the port face sits at the board edge, the sides end 0.4 mm behind it
-    ys = y1 - 0.4
+    items.append(_fpl(x0, T10_FOOT, x1, T10_FOOT, "F.Fab", 0.1, "t10edge"))    # the front foot: the board's edge
+    # silk on three sides: the sides end 0.4 mm behind the board's edge
+    ys = T10_FOOT - 0.4
     items.append(_fpl(x0 - 0.11, y0 - 0.11, x1 + 0.11, y0 - 0.11, "F.SilkS", 0.12, "t10silk0"))
     items.append(_fpl(x0 - 0.11, y0 - 0.11, x0 - 0.11, ys, "F.SilkS", 0.12, "t10silk1"))
     items.append(_fpl(x1 + 0.11, y0 - 0.11, x1 + 0.11, ys, "F.SilkS", 0.12, "t10silk2"))
     items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "t10crt"))
-    items.append(_fptext("port", 0, 1.9, "F.Fab", 0.5, "t10txt"))
-    items.append(_fpdot(-4.0, 2.0, "t10pin1"))
+    items.append(_fptext("port", 0, y1 + 0.7, "F.Fab", 0.5, "t10txt"))
+    items.append(_fptext("board edge", 0, T10_FOOT - 0.6, "F.Fab", 0.5, "t10edgetxt"))
+    items.append(_fpdot(-4.2, 1.0, "t10pin1"))
+    items.append(_own_model(FP_T10))
     return _fp(FP_T10, "Everlight PLR135/T10 receiver and PLT133/T10W transmitter (TOSLINK housing): 3 pins on "
-               "2.54, two pegs 2.63 behind them, the optical port faces +y; data sheets DPL-135-017 p.2 and "
-               "DPL-0000049 Rev.5 p.4", "TOSLINK Everlight PLR135 PLT133", "through_hole", items, -10.2, 2.6)
+               "2.54, two pegs 2.63 in front of them, towards the optical port, which faces +y; the board's "
+               "edge at the front foot, 8.76 in front of the pins, the port 2.35 past it; data sheets "
+               "DPL-135-017 p.2 and DPL-0000049 Rev.5 p.4", "TOSLINK Everlight PLR135 PLT133", "through_hole",
+               items, y0 - 1.6, y1 + 1.6)
+
+
+def t10_body():
+    """The T10 housing in the footprint's frame (origin at pin 2, the port towards +y): the body
+    10.00 high on four small feet, the port a dark square round the optical axis 4.35 up, the pins
+    0.5 x 0.4 and the pegs 0.65 reaching 3.85 below the body."""
+    solids = [(BLACK, _box(-4.85, 4.85, T10_REAR, T10_PORT, 0.2, 10.0)),
+              (PORT_DARK, _box(-3.0, 3.0, T10_PORT, T10_PORT + 0.05, 4.35 - 3.0, 4.35 + 3.0))]
+    for xa, xb in ((-4.85, -4.25), (4.25, 4.85)):
+        for ya, yb in ((T10_FOOT - 1.05, T10_FOOT), (T10_REAR, T10_REAR + 0.6)):
+            solids.append((BLACK, _box(xa, xb, ya, yb, 0.0, 0.2)))
+    for x in (-2.54, 0.0, 2.54):
+        solids.append((TIN, _box(x - 0.25, x + 0.25, -0.2, 0.2, -3.85, 0.2)))
+    for x in (-2.54, 2.54):
+        solids.append((TIN, _box(x - 0.325, x + 0.325, T10_PEG - 0.325, T10_PEG + 0.325, -3.85, 0.2)))
+    return solids
 
 
 def bkl_rca_footprint():
@@ -779,9 +931,30 @@ def bkl_rca_footprint():
     items.append(_fpbox(x0 - 0.25, y0 - 0.25, x1 + 0.25, y1 + 0.25, "F.CrtYd", 0.05, "rcacrt"))
     items.append(_fptext("port", 0, 10.5, "F.Fab", 0.7, "rcatxt"))
     items.append(_fpdot(-1.4, -1.4, "rcapin1"))
+    items.append(_own_model(FP_RCA))
     return _fp(FP_RCA, "BKL Electronic 0101153 RCA jack, right angle, gold, black: centre pin on the axis (1), "
                "thick legs (2), the thin pin 2.5 beside the axis (3, function not in the drawing - measure); "
                "body 14.7 x 14.8, the port faces +y", "RCA Cinch BKL 0101153", "through_hole", items, -3.5, 14.2)
+
+
+def bkl_rca_body():
+    """The BKL 0101153 in the footprint's frame (origin at the centre pin, the port towards +y):
+    the housing 14.7 wide, 14.8 deep, 13.5 high; the metal part 35.2 from the housing's rear face -
+    8.7 of thread (11.4 across in the side view), a collar 10.2 across and the 8.3 sleeve, 6.2 long -
+    on an axis 6.75 up, mid-housing as the side view draws it; the black ring and the 3.2 bore at
+    its mouth; the thin pins 9.45 and the thick legs (1.9) 5.4 below the board."""
+    za = 6.75
+    solids = [(BLACK, _box(-7.35, 7.35, -2.0, 12.8, 0.0, 13.5)),
+              (GOLD, _cyl("y", (0.0, za), 5.7, 12.8, 21.5)),
+              (GOLD, _cyl("y", (0.0, za), 5.1, 21.5, 27.0)),
+              (GOLD, _cyl("y", (0.0, za), 4.15, 27.0, 33.2)),
+              (BLACK, _cyl("y", (0.0, za), 3.3, 33.2, 33.25)),
+              (PORT_DARK, _cyl("y", (0.0, za), 1.6, 33.25, 33.3))]
+    for x in (0.0, 2.5):
+        solids.append((TIN, _box(x - 0.3, x + 0.3, -0.3, 0.3, -9.45, 0.0)))
+    for x in (-5.05, 5.05):
+        solids.append((TIN, _cyl("z", (x, 5.1), 0.95, -5.4, 0.0, 16)))
+    return solids
 
 
 def tangnano_footprint():
@@ -1919,6 +2092,10 @@ def main():
     for name, make in NEW_FOOTPRINTS:
         (HERE / f"{LIB}.pretty" / f"{name}.kicad_mod").write_text(make(), encoding="utf-8")
         print("wrote", name)
+    (HERE / MODELS).mkdir(exist_ok=True)
+    for name, body in ((FP_T10, t10_body), (FP_RCA, bkl_rca_body)):
+        (HERE / MODELS / f"{name}.step").write_text(_step(name, body()), encoding="utf-8")
+        print("wrote", f"{MODELS}/{name}.step")
     (HERE / "fp-lib-table").write_text(
         '(fp_lib_table (version 7)\n'
         f'  (lib (name "{LIB}")(type "KiCad")(uri "${{KIPRJMOD}}/{LIB}.pretty")(options "")'
