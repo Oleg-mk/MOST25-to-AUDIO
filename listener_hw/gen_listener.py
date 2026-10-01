@@ -666,6 +666,13 @@ def _fpdot(x, y, key):
             f'(stroke (width 0.1) (type solid)) (fill yes) (layer "F.SilkS") (uuid "{uid(key)}"))')
 
 
+def _fpmodel(lib, name, x, y):
+    """KiCad's 3D model lib/name with its origin at (x, y) of the footprint; the 3D offset's y
+    points up, the board's down."""
+    return (f'\t(model "${{KICAD10_3DMODEL_DIR}}/{lib}.3dshapes/{name}.step"\n'
+            f'\t\t(offset (xyz {f(x)} {f(-y)} 0))\n\t\t(scale (xyz 1 1 1))\n\t\t(rotate (xyz 0 0 0))\n\t)')
+
+
 def _fp(name, descr, tags, attr, items, ref_y, val_y):
     props = [_fptext("REF**", 0, ref_y, "F.SilkS", 1.0, "fpr" + name, "Reference"),
              _fptext(name, 0, val_y, "F.Fab", 1.0, "fpv" + name, "Value")]
@@ -799,9 +806,13 @@ def tangnano_footprint():
     items.append(_fptext("USB-C", 0, -25.6, "F.Fab", 0.8, "tnusb"))
     items.append(_fptext("HDMI, +8 mm", 0, 25.6, "F.Fab", 0.8, "tnhdmi"))
     items.append(_fpdot(-11.9, -24.13, "tnpin1"))
+    # the two sockets soldered in, as J2 and J3 show their headers: KiCad's 1x20 socket under each row
+    for x in (-10.16, 10.16):
+        items.append(_fpmodel("Connector_PinSocket_2.54mm", "PinSocket_1x20_P2.54mm_Vertical", x, -24.13))
     return _fp(FP_TANG, "Sipeed Tang Nano 20K module, 54.04 x 22.55 mm, 2 x 20 pins on 2.54, rows 20.32 apart, "
                "pad 1 = pin 73 (HSPI_DIN2) at the USB-C end; the HDMI connector overhangs the far end by 8 mm "
-               "(data sheet v1.3 p.5, p.6)", "Sipeed Tang Nano 20K GW2AR", "through_hole", items, -29.0, 29.5)
+               "(data sheet v1.3 p.5, p.6); on two 1x20 sockets, 2.54 mm, 8.5 mm high, soldered to the board",
+               "Sipeed Tang Nano 20K GW2AR", "through_hole", items, -29.0, 29.5)
 
 
 def devkitc_footprint():
@@ -824,10 +835,13 @@ def devkitc_footprint():
     items.append(_fptext("antenna: no copper", 0, -27.2, "F.Fab", 0.7, "dkanttxt"))
     items.append(_fptext("USB", 0, 23.0, "F.Fab", 0.8, "dkusb"))
     items.append(_fpdot(-14.6, -22.86, "dkpin1"))
+    # the two sockets soldered in, as J2 and J3 show their headers: KiCad's 1x19 socket under each row
+    for x in (-12.7, 12.7):
+        items.append(_fpmodel("Connector_PinSocket_2.54mm", "PinSocket_1x19_P2.54mm_Vertical", x, -22.86))
     return _fp(FP_ESP, "Espressif ESP32-DevKitC V4, 48.26 x 27.94 mm, 2 x 19 pins on 2.54, rows 25.40 apart, "
                "pad 1 = 3V3 at the antenna end; the antenna overhangs that end by 6.04 mm and wants no copper "
-               "under it (Espressif dimensions drawing)", "Espressif ESP32 DevKitC", "through_hole", items,
-               -31.7, 26.9)
+               "under it (Espressif dimensions drawing); on two 1x19 sockets, 2.54 mm, 8.5 mm high, soldered "
+               "to the board", "Espressif ESP32 DevKitC", "through_hole", items, -31.7, 26.9)
 
 
 NEW_FOOTPRINTS = ((FP_FOT, te_fot_footprint), (FP_T10, toslink_t10_footprint), (FP_RCA, bkl_rca_footprint),

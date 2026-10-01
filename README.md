@@ -74,7 +74,7 @@ which lets one resolved thermal spoke connect a pad to a pour. The reasons
 behind every part's place are in the generator's table.
 
 The routing (board v1.4): the bottom is one ground plane, crossed only by
-short jumpers (11 of them, 29 mm in all, the longest 5.3 mm); signals and
+short jumpers (11 of them, 27 mm in all, the longest 3.7 mm); signals and
 supplies run on top, the supplies as wide tracks that change layer nowhere but
 at one 3V3_AON and one 3V3_SW jumper, and the top's ground pour is stitched to the plane by
 vias about every 6 mm. Every SMD ground pad has a via of its own beside it. The
@@ -108,6 +108,9 @@ comes beside it to the line-out buffer U17 (block 11 of the sheet), with
 crossings: 5V_SW passes between R45's pads, VNEG_A under U17's body. The
 Si514's land pattern takes the 3.2x5 and 2.5x3.2 packages only, R3 is two 27 k
 in parallel (R3, R42), and four test points (TP1, TP3, TP8, TP10) are gone.
+M1 and M2 stand on sockets soldered to the board - two 1x20 and two 1x19 on
+2.54 mm, 8.5 mm high - which the 3D view shows under them, as it shows J2's
+and J3's headers.
 
 Every footprint is linked to its symbol, so after a change of the sheet: run
 `gen_listener.py`, then in the PCB editor Tools > Update PCB from Schematic. `python check_all.py` runs KiCad's DRC on
