@@ -6580,7 +6580,7 @@
 		(layer "F.Cu")
 		(uuid "3fc1bbcf-aab1-5c99-9298-b8cc366de8b2")
 		(at 71.374 26.162 180)
-		(descr "Espressif ESP32-DevKitC V4, 48.26 x 27.94 mm, 2 x 19 pins on 2.54, rows 25.40 apart, pad 1 = 3V3 at the antenna end; the antenna overhangs that end by 6.04 mm and wants no copper under it (Espressif dimensions drawing); on two 1x19 sockets, 2.54 mm, 8.5 mm high, soldered to the board")
+		(descr "Espressif ESP32-DevKitC V4, 48.26 x 27.94 mm, 2 x 19 pins on 2.54, rows 25.40 apart, pad 1 = 3V3 at the antenna end; the antenna overhangs that end by 6.04 mm and wants no copper under it (Espressif dimensions drawing); soldered to the board on two 1x19 pin headers, 2.54 mm, no sockets")
 		(tags "Espressif ESP32 DevKitC")
 		(property "Reference" "M2"
 			(at 0 -2.37 0)
@@ -7165,7 +7165,7 @@
 			(uuid "af45e7a9-6ec9-5fd4-8ec0-ff3b70ef9f6c")
 		)
 		(embedded_fonts no)
-		(model "${KICAD10_3DMODEL_DIR}/Connector_PinSocket_2.54mm.3dshapes/PinSocket_1x19_P2.54mm_Vertical.step"
+		(model "${KICAD10_3DMODEL_DIR}/Connector_PinHeader_2.54mm.3dshapes/PinHeader_1x19_P2.54mm_Vertical.step"
 			(offset
 				(xyz -12.7 22.86 0)
 			)
@@ -7176,7 +7176,7 @@
 				(xyz 0 0 0)
 			)
 		)
-		(model "${KICAD10_3DMODEL_DIR}/Connector_PinSocket_2.54mm.3dshapes/PinSocket_1x19_P2.54mm_Vertical.step"
+		(model "${KICAD10_3DMODEL_DIR}/Connector_PinHeader_2.54mm.3dshapes/PinHeader_1x19_P2.54mm_Vertical.step"
 			(offset
 				(xyz 12.7 22.86 0)
 			)
@@ -24643,7 +24643,7 @@
 		(layer "F.Cu")
 		(uuid "bf165158-1d19-4e24-8f71-33dddd0f0022")
 		(at 45.3 29)
-		(descr "Sipeed Tang Nano 20K module, 54.04 x 22.55 mm, 2 x 20 pins on 2.54, rows 20.32 apart, pad 1 = pin 73 (HSPI_DIN2) at the USB-C end; the HDMI connector overhangs the far end by 8 mm (data sheet v1.3 p.5, p.6); on two 1x20 sockets, 2.54 mm, 8.5 mm high, soldered to the board")
+		(descr "Sipeed Tang Nano 20K module, 54.04 x 22.55 mm, 2 x 20 pins on 2.54, rows 20.32 apart, pad 1 = pin 73 (HSPI_DIN2) at the USB-C end; the HDMI connector overhangs the far end by 8 mm (data sheet v1.3 p.5, p.6); soldered to the board on two 1x20 pin headers, 2.54 mm, no sockets")
 		(tags "Sipeed Tang Nano 20K GW2AR")
 		(property "Reference" "M1"
 			(at 0.025 0 0)
@@ -25246,7 +25246,7 @@
 			(uuid "a772f1df-15e1-4f94-a33c-bacf74388a59")
 		)
 		(embedded_fonts no)
-		(model "${KICAD10_3DMODEL_DIR}/Connector_PinSocket_2.54mm.3dshapes/PinSocket_1x20_P2.54mm_Vertical.step"
+		(model "${KICAD10_3DMODEL_DIR}/Connector_PinHeader_2.54mm.3dshapes/PinHeader_1x20_P2.54mm_Vertical.step"
 			(offset
 				(xyz -10.16 24.13 0)
 			)
@@ -25257,7 +25257,7 @@
 				(xyz 0 0 0)
 			)
 		)
-		(model "${KICAD10_3DMODEL_DIR}/Connector_PinSocket_2.54mm.3dshapes/PinSocket_1x20_P2.54mm_Vertical.step"
+		(model "${KICAD10_3DMODEL_DIR}/Connector_PinHeader_2.54mm.3dshapes/PinHeader_1x20_P2.54mm_Vertical.step"
 			(offset
 				(xyz 10.16 24.13 0)
 			)

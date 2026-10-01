@@ -788,8 +788,9 @@ def tangnano_footprint():
     """Sipeed Tang Nano 20K (data sheet v1.3 p.6): 54.04 x 22.55 mm, two rows of 20 on 2.54, rows
     20.32 apart (the board's width less two edge margins); pad 1 at the USB-C end, left row,
     as the pinout drawing (p.5) and the schematic symbol number them. The HDMI connector
-    stands 8 mm past the far end, the USB-C 1.5 mm past the near one. The module stands on
-    8.5 mm sockets, so the courtyard is the two socket rows and low parts may sit under it."""
+    stands 8 mm past the far end, the USB-C 1.5 mm past the near one. The module is soldered in
+    on its pin headers, 2.5 mm of plastic between the boards (no sockets), so the courtyard is
+    the two header rows and low parts may sit under it."""
     items = []
     for i in range(20):
         y = -24.13 + 2.54 * i
@@ -799,19 +800,19 @@ def tangnano_footprint():
     x0, x1, y0, y1 = -11.275, 11.275, -27.02, 27.02
     items.append(_fpbox(x0, y0, x1, y1, "F.Fab", 0.1, "tnfab"))
     items.append(_fpbox(x0 - 0.11, y0 - 0.11, x1 + 0.11, y1 + 0.11, "F.SilkS", 0.12, "tnsilk"))
-    # on 8.5 mm sockets: the courtyard is the two socket rows (2.54 wide), so low parts may
-    # sit under the module between them; its outline stays on F.Fab and the silk
+    # soldered in on its pin headers: the courtyard is the two header rows (2.54 wide), so low
+    # parts may sit under the module between them; its outline stays on F.Fab and the silk
     for side, x in (("l", -10.16), ("r", 10.16)):
         items.append(_fpbox(x - 1.52, -24.13 - 1.52, x + 1.52, 24.13 + 1.52, "F.CrtYd", 0.05, f"tncrt{side}"))
     items.append(_fptext("USB-C", 0, -25.6, "F.Fab", 0.8, "tnusb"))
     items.append(_fptext("HDMI, +8 mm", 0, 25.6, "F.Fab", 0.8, "tnhdmi"))
     items.append(_fpdot(-11.9, -24.13, "tnpin1"))
-    # the two sockets soldered in, as J2 and J3 show their headers: KiCad's 1x20 socket under each row
+    # soldered in on pin headers, no sockets: KiCad's 1x20 header under each row, as J2 and J3 show theirs
     for x in (-10.16, 10.16):
-        items.append(_fpmodel("Connector_PinSocket_2.54mm", "PinSocket_1x20_P2.54mm_Vertical", x, -24.13))
+        items.append(_fpmodel("Connector_PinHeader_2.54mm", "PinHeader_1x20_P2.54mm_Vertical", x, -24.13))
     return _fp(FP_TANG, "Sipeed Tang Nano 20K module, 54.04 x 22.55 mm, 2 x 20 pins on 2.54, rows 20.32 apart, "
                "pad 1 = pin 73 (HSPI_DIN2) at the USB-C end; the HDMI connector overhangs the far end by 8 mm "
-               "(data sheet v1.3 p.5, p.6); on two 1x20 sockets, 2.54 mm, 8.5 mm high, soldered to the board",
+               "(data sheet v1.3 p.5, p.6); soldered to the board on two 1x20 pin headers, 2.54 mm, no sockets",
                "Sipeed Tang Nano 20K GW2AR", "through_hole", items, -29.0, 29.5)
 
 
@@ -835,13 +836,13 @@ def devkitc_footprint():
     items.append(_fptext("antenna: no copper", 0, -27.2, "F.Fab", 0.7, "dkanttxt"))
     items.append(_fptext("USB", 0, 23.0, "F.Fab", 0.8, "dkusb"))
     items.append(_fpdot(-14.6, -22.86, "dkpin1"))
-    # the two sockets soldered in, as J2 and J3 show their headers: KiCad's 1x19 socket under each row
+    # soldered in on pin headers, no sockets: KiCad's 1x19 header under each row, as J2 and J3 show theirs
     for x in (-12.7, 12.7):
-        items.append(_fpmodel("Connector_PinSocket_2.54mm", "PinSocket_1x19_P2.54mm_Vertical", x, -22.86))
+        items.append(_fpmodel("Connector_PinHeader_2.54mm", "PinHeader_1x19_P2.54mm_Vertical", x, -22.86))
     return _fp(FP_ESP, "Espressif ESP32-DevKitC V4, 48.26 x 27.94 mm, 2 x 19 pins on 2.54, rows 25.40 apart, "
                "pad 1 = 3V3 at the antenna end; the antenna overhangs that end by 6.04 mm and wants no copper "
-               "under it (Espressif dimensions drawing); on two 1x19 sockets, 2.54 mm, 8.5 mm high, soldered "
-               "to the board", "Espressif ESP32 DevKitC", "through_hole", items, -31.7, 26.9)
+               "under it (Espressif dimensions drawing); soldered to the board on two 1x19 pin headers, 2.54 mm, "
+               "no sockets", "Espressif ESP32 DevKitC", "through_hole", items, -31.7, 26.9)
 
 
 NEW_FOOTPRINTS = ((FP_FOT, te_fot_footprint), (FP_T10, toslink_t10_footprint), (FP_RCA, bkl_rca_footprint),

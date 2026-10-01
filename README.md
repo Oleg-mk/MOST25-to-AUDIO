@@ -108,9 +108,10 @@ comes beside it to the line-out buffer U17 (block 11 of the sheet), with
 crossings: 5V_SW passes between R45's pads, VNEG_A under U17's body. The
 Si514's land pattern takes the 3.2x5 and 2.5x3.2 packages only, R3 is two 27 k
 in parallel (R3, R42), and four test points (TP1, TP3, TP8, TP10) are gone.
-M1 and M2 stand on sockets soldered to the board - two 1x20 and two 1x19 on
-2.54 mm, 8.5 mm high - which the 3D view shows under them, as it shows J2's
-and J3's headers.
+M1 and M2 are soldered to the board on pin headers, no sockets - two 1x20 and
+two 1x19 on 2.54 mm, which the 3D view shows under them, as it shows J2's and
+J3's. The headers' plastic leaves 2.5 mm under each module: room for the 0603
+resistors under M1 (R11, R12, R18..R21, R34..R41); nothing stands under M2.
 
 Every footprint is linked to its symbol, so after a change of the sheet: run
 `gen_listener.py`, then in the PCB editor Tools > Update PCB from Schematic. `python check_all.py` runs KiCad's DRC on
