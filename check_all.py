@@ -110,6 +110,14 @@ def main():
         step("schematic: the generator reproduces the committed files",
              ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
               "most_listener.pretty", "most_listener.3dshapes", "fp-lib-table", "sym-lib-table"], hw)
+        # the manufacturing package is written from the board and the sheet; what goes to the
+        # board house must be the committed package of this very board
+        step("fab: the manufacturing package (make_fab.py)", [py, "make_fab.py"], hw, need=KICAD)
+        step("fab: the package matches the commit",
+             [py, "-c", "import subprocess, sys; "
+                        "o = subprocess.run(['git', 'status', '--porcelain', '--', 'fab'], capture_output=True, "
+                        "text=True).stdout; print(o or 'fab/ is the committed package'); sys.exit(1 if o.strip() else 0)"],
+             hw)
 
     print("\n" + "=" * 60)
     for name, verdict, dt in results:
