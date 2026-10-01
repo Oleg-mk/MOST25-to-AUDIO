@@ -15,6 +15,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 | `most_listener-job.gbrjob` | Gerber job file: the layers and the stack-up, for the board house's software |
 | `most_listener-bom.csv` | the parts, grouped by value and footprint |
 | `most_listener-pos.csv` | pick-and-place, SMD parts on the top, mm, KiCad's rotations |
+| `most_listener-bom-jlcpcb.csv` | JLCPCB's BOM: the parts it places, with their LCSC numbers |
+| `most_listener-cpl-jlcpcb.csv` | JLCPCB's pick-and-place: the same parts, JLCPCB's rotations |
 
 ## The board
 
@@ -32,7 +34,40 @@ again after any change to the board: `check_all.py` fails while this folder does
   2.5 x 3.2 (C) package, with any start-up frequency and I2C address - the FPGA finds the
   address and sets the frequency. Example: 514CBA000110BAGR.
 - C61, C62, C69..C72 (the line out's filter): C0G/NP0.
-- X1: 24.576 MHz 3.3 V CMOS oscillator, Abracon ASE (3.2 x 2.5 mm).
+- X1: any 24.576 MHz 3.3 V CMOS oscillator in the 4-pin 3.2 x 2.5 mm package (1 OE, 2 GND,
+  3 output, 4 VDD), as the Abracon ASE the footprint was drawn for.
 - M1 (Tang Nano 20K) and M2 (ESP32-DevKitC-VIE) are soldered in on their own pin headers,
   2 x 20 and 2 x 19 on 2.54 mm; no sockets.
 - J7..J9 (BKL 0101153): pad 3, the thin pin beside the axis, is not connected.
+
+## Ordering at JLCPCB, with the SMD parts assembled
+
+1. **PCB.** Upload `most_listener-gerbers.zip`. Choose 2 layers, 1.6 mm, 1 oz outer copper,
+   ENIG, green mask with white silkscreen, and 5 boards or more.
+2. **Assembly.** Top side, Standard PCBA (consigned parts need it), and "Confirm parts
+   placement" on.
+3. **BOM and CPL.** Upload `most_listener-bom-jlcpcb.csv` and `most_listener-cpl-jlcpcb.csv`:
+   57 lines, 54 LCSC parts.
+   - F1 (C2925010) is an LCSC part. If JLCPCB holds none, its BOM page buys it from LCSC
+     with the order.
+   - On 2026-10-01 JLCPCB held 9 SRC4192IDBR (U13). For more boards, consign the rest.
+4. **Placement preview.** Before paying, check pin 1 of every IC, and the polarity of D1..D3,
+   C44, C45, C63 and C78.
+   - The rotations follow JLCKicadTools' table. The HSOP-8 (U6) is turned like a SOIC-8.
+   - U5 (WSON-6), U7 (Si514), X1 and the diodes keep KiCad's rotation. These are the likeliest
+     to need a turn.
+5. **Consigned:** U7 (Si514). Send these to JLCPCB, or add them through its global sourcing.
+   For the Si514, any code by the rule above.
+6. **By hand, after delivery.** These are not in JLCPCB's files. Their holes follow these exact
+   parts, so a look-alike may not fit:
+   - J1 (1-1394640-1): TE 1-1394640-1, the MOST pigtail FOT unit
+   - J2 (ANALYSER): pin header 1x08, 2.54 mm
+   - J3 (I2S): pin header 1x06, 2.54 mm
+   - J4 (VBAT_IN): Molex 43650-0200, Micro-Fit 3.0, right angle
+   - J5 (PLR135/T10): Everlight, T10 housing
+   - J6 (PLT133/T10W): Everlight, T10 housing
+   - J7 (RCA 75R): BKL Electronic 0101153
+   - J8 (LINE L): BKL Electronic 0101153
+   - J9 (LINE R): BKL Electronic 0101153
+   - M1 (Tang Nano 20K): Sipeed Tang Nano 20K, on its own pin headers
+   - M2 (ESP32-DevKitC-VIE): Espressif ESP32-DevKitC-VIE, on its own pin headers
