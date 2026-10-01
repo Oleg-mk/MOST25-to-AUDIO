@@ -24,6 +24,9 @@
 //       at once when a sink comes or goes). The settings are kept in NVS, so
 //       after a restart J3 starts where it was, as the factory amplifier
 //       does; until a volume has been heard once, J3 is silent.
+// And the steering wheel's track keys (wheel.h, Jaguar XF: 0xCA1) go to the
+// phone over AVRCP (phone_ctl) while the phone is what the car plays - our
+// audio in the AUX bytes, from the phone; otherwise they are the car's alone.
 // A command goes out when its decision changes, at start-up (an ESP32 reset
 // must not leave the FPGA injecting), and again every 2 s: after a core reset
 // the FPGA's injection is off until told, and a repeated command changes
@@ -70,7 +73,9 @@
 #include "lsn_link.h"
 #include "most_msg.h"
 #include "nvs.h"
+#include "phone_ctl.h"
 #include "sound.h"
+#include "wheel.h"
 
 #define HOST_UART   UART_NUM_2
 #define PIN_RX      4
@@ -104,6 +109,7 @@ static ain_t s_ain;                                  // our source: the phone or
 static int s_ain_sent = -1, s_src_seen = -1, s_opt_seen = -1;
 static uint32_t s_fpga_dropped;
 static snd_t s_snd;
+static wheel_t s_wheel;
 static int s_img_dirty = 1, s_muted_sent = -1;
 static uint32_t s_fs_sent;
 static int64_t s_img_sent, s_save_at;
@@ -277,6 +283,19 @@ static void decide(int force)
         }
 }
 
+// A steering-wheel key: the phone's while its audio is in the AUX bytes (as
+// last sent to the FPGA), else the car's alone.
+static void wheel_key(int key)
+{
+    const char *what = key == WHEEL_NEXT ? "next track" : "previous track";
+    if (s_aux_sent.bits && !s_ain_sent) {
+        ESP_LOGI(TAG, "wheel: %s -> the phone", what);
+        phone_ctl_key(key == WHEEL_NEXT);
+    } else {
+        ESP_LOGI(TAG, "wheel: %s, not ours (the phone is not in AUX)", what);
+    }
+}
+
 static void on_tel(void *ctx, const mm_tel_t *t)
 {
     (void)ctx;
@@ -287,6 +306,9 @@ static void on_tel(void *ctx, const mm_tel_t *t)
         s_img_dirty = 1;
         s_save_at = esp_timer_get_time() + SAVE_US;
     }
+    const int key = wheel_tel(&s_wheel, t);
+    if (key)
+        wheel_key(key);
 }
 
 static void on_block(void *ctx, const lsn_block_t *b)
@@ -458,6 +480,7 @@ void host_start(void)
     mm_init(&s_mm);
     am_init(&s_am);
     ain_init(&s_ain);
+    wheel_init(&s_wheel);
     snd_load();
     s_trace = xQueueCreate(64, sizeof(mm_tel_t));
     ESP_ERROR_CHECK(s_trace ? ESP_OK : ESP_ERR_NO_MEM);

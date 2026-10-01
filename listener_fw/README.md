@@ -1,4 +1,4 @@
-# Listener firmware (M2, ESP32), v0.3
+# Listener firmware (M2, ESP32), v0.4
 
 Firmware for M2, the ESP32-DevKitC module on the listener board
 (`listener_hw`, block 8). It plays music from a phone into the MOST ring
@@ -43,6 +43,11 @@ What it does now:
   full-scale noise - drops it at the first reading, and the console says to
   set the source to PCM. Its lock time runs while the phone plays, so when the
   phone stops the TOSLINK input takes over at once.
+- **The steering wheel's track keys to the phone** (Jaguar XF;
+  `components/mostctl/wheel`, `main/phone_ctl.c`): while the phone's audio is
+  in the AUX bytes, next and previous on the wheel skip the phone's tracks
+  (AVRCP); otherwise the keys stay the car's - the radio, the CD and the USB
+  module act on them as before.
 
 Next: the per-car scales from a recording of a real ring.
 
@@ -173,6 +178,21 @@ treble step (+-12 dB), 2 dB per balance step with the other side silent from
 10 steps, loudness +8 dB of bass at -40 dB and below, 1 dB per MixerLevel
 step. A recording of the car's ring while stepping each control fixes them.
 
+**Steering-wheel keys** (`wheel`, `phone_ctl`). On the Jaguar XF the gateway
+(0x161) sends the wheel's track keys to the touchscreen (0x16E), which tells
+the playing source; with the factory screen in the car they are on the ring.
+FktID 0xCA1: next track Data0 0x03 with Data1 0x01, previous Data0 0x04 with
+Data2 0x01 - as SocketMost (branch usb), standing in for the screen, acts on
+them; it checks nothing else of the telegram, and neither does `wheel`. The
+same telegram again within 200 ms counts once (a NAKed one comes up to 6
+times), and a different one in between - a release - ends that. While
+command 02 puts the phone into the AUX bytes, a key goes to the phone as an
+AVRCP passthrough, Forward or Backward, pressed and released: M2 is the AVRCP
+controller, and the phone connects it with the stream. Otherwise the key is
+the car's alone, and the console says so. Other cars' keys, if they travel on
+the ring at all, are not known yet; the trace shows every telegram, so a
+recording while pressing them finds them.
+
 **Capture** (`listener_gw/rtl/capture.v`, command 04): the FPGA keeps the
 line's first 65536 runs after power-up - the ring's start-up - and captures
 anew or dumps on command. Keys on the console: `c` captures now and dumps
@@ -249,7 +269,11 @@ make -C test
    source (`ain`), read every 10 ms: no receiver; the phone over a locked
    TOSLINK input; the lock's 1 s, run while the phone plays; a parity blip
    and 90 ms of ERROR kept; AC-3 dropped at once, PCM again after 1 s, the
-   phone untouched by it; 100 ms of ERROR lost; plugged in again.
+   phone untouched by it; 100 ms of ERROR lost; plugged in again. The
+   wheel keys (`wheel`): next and previous; the same telegram again within
+   200 ms once, after 200 ms of quiet a new press, a release between ending
+   that; 04 01 00, another FktID and one byte no key; across the frame
+   counter's wrap; and a raw block 0161 > 016E, sent twice.
 6. `test_sound`: every volume source and their order, tone and loudness
    telegrams, Increment ignored, repeats no change; the other sinks' levels -
    MixerLevel for every sink and for one, a record's field (y) ignored, its
@@ -283,10 +307,11 @@ make -C test
 | The source: phone and TOSLINK input, lock, settle, blips, not PCM, loss | each pick as expected; seven broken variants of `ain.c` each caught |
 | Sound settings from telegrams: 4 volume sources, tone, loudness, balance | each as sent; the source order holds |
 | The other sinks: which ones, their levels, balance and mute | each as expected; eight broken variants of `amp_model.c`, `sound.c` and `dsp_img.c` each caught |
+| Steering-wheel keys: next, previous, a NAKed telegram sent again, a release, other layouts | each as expected; eight broken variants of `wheel.c` each caught |
 | Shelves on the rounded words, -12..+12 dB, 44.1 and 48 kHz | full gain within 0.008 dB (15 Hz, 0.45 fs), the other band within 0.001 dB; every setting stable |
 | The firmware's set through the FPGA engine's model | L and R within 0.0002 dB of volume + balance + shelves at 50 Hz, 1 kHz, 12 kHz |
 | Three sinks mixed, through the same model | every sink's sine on L and R within 0.0003 dB of its level and balance, the mono one on both sides |
-| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, the host and J3's sound | no compiler warnings; app 982 KB of a 1.5 MB partition (4 MB flash) |
+| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, AVRCP, the host and J3's sound | no compiler warnings; app 983 KB of a 1.5 MB partition (4 MB flash) |
 
 Not proved: nothing has run on an ESP32 yet, and the decoder has never seen
 a real control block - which blocks the checks let through, whether the

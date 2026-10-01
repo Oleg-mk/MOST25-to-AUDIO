@@ -1,5 +1,5 @@
-// test_mostctl.c - host tests for components/mostctl: most_msg, amp_model and
-// ain.
+// test_mostctl.c - host tests for components/mostctl: most_msg, amp_model,
+// ain and wheel.
 //
 // Blocks are built to the layout in docs/host_control_formats.md:
 // 0-3 arbitration, 4-5 target, 6-7 source, 8 message type, 9 FBlockID,
@@ -8,6 +8,7 @@
 #include "ain.h"
 #include "amp_model.h"
 #include "most_msg.h"
+#include "wheel.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -345,6 +346,62 @@ static void test_ain(void)
     CHECK(ain_for(&a, &t, 100000, 1, 0, 0) == AIN_PHONE, "the phone takes over again");
 }
 
+// ------------------------------------------------------------ wheel
+#define GW    0x0161            // Jaguar XF: the gateway
+#define SCRN  0x016E            // ...and the touchscreen it sends the keys to
+
+static mm_tel_t key_tel(uint16_t fkt, const uint8_t *d, int n, uint32_t frame)
+{
+    mm_tel_t t = tel(GW, SCRN, 0x10, fkt, MM_OP_STATUS, d, n);
+    t.frame = frame;
+    return t;
+}
+
+static void test_wheel(void)
+{
+    wheel_t w;
+    printf("wheel:\n");
+    wheel_init(&w);
+    const uint8_t next[] = {0x03, 0x01, 0x00}, prev[] = {0x04, 0x00, 0x01}, rel[] = {0x03, 0x00, 0x00},
+                  prev_b1[] = {0x04, 0x01, 0x00};
+    mm_tel_t t = key_tel(0xCA1, next, 3, 1000);
+    CHECK(wheel_tel(&w, &t) == WHEEL_NEXT, "03 01: next track");
+    t.frame = 1100;
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "the same telegram 2 ms later (a NAKed one sent again): once");
+    t.frame = 1100 + WHEEL_SAME_FRAMES - 1;
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "again within 200 ms of the last one: still once");
+    t.frame += WHEEL_SAME_FRAMES;
+    CHECK(wheel_tel(&w, &t) == WHEEL_NEXT, "200 ms of quiet, then the same: a new press");
+    t = key_tel(0xCA1, rel, 3, t.frame + 500);
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "03 00: no key");
+    t = key_tel(0xCA1, next, 3, t.frame + 500);
+    CHECK(wheel_tel(&w, &t) == WHEEL_NEXT, "after another 0xCA1 telegram a press counts at once");
+    t = key_tel(0xCA1, prev, 3, t.frame + 500);
+    CHECK(wheel_tel(&w, &t) == WHEEL_PREV, "04 .. 01: previous track");
+    t = key_tel(0xCA1, prev_b1, 3, t.frame + 20000);
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "04 01 00: not the layout seen on the car, no key");
+    t = key_tel(0xCA0, next, 3, t.frame + 20000);
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "another FktID: no key");
+    t = key_tel(0xCA1, next, 3, t.frame + 20000);
+    t.len = 1;                                      // 03, and 01 lying beyond the length
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "one byte only: no key");
+    t = key_tel(0xCA1, next, 3, 0xFFFFFF00u);
+    CHECK(wheel_tel(&w, &t) == WHEEL_NEXT, "by the frame counter's wrap: a press");
+    t.frame = 0x00000010u;
+    CHECK(wheel_tel(&w, &t) == WHEEL_NONE, "the same across the wrap, 6 ms later: once");
+    // from the wire: a block from the gateway to the screen
+    mm_t m;
+    uint8_t b[32];
+    mm_init(&m);
+    wheel_init(&w);
+    ngot = 0;
+    block(b, SCRN, GW, 0x10, 0x01, 0xCA1, MM_OP_STATUS, 0, next, 3);
+    mm_block(&m, b, 5000, on_tel, NULL);
+    CHECK(ngot == 1 && wheel_tel(&w, &got[0]) == WHEEL_NEXT, "a block 0161 > 016E 10.01.CA1 03 01 00: next track");
+    mm_block(&m, b, 5020, on_tel, NULL);
+    CHECK(ngot == 2 && wheel_tel(&w, &got[1]) == WHEEL_NONE, "the block sent again: no second key");
+}
+
 int main(void)
 {
     test_decode();
@@ -352,6 +409,7 @@ int main(void)
     test_extras();
     test_chain();
     test_ain();
+    test_wheel();
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

@@ -8,11 +8,13 @@
 // host follows the control channel: it puts our audio - the phone while it
 // streams, otherwise the board's TOSLINK input - into the AUX source's frame
 // bytes while the amplifier plays them, and the amplifier's main zone out on J3.
+// The steering wheel's track keys go to the phone over AVRCP (phone_ctl).
 #include <string.h>
 
 #include "a2dp_dec.h"
 #include "audio_out.h"
 #include "host.h"
+#include "phone_ctl.h"
 #include "esp_a2dp_api.h"
 #include "esp_bt.h"
 #include "esp_bt_main.h"
@@ -118,6 +120,7 @@ void app_main(void)
     esp_bt_gap_register_callback(gap_cb);
     esp_bt_gap_set_device_name(DEVICE_NAME);
 
+    phone_ctl_init();                           // AVRCP before A2DP, as the stack asks
     esp_a2d_register_callback(a2d_cb);
     ESP_ERROR_CHECK(esp_a2d_sink_init());
     a2dp_dec_register_seps();
