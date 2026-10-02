@@ -74,15 +74,15 @@ which lets one resolved thermal spoke connect a pad to a pour. The reasons
 behind every part's place are in the generator's table.
 
 The routing (board v1.4): the bottom is one ground plane, crossed only by
-short jumpers (6 of them, 14 mm in all, the longest 3.7 mm); signals and
+short jumpers (4 of them, 9 mm in all, the longest 3.65 mm); signals and
 supplies run on top, the supplies as wide tracks that change layer nowhere but
-at one 3V3_AON and one 3V3_SW jumper, and the top's ground pour is stitched to the plane by
+at one 3V3_AON jumper, and the top's ground pour is stitched to the plane by
 vias about every 6 mm. Every SMD ground pad has a via of its own beside it. The
 5 V trunk runs 1 mm wide from C7 up the left edge under J1 and along the top
 edge; the host's switch U10 sits at M2's 5 V pin with 10 uF at its input (the
-radio's pulses come out of it, not over the trunk), U16's capacitors at U16;
-100 uF + 100 nF (C63, C64) sit by D3 at the module's end of the trunk, four
-more 100 nF (C65-C68) along it.
+radio's pulses come out of it, not over the trunk); 100 uF + 100 nF (C63, C64)
+sit by D3 at the module's end of the trunk, 100 uF + 100 nF (C81, C80) at its
+other end by U10 and U14, four more 100 nF (C65-C68) along it.
 v1.2 put every line bound for the right half of the board on M1's right row, in
 the order it meets J2, J3, the DAC and the host there, and the host's lines on
 M2's row that faces M1, so the bus under M2 runs without a crossing (v1.1 had 75
@@ -104,14 +104,18 @@ more out: R29 sits where SRC_BCLK crossed under M2 and the line runs between its
 pads; RST_AIN reaches U12 through U13's body and under C39 and X1, with R30 by U13
 and U13's 3.3 V links outside its body; R38, R40 and R41 stand right of M1's row
 and R39 under M2, so the DAC's BCLK comes down through their bodies on top of its
-bundle and U15 gets BCLK, DOUT and LRCK in its own order. The six jumpers left are
-in the ring's corner round J1: RX_BUF and 3V3_AON cross the 5 V trunk between U1
-and U4/U5, RX_BUF, SI_SCL and SI_SDA cross RT_CLK between the Si514 and M1, and
-3V3_SW crosses SI_SCL along M1's row; the first five could only go if the trunk
-or the clock itself took a jumper. The DAC's 3V3_DAC runs on top too now -
-under the I2S lines, between C45's pads and under U15's capacitors - and 5V_SW
-comes beside it to the line-out buffer U17 (block 11 of the sheet), with
-100 uF + 100 nF (C78, C79) at its end. On one layer the dual op-amp needs two
+bundle and U15 gets BCLK, DOUT and LRCK in its own order. A last round the same
+day moved the battery corner (F1 by J4, the always-on LDO U5 up by U4, L2, D1 and
+D2 left, the buck's 100 nF input capacitors turned to face U6), U10 and U14 with
+their capacitors, J2 and J3, and the DAC: U15 and its capacitors sit higher and
+U16 with C50/C51 beside it, so 3V3_DAC is a short spine under U15's body. In the
+Si514's corner RT_CLK now takes one jumper under RX_BUF and SI_SCL - RX_BUF runs
+between the Si514's pad rows and over it, CLK+ round its west side - and SI_SCL
+dips under 3V3_SW at M1's row. The four jumpers left: RX_BUF and 3V3_AON under
+the 5 V trunk between U1 and U4/U5, RT_CLK (1.9 mm) and SI_SCL (1.3 mm). 5V_SW
+runs along the bottom edge to U16 and the line-out buffer U17 (block 11 of the
+sheet), with 100 uF + 100 nF (C78, C79) at its end; C82 is one more 100 nF on
+the battery input beside L2. On one layer the dual op-amp needs two
 crossings: 5V_SW passes between R45's pads, VNEG_A under U17's body. The
 Si514's land pattern takes the 3.2x5 and 2.5x3.2 packages only, R3 is two 27 k
 in parallel (R3, R42), and five test points (TP1, TP3, TP4, TP8, TP10) are gone.

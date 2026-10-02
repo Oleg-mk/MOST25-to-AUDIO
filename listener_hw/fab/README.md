@@ -22,8 +22,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 
 - 125 x 80 mm, 2 layers, FR-4 1.6 mm,
   35 um (1 oz) copper on both sides.
-- Tracks from 0.25 mm, clearance 0.15 mm; 280 vias of 0.6/0.3 mm.
-- Smallest hole 0.3 mm; 410 plated and 15 non-plated holes; no slots.
+- Tracks from 0.25 mm, clearance 0.15 mm; 264 vias of 0.6/0.3 mm.
+- Smallest hole 0.3 mm; 394 plated and 15 non-plated holes; no slots.
 - Solder mask on both sides, silkscreen on the top only.
 - Surface finish ENIG: flat pads for U4/U11 (VSSOP-8, 0.5 mm pitch) and the exposed pads of U5
   (WSON-6, 2 x 2 mm) and U6 (HSOP-8).

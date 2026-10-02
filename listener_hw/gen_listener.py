@@ -1140,8 +1140,8 @@ def power_block(sh):
     node = (73.66, y)
     sh.wire(l2.p("2"), node, (99.06, y))
     g = j4.p("2")
-    sh.wire(g, (33.02, g[1]), (33.02, 60.96))
-    sh.gnd((33.02, 60.96))
+    sh.wire(g, (33.02, g[1]), (33.02, 58.42))
+    sh.gnd((33.02, 58.42))
     sh.flag((33.02, 55.88))
     sh.up("VBAT_P", node, 5.08)
     sh.flag((78.74, y))
@@ -1199,12 +1199,14 @@ def power_block(sh):
                     fjust=("right", "right"))
     sh.wire(vn, c4.p("1"), c43.p("1")); sh.gnd(c4.p("2")); sh.gnd(c43.p("2"))
     # two electrolytics, each with a ceramic beside it: the harness is long, and its
-    # inductance rings with ceramics alone on load steps (LMR38020 data sheet 9.2.2.6)
+    # inductance rings with ceramics alone on load steps (LMR38020 data sheet 9.2.2.6);
+    # C82 (2026-10-02): the user's copy of C47, on the board beside L2 and C45
     prev = c43
     for k, (key, ref, val, fp) in enumerate((("CP", "C44", "100u 63V", "Capacitor_SMD:CP_Elec_10x10.5"),
                                              ("C", "C46", "100n 100V", SMD["C"]),
                                              ("CP", "C45", "100u 63V", "Capacitor_SMD:CP_Elec_10x10.5"),
-                                             ("C", "C47", "100n 100V", SMD["C"]))):
+                                             ("C", "C47", "100n 100V", SMD["C"]),
+                                             ("C", "C82", "100n 100V", SMD["C"]))):
         x = vn[0] - 35.56 - 15.24 * k
         c = sh.at_pin(key, ref, val, "1", (x, vin[1]), fp=fp, ref_at=(x - 2.54, vin[1] + 2.54),
                       val_at=(x - 2.54, vin[1] + 5.08), fjust=("right", "right"))
@@ -1264,6 +1266,13 @@ def power_block(sh):
                     ref_at=(xr - 2.54, en[1] + 2.54), val_at=(xr - 2.54, en[1] + 5.08),
                     fjust=("right", "right"))
     sh.gnd(c23.p("2"))
+    # C80 100n (2026-10-02): on the board beside U10 and C23, the one at the trunk's end once C66
+    # went over to U14
+    c80 = sh.at_pin("C", "C80", "100n", "1", (xr - 12.7, vin[1]), fp=SMD["C"],
+                    ref_at=(xr - 15.24, vin[1] + 2.54), val_at=(xr - 15.24, vin[1] + 5.08),
+                    fjust=("right", "right"))
+    sh.wire((xr, vin[1]), c80.p("1"))
+    sh.gnd(c80.p("2"))
     sh.gnd(u10.p("2"))
     sh.nc(u10.p("4"))
     r22 = sh.at_pin("R", "R22", "24k9 1%", "1", u10.p("5"), fp=SMD["R"])
@@ -1846,6 +1855,12 @@ def digital_audio_block(sh):
     sh.wire(en, (vin[0] - 5.08, en[1]), (vin[0] - 5.08, vin[1]))
     c48 = sh.at_pin("C", "C48", "1u", "1", (xr - 7.62, vin[1]), fp=SMD["C"])
     sh.wire((xr, vin[1]), c48.p("1")); sh.gnd(c48.p("2"))
+    # C81 100u 16V (2026-10-02): the user's copy of C78, on the board at the trunk's top-right
+    # end beside U10 and U14 - the counterpart of C63 at D3
+    c81 = sh.at_pin("CP", "C81", "100u 16V", "1", (xr - 17.78, vin[1]), fp="Capacitor_SMD:CP_Elec_6.3x7.7",
+                    ref_at=(xr - 20.32, vin[1] + 2.54), val_at=(xr - 20.32, vin[1] + 5.08),
+                    fjust=("right", "right"))
+    sh.wire(c48.p("1"), c81.p("1")); sh.gnd(c81.p("2"))
     sh.nc(u14.p("4")); sh.gnd(u14.p("2"))
     vo = u14.p("5")
     nda = (vo[0] + 5.08, vo[1])
