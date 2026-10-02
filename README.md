@@ -74,7 +74,7 @@ which lets one resolved thermal spoke connect a pad to a pour. The reasons
 behind every part's place are in the generator's table.
 
 The routing (board v1.4): the bottom is one ground plane, crossed only by
-short jumpers (9 of them, 24 mm in all, the longest 3.7 mm); signals and
+short jumpers (6 of them, 14 mm in all, the longest 3.7 mm); signals and
 supplies run on top, the supplies as wide tracks that change layer nowhere but
 at one 3V3_AON and one 3V3_SW jumper, and the top's ground pour is stitched to the plane by
 vias about every 6 mm. Every SMD ground pad has a via of its own beside it. The
@@ -99,15 +99,22 @@ only if routing it again cost no jumper and no via more: 56 mm less copper on
 top, the same 37 jumpers. The board was then re-placed group by group and routed
 again after each: the ring and clock cluster round J1, the S/PDIF group (U12,
 U13) packed tighter, the DAC moved left - 37 jumpers became 11, 83 mm of bottom
-copper 29. What remains crosses where pin orders or a walled pin leave no way on
-top (I2S_BCLK at U15, SRC_BCLK under M2, RST_AIN into U12, six in the ring's
-corner round J1). The DAC's 3V3_DAC runs on top too now -
+copper 29. A further round on 2026-10-02, after parts were moved again, took three
+more out: R29 sits where SRC_BCLK crossed under M2 and the line runs between its
+pads; RST_AIN reaches U12 through U13's body and under C39 and X1, with R30 by U13
+and U13's 3.3 V links outside its body; R38, R40 and R41 stand right of M1's row
+and R39 under M2, so the DAC's BCLK comes down through their bodies on top of its
+bundle and U15 gets BCLK, DOUT and LRCK in its own order. The six jumpers left are
+in the ring's corner round J1: RX_BUF and 3V3_AON cross the 5 V trunk between U1
+and U4/U5, RX_BUF, SI_SCL and SI_SDA cross RT_CLK between the Si514 and M1, and
+3V3_SW crosses SI_SCL along M1's row; the first five could only go if the trunk
+or the clock itself took a jumper. The DAC's 3V3_DAC runs on top too now -
 under the I2S lines, between C45's pads and under U15's capacitors - and 5V_SW
 comes beside it to the line-out buffer U17 (block 11 of the sheet), with
 100 uF + 100 nF (C78, C79) at its end. On one layer the dual op-amp needs two
 crossings: 5V_SW passes between R45's pads, VNEG_A under U17's body. The
 Si514's land pattern takes the 3.2x5 and 2.5x3.2 packages only, R3 is two 27 k
-in parallel (R3, R42), and four test points (TP1, TP3, TP8, TP10) are gone.
+in parallel (R3, R42), and five test points (TP1, TP3, TP4, TP8, TP10) are gone.
 J5 and J6 sit where Everlight's drawing puts the T10 housing: its pegs 2.63 mm
 in front of the pins, towards the port, and its front foot, 8.76 mm in front of
 them, on the board's edge - the pins 8.5 mm from it, the port 2.6 mm past it.
@@ -118,7 +125,8 @@ on top, two jumpers fewer.
 M1 and M2 are soldered to the board on pin headers, no sockets - two 1x20 and
 two 1x19 on 2.54 mm, which the 3D view shows under them, as it shows J2's and
 J3's. The headers' plastic leaves 2.5 mm under each module: room for the 0603
-resistors under M1 (R11, R12, R18..R21, R34..R41); nothing stands under M2.
+resistors under M1 (R11, R12, R18..R21, R34..R37) and under M2 (R29, R38..R41);
+M2's courtyard is its two pin rows and the antenna's end.
 KiCad has no model for the MOST FOT, the TOSLINK housings or the RCA jacks, so
 `gen_listener.py` draws their bodies from the same drawings, as STEP files in
 `most_listener.3dshapes`.
