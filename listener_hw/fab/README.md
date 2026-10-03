@@ -1,4 +1,4 @@
-# Manufacturing package: MOST25 to AUDIO: listener board, rev 1.4 (2026-10-02)
+# Manufacturing package: MOST25 to AUDIO: listener board, rev 1.5 (2026-10-03)
 
 Written by `make_fab.py` from `most_listener.kicad_pcb` and the sheet; do not edit by hand. Run it
 again after any change to the board: `check_all.py` fails while this folder does not match.
@@ -20,10 +20,10 @@ again after any change to the board: `check_all.py` fails while this folder does
 
 ## The board
 
-- 125 x 80 mm, 2 layers, FR-4 1.6 mm,
+- 122.5 x 78.9 mm, 2 layers, FR-4 1.6 mm,
   35 um (1 oz) copper on both sides.
-- Tracks from 0.25 mm, clearance 0.15 mm; 264 vias of 0.6/0.3 mm.
-- Smallest hole 0.3 mm; 394 plated and 15 non-plated holes; no slots.
+- Tracks from 0.25 mm, clearance 0.15 mm; 251 vias of 0.6/0.3 mm.
+- Smallest hole 0.3 mm; 381 plated and 15 non-plated holes; no slots.
 - Solder mask on both sides, silkscreen on the top only.
 - Surface finish ENIG: flat pads for U4/U11 (VSSOP-8, 0.5 mm pitch) and the exposed pads of U5
   (WSON-6, 2 x 2 mm) and U6 (HSOP-8).
