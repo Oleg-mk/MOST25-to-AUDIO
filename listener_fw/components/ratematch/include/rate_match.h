@@ -79,6 +79,11 @@ typedef struct {
 int rm_init(rm_t *r, int16_t *buf, uint32_t cap, uint32_t fs_in, uint32_t fs_out,
             double target_ms);
 
+// The fill to ask rm_init for: want_ms, or less if a buffer of cap frames at
+// fs_in cannot hold that with a quarter of it still free above (a smaller
+// buffer than the 16384 frames in PSRAM: the internal-RAM fallback).
+double rm_target_ms(uint32_t cap, uint32_t fs_in, double want_ms);
+
 // Producer (Bluetooth task). Returns the frames accepted; the rest are
 // dropped (and counted) when the consumer has stopped pulling.
 uint32_t rm_push(rm_t *r, const int16_t *lr, uint32_t frames);

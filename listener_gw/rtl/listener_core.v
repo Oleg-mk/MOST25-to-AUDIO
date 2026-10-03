@@ -56,6 +56,7 @@ module listener_core #(
     parameter CAP_AW    = 16,               // capture buffer, 2^CAP_AW runs (16 = 32 BSRAM blocks)
     parameter RELEARN   = 495000,           // clk_s without a locked frame before the receiver relearns
     parameter INJ_FADE_LOG2 = 8,            // injection fades take 2^INJ_FADE_LOG2 frames (inject.v)
+    parameter INJ_LEASE     = 198_000_000,  // clk_s cycles an injection command lasts without a repeat (2 s)
     // Si514 and its loop; the defaults are the real ones (sim/dpll_model.py,
     // sim/run_dpll.py), simulation of the whole core shortens them. The
     // Si514's I2C address is not a parameter: si514_ctrl finds it.
@@ -185,7 +186,7 @@ module listener_core #(
                       .overrun());
 
     // ------------------------------------------------- audio into the ring
-    inject #(.FADE_LOG2(INJ_FADE_LOG2))
+    inject #(.FADE_LOG2(INJ_FADE_LOG2), .LEASE(INJ_LEASE))
                u_inj (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(hok), .cmd(hcmd), .cmd_p(hp),
                       .clk_r(clk_r), .rst_r(rst_r), .st(rg_st), .st_len(rg_len),
                       .phase_n(tdm_n), .i2s_run(tdm_valid), .din(i2s_din), .din2(i2s_din2),

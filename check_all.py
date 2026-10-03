@@ -4,11 +4,15 @@
     python check_all.py            everything (~40 min)
     python check_all.py --quick    without run_dpll.py (the clock loop's long runs)
     python check_all.py --sweep    plus sweep_core.py --jobs 1 (32 random rings, ~1 h more)
+    python check_all.py --strict   a step that could not run counts as failed (for a release)
 
 Strictly sequential: never two simulations or builds at once. Each step
 prints PASS or FAIL as its own tool returned it; the summary lists them and
 the exit status is 1 if any failed. A step whose tool is missing is reported
-as SKIPPED - read the word, it is not a pass.
+as SKIPPED - read the word, it is not a pass; with --strict a SKIPPED step,
+and the git steps left out for want of git, make the exit status 1 too.
+A report a later step reads (the DRC's JSON) is deleted before the step that
+writes it, so a step that did not run can never pass on an old report.
 
 Tools (environment variables override the defaults):
   OSS_CAD    ~/toolchains/oss-cad-suite       iverilog, vvp (simulations)
@@ -60,6 +64,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="leave out run_dpll.py")
     ap.add_argument("--sweep", action="store_true", help="add sweep_core.py --jobs 1")
+    ap.add_argument("--strict", action="store_true", help="a step that cannot run is a failure")
     a = ap.parse_args()
     py = sys.executable
     sim_env = env_with(OSS / "bin", OSS / "lib")
@@ -96,6 +101,7 @@ def main():
     # master, so only its DRC runs here: no error, nothing unconnected, no difference from the
     # sheet; the verdict is read from the JSON report
     (hw / "work").mkdir(exist_ok=True)
+    (hw / "work" / "drc.json").unlink(missing_ok=True)      # this run's report or none
     step("board: DRC", [str(KICAD), "pcb", "drc", "--severity-error", "--schematic-parity", "--format", "json",
                         "--output", "work/drc.json", "most_listener.kicad_pcb"], hw, need=KICAD)
     step("board: DRC reports no error, nothing unconnected, and the board matches the sheet",
@@ -105,7 +111,10 @@ def main():
                     "len(d['unconnected_items']), 'unconnected'); "
                     "sys.exit(1 if d['violations'] or p or d['unconnected_items'] else 0)"], hw,
          need=hw / "work" / "drc.json")
-    if shutil.which("git") and (ROOT / ".git").exists():
+    if not (shutil.which("git") and (ROOT / ".git").exists()):
+        print("\n=== the generator's and fab/'s checks against the commit: SKIPPED (no git, or no .git)", flush=True)
+        results.append(("schematic and fab against the commit", "SKIPPED", 0.0))
+    else:
         # everything the schematic generator writes, not the sheet alone
         step("schematic: the generator reproduces the committed files",
              ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
@@ -124,8 +133,9 @@ def main():
         print(f"{verdict:8s} {dt / 60:5.1f} min  {name}")
     bad = [r for r in results if r[1] == "FAIL"]
     skipped = [r for r in results if r[1] == "SKIPPED"]
-    print(f"\n{len(results) - len(bad) - len(skipped)} passed, {len(bad)} failed, {len(skipped)} skipped")
-    return 1 if bad else 0
+    print(f"\n{len(results) - len(bad) - len(skipped)} passed, {len(bad)} failed, {len(skipped)} skipped"
+          + (" - strict: a skipped step is a failure" if a.strict and skipped else ""))
+    return 1 if bad or (a.strict and skipped) else 0
 
 
 if __name__ == "__main__":

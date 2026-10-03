@@ -88,6 +88,14 @@ static uint64_t to_q32(double v)
     return (uint64_t)llround(v * 4294967296.0);
 }
 
+double rm_target_ms(uint32_t cap, uint32_t fs_in, double want_ms)
+{
+    // rm_init needs target + RM_TAPS below cap - RM_TAPS - 16; a quarter of cap stays above
+    const uint32_t keep = 2 * RM_TAPS + 16 + cap / 4;
+    const double ms = cap > keep && fs_in ? (double)(cap - keep) * 1000.0 / fs_in : 0.0;
+    return ms < want_ms ? ms : want_ms;
+}
+
 int rm_init(rm_t *r, int16_t *buf, uint32_t cap, uint32_t fs_in, uint32_t fs_out,
             double target_ms)
 {

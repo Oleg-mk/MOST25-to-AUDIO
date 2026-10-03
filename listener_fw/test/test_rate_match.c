@@ -262,11 +262,30 @@ static void test_events(void)
     }
 }
 
+// The internal-RAM fallback (no PSRAM): 8192 frames cannot keep 200 ms; it found
+// rm_init refusing at both phone rates and the output silent for good (audit R10).
+static void test_fallback(void)
+{
+    static int16_t small[2 * 8192];
+    static rm_t r;
+    printf("fallback buffer, 8192 frames:\n");
+    for (int k = 0; k < 2; k++) {
+        const uint32_t fs = k ? 48000 : 44100;
+        const double t = rm_target_ms(8192, fs, 200.0);
+        const int bad = rm_init(&r, small, 8192, fs, 48000, 200.0), good = rm_init(&r, small, 8192, fs, 48000, t);
+        printf("  %u Hz: 200 ms refused (%d), %.0f ms taken (%d)\n", (unsigned)fs, bad, t, good);
+        CHECK(bad == -1 && good == 0 && t >= 120.0, "%u Hz: the fallback keeps at least 120 ms", (unsigned)fs);
+    }
+    CHECK(rm_target_ms(16384, 44100, 200.0) == 200.0 && rm_target_ms(16384, 48000, 200.0) == 200.0,
+          "the PSRAM buffer keeps its 200 ms");
+}
+
 int main(void)
 {
     test_filter();
     test_steady();
     test_events();
+    test_fallback();
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails != 0;
 }

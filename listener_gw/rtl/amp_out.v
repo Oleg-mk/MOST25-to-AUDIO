@@ -22,19 +22,29 @@
 //     P[7:6], P[3] zero; anything else is refused whole
 //     L0..R2  frame byte index 0..63 of each sample byte, MSB first (L2/R2
 //             ignored at 16 bit, R0..R2 when mono)
-//   A5 5A 03  A  V3 V2 V1 V0  F  0  X       one coefficient word
+//   A5 5A 03  A  V3 V2 V1 V0  F  T  X       one coefficient word
 //     A       address 0..63 (the map: sim/dsp_asm.py)
 //     V3..V0  the word, Q4.28, most significant byte first
 //     F[0]    commit: after this word, the bank written becomes the one in use
-//     F[7:1] and the last byte zero; anything else is refused whole
+//     F[7:1]  zero; anything else is refused whole
+//     T       the set's tag: the same in every word of one set, another for the next
 //
 // Coefficients live in two banks. The host writes the one not in use, word
 // by word, and commits with the last word; the engine switches banks only
 // between two runs of its program, so no frame is ever computed from half an
-// old and half a new set. The host writes the whole set every time (the bank
-// it writes next holds the set before last). A command packet takes 37 us on
-// the UART, the switch at most one program run (9 us) after the commit, so
-// the next write never reaches the bank still in use.
+// old and half a new set. A set is a transaction: the host sends its words in
+// address order 0 .. DSP_C_IMAGE-1 (dsp_map.vh) under one tag, the commit with
+// the last, and a commit switches banks only if every word of the set came,
+// in that order, under that tag. A word out of order - one lost before it, or
+// a stray of another set - breaks the set; a new tag starting at address 0
+// begins the next. A broken set's commit is dropped; the host sends its whole
+// set again every 2 s. Without this a lost word left, at its address, the
+// value of the set before last - which is what the bank written next holds -
+// and went live mixed with the new. (A 6-bit count of the words in order: a
+// mask of all 47 addresses cost the clk_s domain 11 MHz of placement margin.)
+// A command packet takes 37 us on the UART, the switch at most one program
+// run (9 us) after the commit, so the next write never reaches the bank
+// still in use.
 //
 // The sources are taken from the frame as it left the listener: where our
 // own audio replaced bytes on the ring (inject.v), the same bytes stand in
@@ -189,24 +199,32 @@ module amp_out (
     end
 
     // ------------------------------------------- command 03, banks (clk_s)
+`include "dsp_map.vh"
     reg [31:0] cmem [0:127];                // {bank, address}
     integer i;
     initial for (i = 0; i < 128; i = i + 1) cmem[i] = 32'd0;
     // not reset: they must agree with the ring side, which keeps its bank
     reg bank_w = 1'b0, c_tgl = 1'b0, c_bank = 1'b0;
-    wire w_ok = ok_q && cmd_q == 8'h03 && p_q[55:54] == 2'd0 &&
-                p_q[15:9] == 7'd0 && p_q[7:0] == 8'd0;
+    wire w_ok = ok_q && cmd_q == 8'h03 && p_q[55:54] == 2'd0 && p_q[15:9] == 7'd0;
     reg         w03;                        // decoded once more, as for command 01
     reg  [5:0]  w03_a;
     reg  [31:0] w03_v;
     reg         w03_c;
+    reg  [7:0]  w03_t;
     always @(posedge clk_s) begin
-        w03 <= w_ok; w03_a <= p_q[53:48]; w03_v <= p_q[47:16]; w03_c <= p_q[8];
+        w03 <= w_ok; w03_a <= p_q[53:48]; w03_v <= p_q[47:16]; w03_c <= p_q[8]; w03_t <= p_q[7:0];
     end
+    // the set being written: its tag, and the address its next word must have
+    // (7'h7F: broken, until a new tag starts at address 0)
+    reg  [7:0] t_cur = 8'd0;
+    reg  [6:0] nxt = 7'h7F;
+    wire       in_seq = (w03_t == t_cur) ? (nxt == {1'b0, w03_a}) : (w03_a == 6'd0);
     always @(posedge clk_s) begin
         if (w03) begin
             cmem[{bank_w, w03_a}] <= w03_v;
-            if (w03_c) begin
+            t_cur <= w03_t;
+            nxt <= (in_seq && !w03_c) ? {1'b0, w03_a} + 7'd1 : 7'h7F;
+            if (w03_c && in_seq && w03_a == DSP_C_IMAGE - 1) begin
                 c_bank <= bank_w; c_tgl <= ~c_tgl; bank_w <= ~bank_w;
             end
         end

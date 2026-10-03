@@ -178,12 +178,12 @@ static void test_cmd(void)
     CHECK(c[3] == 0x23 && c[7] == 7 && c[8] == 8, "stream 2, 24-bit stereo: P = 23h");
     lsn_cmd_source(c, 2, 0, 0, NULL, NULL);
     CHECK(c[3] == 0x20 && c[4] == 0, "stream 2 off: P = 20h");
-    lsn_cmd_word(c, 46, (int32_t)0xFF012345, 1);
-    const uint8_t w46[LSN_CMD_LEN] = {0xA5, 0x5A, 0x03, 46, 0xFF, 0x01, 0x23, 0x45, 0x01, 0x00,
-                                      (uint8_t)(0xA5 ^ 0x5A ^ 0x03 ^ 46 ^ 0xFF ^ 0x01 ^ 0x23 ^ 0x45 ^ 0x01)};
-    CHECK(memcmp(c, w46, sizeof w46) == 0, "coefficient word: address, value MSB first, commit");
-    lsn_cmd_word(c, 5, 0x10000000, 0);
-    CHECK(c[3] == 5 && c[4] == 0x10 && c[8] == 0x00 && c[9] == 0x00, "coefficient word without commit");
+    lsn_cmd_word(c, 46, (int32_t)0xFF012345, 1, 0x7C);
+    const uint8_t w46[LSN_CMD_LEN] = {0xA5, 0x5A, 0x03, 46, 0xFF, 0x01, 0x23, 0x45, 0x01, 0x7C,
+                                      (uint8_t)(0xA5 ^ 0x5A ^ 0x03 ^ 46 ^ 0xFF ^ 0x01 ^ 0x23 ^ 0x45 ^ 0x01 ^ 0x7C)};
+    CHECK(memcmp(c, w46, sizeof w46) == 0, "coefficient word: address, value MSB first, commit, the set's tag");
+    lsn_cmd_word(c, 5, 0x10000000, 0, 0x7C);
+    CHECK(c[3] == 5 && c[4] == 0x10 && c[8] == 0x00 && c[9] == 0x7C, "coefficient word without commit");
     uint8_t x = 0;
     for (int i = 0; i < LSN_CMD_LEN; i++)
         x ^= c[i];

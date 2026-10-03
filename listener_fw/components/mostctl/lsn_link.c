@@ -119,10 +119,10 @@ void lsn_cmd_capture(uint8_t out[LSN_CMD_LEN], uint8_t mode)
     cmd(out, 0x04, mode, NULL, NULL);
 }
 
-void lsn_cmd_word(uint8_t out[LSN_CMD_LEN], uint8_t addr, int32_t value, int commit)
+void lsn_cmd_word(uint8_t out[LSN_CMD_LEN], uint8_t addr, int32_t value, int commit, uint8_t tag)
 {
     const uint32_t v = (uint32_t)value;
     const uint8_t l[3] = {(uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8)};
-    const uint8_t r[3] = {(uint8_t)v, (uint8_t)(commit ? 1 : 0), 0};
+    const uint8_t r[3] = {(uint8_t)v, (uint8_t)(commit ? 1 : 0), tag};
     cmd(out, 0x03, addr, l, r);
 }

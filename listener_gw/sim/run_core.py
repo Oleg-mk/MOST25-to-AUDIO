@@ -49,6 +49,10 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              g/256, g up after HOLD + 2 silent frames, down to the switch, HOLD + 2
              silent frames, up on DIN2, down after "off" - one step per frame
              (the other corners fade in one step: FADE_LOG2 0)
+  lease      core48 over 300 frames, "inject" sent once and never again, no "off",
+             the injector's lease 300 us: the injection must end after the
+             lease, one frame either way, and the line be the ring's from then
+             on. Before the lease an "on" outlived a host that went silent
 The corners run one after another (about a minute each); --only NAME runs one.
 
 Usage: python run_core.py [--only NAME]      needs oss-cad-suite on PATH
@@ -68,6 +72,8 @@ SRC = ["tb_core.v", "si514_model.v"] + [str(RTL / f) for f in (
     "capture.v", "ctrl_uart.v", "uart_rx.v", "host_cmd.v", "dsp_core.v", "amp_out.v", "spdif_tx.v", "inject.v",
     "i2c_master.v",
     "si514_ctrl.v", "tx_pre.v", "dpll.v", "listener_core.v")]
+
+LEASE_CLK = 29700          # corner lease: the injector's lease, 300 us of clk_s
 
 CORNERS = [
     # name        stimulus (make_stim.py)                                    compile options
@@ -99,6 +105,8 @@ CORNERS = [
     ("fade",      ["--fs", "48000", "--frames", "1400", "--pwd", "0.316", "--jit", "0.195",
                    "--ppm", "0", "--seed", "7"], ["-Ptb_core.MAXCLK=3000000", "-Ptb_core.FADE_TEST=1",
                                                   "-Ptb_core.FADE_LOG2=8"]),
+    ("lease", ["--fs", "48000", "--frames", "300", "--pwd", "0.316", "--jit", "0.195",
+               "--ppm", "0", "--seed", "7"], ["-Ptb_core.LEASE_TEST=1", f"-Ptb_core.INJ_LEASE={LEASE_CLK}"]),
 ]
 
 
@@ -147,6 +155,9 @@ def main():
             ok = cc.check_clkstop(d)
         elif name == "bit_err":
             ok = cc.check_err(d, 48000) & cc.check_wd(d)
+        elif name == "lease":
+            truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
+            ok = cc.check_lease(d, truth, LEASE_CLK / 99.0, 48000) & cc.check_wd(d)
         elif name == "capture":
             truth = [l.strip() for l in (d / "frames.hex").read_text().split()]
             ok = cc.check_capture(d) & cc.check_uart(d, truth) & cc.check_wd(d)

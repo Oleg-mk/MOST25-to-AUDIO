@@ -780,6 +780,26 @@ def check_fbdead(d, fs):
     return ok
 
 
+def check_lease(d, truth, lease_us, fs):
+    """Corner lease: "inject" sent once and never again, no "off". The injector's
+    lease (inject.v) must end it as an "off" would: the injected run of frames
+    lasts the lease (from the command; one frame either way, plus the fade
+    down's one frame), then the line is the ring's to the end. Before the
+    lease, the run went on to the end of the simulation."""
+    INJ = inj_positions(d) or (1, 2, 3, 4, 5, 6)
+    seq = match_tx(d, truth, INJ)
+    flags = [inj for k, _, inj in seq if k is not None]
+    first = next((i for i, x in enumerate(flags) if x), None)
+    last = max((i for i, x in enumerate(flags) if x), default=None)
+    n = 0 if first is None else last - first + 1
+    want = lease_us * 1e-6 * fs
+    after = 0 if last is None else len(flags) - 1 - last
+    ok = first is not None and all(flags[first:last + 1]) and abs(n - want) <= 3 and after >= 20
+    print(f"LEAS: {'PASS' if ok else 'FAIL'}  injected {n} frames in one run, the lease is {want:.1f}; "
+          f"{after} frames of the ring's own line after it")
+    return ok
+
+
 def check_err(d, fs):
     """One edge of the ring's line removed after LOCK (make_stim --kill-edge-frame;
     meta.json kill_frame, kill_edge_ui): two runs merged into one of a wrong

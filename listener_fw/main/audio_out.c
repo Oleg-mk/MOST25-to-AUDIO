@@ -10,12 +10,18 @@
 //
 // The ring's rate: the DMA only takes data as BCLK clocks it out, so the
 // time a run of blocks takes to go out is the ring's frame rate. Measured
-// once the clocks run; 44.1 or 48 kHz, nothing else is accepted.
+// once the clocks run, and again whenever they come back after stopping (a
+// ring restarted at the other rate would otherwise be converted 8.8 % off,
+// far beyond ratematch's 1000 ppm); 44.1 or 48 kHz, nothing else is accepted.
 //
 // Clocks gone (the Si514 is being centred, or the ring sleeps): the write
-// times out. The block that did not go out is kept and retried, so no audio
-// is lost on this side; ratematch sees a consumer that stopped, and when the
-// clocks come back it drops what went stale.
+// times out and the block is retried. When the clocks come back, the rate is
+// measured anew with zeros going out, and the conversion starts afresh at the
+// rate found: what was buffered before is old by then anyway.
+//
+// The buffer: 16384 frames in PSRAM (200 ms kept); without PSRAM 8192 in
+// internal RAM, which keeps what rm_target_ms allows (125 ms at 48 kHz), said
+// in the log.
 #include "audio_out.h"
 
 #include <math.h>
@@ -87,8 +93,8 @@ void audio_out_push(const uint8_t *pcm, uint32_t len)
     xSemaphoreGive(s_lock);
 }
 
-// Write one block; keeps retrying while the clocks are gone.
-static void write_block(const int32_t *lr)
+// Write one block; keeps retrying while the clocks are gone. Returns 1 if it had to wait.
+static int write_block(const int32_t *lr)
 {
     const uint8_t *p = (const uint8_t *)lr;
     size_t left = 2 * BLOCK * sizeof(int32_t);
@@ -105,6 +111,7 @@ static void write_block(const int32_t *lr)
     }
     if (waited)
         ESP_LOGI(TAG, "BCLK back");
+    return waited;
 }
 
 // The ring's frame rate from the pace of the DMA: 44100, 48000, or 0.
@@ -130,10 +137,15 @@ static void setup(uint32_t fs_in)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     s_ready = 0;
-    if (rm_init(&s_rm, s_buf, s_cap, fs_in, s_fs_out, TARGET_MS) == 0) {
+    // 200 ms, or what the internal-RAM fallback can hold (125 ms at 48 kHz: still above A2DP's jitter)
+    const double target = rm_target_ms(s_cap, fs_in, TARGET_MS);
+    if (rm_init(&s_rm, s_buf, s_cap, fs_in, s_fs_out, target) == 0) {
         s_fs_in = fs_in;
         s_ready = 1;
         ESP_LOGI(TAG, "phone %lu Hz -> ring %lu Hz", (unsigned long)fs_in, (unsigned long)s_fs_out);
+        if (target < TARGET_MS)
+            ESP_LOGW(TAG, "a buffer of %lu frames (no PSRAM): %.0f ms kept, not %.0f", (unsigned long)s_cap,
+                     target, TARGET_MS);
     } else {
         ESP_LOGE(TAG, "cannot convert %lu Hz to %lu Hz", (unsigned long)fs_in, (unsigned long)s_fs_out);
     }
@@ -155,7 +167,20 @@ static void out_task(void *arg)
             rm_pull(&s_rm, lr, BLOCK);
         else
             memset(lr, 0, sizeof lr);
-        write_block(lr);
+        if (write_block(lr)) {
+            // the ring stopped and came back, perhaps at another rate: measure it
+            // again (zeros out meanwhile) and start the conversion afresh
+            xSemaphoreTake(s_lock, portMAX_DELAY);
+            s_ready = 0;
+            xSemaphoreGive(s_lock);
+            uint32_t fs;
+            while ((fs = measure_fs()) == 0)
+                ;
+            if (fs != s_fs_out)
+                ESP_LOGW(TAG, "the ring runs at %lu Hz now (was %lu)", (unsigned long)fs, (unsigned long)s_fs_out);
+            s_fs_out = fs;
+            setup(s_fs_req);
+        }
         if (esp_timer_get_time() > next_log) {
             rm_status_t st;
             rm_status(&s_rm, &st);

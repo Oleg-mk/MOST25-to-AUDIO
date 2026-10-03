@@ -17,6 +17,19 @@
 // stereo is 4 channels (16 bit: L-Hi, L-Lo, R-Hi, R-Lo) or 6 (24 bit).
 //
 // Everything is idempotent: a NAKed telegram shows up to 6 times on the wire.
+//
+// Instances. A request may name InstID 0 or 0xFF (any instance: the device
+// picks); its answer names the real one. So requests are filed under the
+// device (the target) and the instance that device has shown in its own
+// telegrams; one that comes before the device has shown any waits under
+// instance 0 and moves to the real instance with the first answer.
+// Connect. Its Result counts only as the answer to a Connect.StartResult still
+// open for that sink: DisConnect, an Error and a reset close it, so a late
+// Result never brings a cancelled connection back.
+// Formats. SourceInfo and SinkInfo are taken only for PCM at 16 or 24 bit
+// (Resolution 2 or 3 bytes), 1 or 2 channels, with a channel list exactly
+// Resolution x AudioChannels long; anything else there voids what was known.
+// Mute to SinkNr 0 is kept per instance and given to sinks seen later too.
 #pragma once
 
 #include <stdint.h>
@@ -28,6 +41,7 @@
 #define AM_SOURCES    4
 #define AM_SINKS      8
 #define AM_MAX_CH     8
+#define AM_DEVS       8
 
 typedef struct {
     uint8_t n;                  // 0: none known
@@ -35,8 +49,11 @@ typedef struct {
 } am_list_t;
 
 typedef struct {
-    struct { uint8_t used, inst, nr; am_list_t ch; } src[AM_SOURCES];       // AuxIn
-    struct { uint8_t used, inst, nr, connected, muted; am_list_t ch, pend; } sink[AM_SINKS];  // amp
+    struct { uint8_t used, inst, nr; uint16_t dev; am_list_t ch; } src[AM_SOURCES];         // AuxIn
+    struct { uint8_t used, inst, nr, connected, muted, pend_ok; uint16_t dev; am_list_t ch, pend; }
+        sink[AM_SINKS];                                                                    // amp
+    struct { uint8_t used, fb, inst; uint16_t dev; } where[AM_DEVS];    // a device's instance of an FBlock
+    struct { uint8_t used, inst, muted; uint16_t dev; } mute0[AM_SINKS];  // Mute to SinkNr 0, per instance
 } am_t;
 
 // Where a stereo stream sits in the frame: frame byte indices, MSB first.

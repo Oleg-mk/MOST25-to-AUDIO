@@ -31,7 +31,24 @@
 // must not leave the FPGA injecting), and again every 2 s: after a core reset
 // the FPGA's injection is off until told, and a repeated command changes
 // nothing there (inject.v takes the same settings at the next frame; the
-// same coefficient set committed again is the set in use).
+// same coefficient set committed again is the set in use). The injection
+// command is repeated every 0.5 s besides: the FPGA keeps an "on" only for
+// its lease (inject.v, 2 s), so a host that hangs takes our audio out of the
+// ring within 2 s. Each coefficient set goes out under a tag of its own
+// (amp_out.v switches only on a whole set).
+//
+// What may inject (from the critical audit of 2026-10-03):
+//  - only once allowed: 'i' on the console, kept in NVS, off on a new board.
+//    The control CRC is not checked (its polynomial is in no document), and
+//    nothing of ours goes into the car's ring before a recording of that car
+//    has shown the telegrams read right;
+//  - only while AUX's channels have been confirmed since the last gap in the
+//    control blocks (a frame counter that skips, a block the FPGA dropped):
+//    a gap may have hidden the DeAllocate that gave AUX's bytes to another
+//    source, so injection waits for AUX's next Allocate.Result or SourceInfo.
+//    J3 keeps its map through a gap: silence there is worse than a moment on
+//    a map one block old.
+// A block whose frame parity says a bit flipped is dropped (parity_ok).
 //
 // The FPGA sends a packet only for a locked, aligned block. None for 0.5 s:
 // the ring is down or restarting, and on a restart the channels are handed
@@ -82,7 +99,9 @@
 #define PIN_TX      15
 #define BAUD        3000000
 #define RESEND_US   2000000
+#define LEASE_US    500000              // the injection command again, well inside inject.v's 2 s lease
 #define STALE_US    500000
+#define PAR_LEARN   256                 // blocks that teach a ring's frame parity (85 ms)
 #define STATUS_US   10000000
 #define IMG_MIN_US  20000               // coefficient sets at most 50 a second
 #define SAVE_US     10000000            // settings to flash 10 s after the last change
@@ -111,6 +130,13 @@ static uint32_t s_fpga_dropped;
 static snd_t s_snd;
 static wheel_t s_wheel;
 static int s_img_dirty = 1, s_muted_sent = -1;
+static uint8_t s_img_tag;                            // the coefficient set's tag: another for every set
+static int s_inj_allowed;                            // NVS "inject": 'i' on the console
+static int s_inj_armed;                              // AUX's channels confirmed since the last gap
+static uint32_t s_next_frame, s_gaps;                // the frame counter the next block should carry
+static int s_have_frame;
+static int s_par_want = -1;                          // a clean block's count of frames at parity 1; -1 learning,
+static uint32_t s_par_hist[17], s_par_seen, s_par_dropped;   // -2 no parity on this ring
 static uint32_t s_fs_sent;
 static int64_t s_img_sent, s_save_at;
 static uint8_t *s_cap_len, *s_cap_gl, *s_cap_have;   // a dump: lengths, glitch flags, packet seen
@@ -158,6 +184,30 @@ typedef struct {
     snd_t snd;
 } snd_store_t;
 
+// Whether our audio may go into the car's ring at all ('i'): off until allowed.
+static void inj_load(void)
+{
+    nvs_handle_t h;
+    uint8_t v = 0;
+    if (nvs_open("host", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_u8(h, "inject", &v) != ESP_OK)
+            v = 0;
+        nvs_close(h);
+    }
+    s_inj_allowed = v == 1;
+    ESP_LOGI(TAG, "AUX injection %s ('i' on the console changes it)", s_inj_allowed ? "allowed" : "not allowed");
+}
+
+static void inj_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("host", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    if (nvs_set_u8(h, "inject", s_inj_allowed ? 1 : 0) != ESP_OK || nvs_commit(h) != ESP_OK)
+        ESP_LOGW(TAG, "injection setting not saved");
+    nvs_close(h);
+}
+
 static void snd_load(void)
 {
     snd_init(&s_snd);
@@ -193,8 +243,9 @@ static void send_image(void)
     if (dsp_image(&s_snd, &snd_cfg_default, muted, s_dx, fs ? fs : 48000, w) != 0)
         ESP_LOGW(TAG, "a tone shelf would not be stable once rounded: left flat");
     uint8_t c[LSN_CMD_LEN];
+    s_img_tag++;                                     // a set of its own: a lost word keeps it out whole
     for (int a = 0; a < DSP_C_IMAGE; a++) {
-        lsn_cmd_word(c, (uint8_t)a, w[a], a == DSP_C_IMAGE - 1);
+        lsn_cmd_word(c, (uint8_t)a, w[a], a == DSP_C_IMAGE - 1, s_img_tag);
         uart_write_bytes(HOST_UART, c, sizeof c);
     }
     if (s_img_dirty) {
@@ -233,7 +284,8 @@ static void decide(int force)
         s_src_seen = src;
     }
     const int spdif = src == AIN_TOSLINK;
-    const am_pos_t aux = src != AIN_NONE ? am_aux_playing(&s_am) : off, main_zone = am_main(&s_am);
+    const am_pos_t aux = src != AIN_NONE && s_inj_allowed && s_inj_armed ? am_aux_playing(&s_am) : off,
+                   main_zone = am_main(&s_am);
     // the amplifier's other sinks, J3's streams 1 and 2
     am_sink_t ex[2];
     am_extras(&s_am, ex, 2);
@@ -302,6 +354,13 @@ static void on_tel(void *ctx, const mm_tel_t *t)
     if (xQueueSend(s_trace, t, 0) != pdTRUE)
         s_trace_lost++;
     am_tel(&s_am, t);
+    // AUX's channels told anew (Allocate.Result, SourceInfo): what a gap may have hidden is known again
+    if (!s_inj_armed && t->fblock == AM_FB_AUXIN &&
+        ((t->fkt == 0x101 && (t->op == MM_OP_RESULT || t->op == MM_OP_RESULTACK)) ||
+         (t->fkt == 0x100 && t->op == MM_OP_STATUS))) {
+        s_inj_armed = 1;
+        ESP_LOGI(TAG, "AUX's channels confirmed: injection may go on");
+    }
     if (snd_tel(&s_snd, &snd_cfg_default, t)) {
         s_img_dirty = 1;
         s_save_at = esp_timer_get_time() + SAVE_US;
@@ -309,6 +368,41 @@ static void on_tel(void *ctx, const mm_tel_t *t)
     const int key = wheel_tel(&s_wheel, t);
     if (key)
         wheel_key(key);
+}
+
+// Frame parity. The control CRC cannot be checked, and the FPGA already drops
+// a block in which the line broke its code (rx_framer.v); but biphase mark lets
+// a bit flip with no code error (a lost mid-cell edge makes a 1 a 0). A frame's
+// parity bit makes the XOR of its bits 4..511 the same in every clean frame
+// (or in every clean frame but the block's first, if the rule takes in the
+// preamble), whatever its sense: so every clean block has the same count of
+// frames at 1, which the FPGA sends (status b6..b2). That count is learnt over
+// PAR_LEARN blocks; after that a block with another count is dropped. If no
+// count holds 95 % of them, the bit is no parity on this ring and is not used.
+static int parity_ok(uint8_t status)
+{
+    const int k = (status >> 2) & 0x1F;
+    if (s_par_want >= 0)
+        return k == s_par_want;
+    if (s_par_want == -2 || k > 16)
+        return 1;
+    s_par_hist[k]++;
+    if (++s_par_seen == PAR_LEARN) {
+        int best = 0;
+        for (int i = 1; i <= 16; i++)
+            if (s_par_hist[i] > s_par_hist[best])
+                best = i;
+        if (s_par_hist[best] * 100 >= (uint32_t)PAR_LEARN * 95) {
+            s_par_want = best;
+            ESP_LOGI(TAG, "frame parity: a clean block has %d frames at 1 (%lu of %d blocks); "
+                     "a block with another count is dropped", best, (unsigned long)s_par_hist[best], PAR_LEARN);
+        } else {
+            s_par_want = -2;
+            ESP_LOGW(TAG, "frame parity: no count in 95 %% of %d blocks (at most %lu): not a parity on this ring, "
+                     "not used", PAR_LEARN, (unsigned long)s_par_hist[best]);
+        }
+    }
+    return 1;                           // while learning: the ring's first 85 ms are taken
 }
 
 static void on_block(void *ctx, const lsn_block_t *b)
@@ -320,6 +414,21 @@ static void on_block(void *ctx, const lsn_block_t *b)
     s_stale = 0;
     if (b->status & LSN_ST_DROPPED)
         s_fpga_dropped++;
+    // a block missing (one the FPGA dropped, or one it never sent because the line broke in it)
+    const int gap = (s_have_frame && b->frame != s_next_frame) || (b->status & LSN_ST_DROPPED);
+    s_next_frame = b->frame + 16;
+    s_have_frame = 1;
+    if (gap) {
+        s_gaps++;
+        if (s_inj_armed)
+            ESP_LOGW(TAG, "a gap in the control blocks: injection held until AUX's channels are told again");
+        s_inj_armed = 0;
+    }
+    if (!parity_ok(b->status)) {
+        s_par_dropped++;                // a block lost as much as a missing one
+        s_inj_armed = 0;
+        return;
+    }
     mm_block(&s_mm, b->ctl, b->frame, on_tel, NULL);
 }
 
@@ -383,7 +492,16 @@ static void console_key(uint8_t ch)
     uint8_t c[LSN_CMD_LEN];
     if (ch == 'h' || ch == '?') {
         ESP_LOGI(TAG, "keys: c = capture %u runs now and dump when full, d = dump what was captured "
-                 "(after power-up: the ring's start-up)", (unsigned)CAP_RUNS);
+                 "(after power-up: the ring's start-up), i = AUX injection allowed or not (kept; now %s)",
+                 (unsigned)CAP_RUNS, s_inj_allowed ? "allowed" : "not allowed");
+        return;
+    }
+    if (ch == 'i') {
+        s_inj_allowed = !s_inj_allowed;
+        inj_save();
+        ESP_LOGW(TAG, "AUX injection %s", s_inj_allowed ? "ALLOWED: our audio goes into the car's ring when "
+                 "AUX plays" : "not allowed: the car's AUX passes untouched");
+        decide(1);
         return;
     }
     if (ch != 'c' && ch != 'd')
@@ -436,6 +554,7 @@ static void host_task(void *arg)
     static uint8_t buf[512];
     decide(1);                          // at once: an ESP32 reset must not leave the FPGA injecting
     int64_t next_resend = esp_timer_get_time() + RESEND_US, next_status = esp_timer_get_time() + STATUS_US;
+    int64_t next_lease = esp_timer_get_time() + LEASE_US;
     for (;;) {
         const int n = uart_read_bytes(HOST_UART, buf, sizeof buf, pdMS_TO_TICKS(20));
         if (n > 0)
@@ -450,22 +569,34 @@ static void host_task(void *arg)
             mm_init(&s_mm);
             am_init(&s_am);
             s_stale = 1;
+            s_inj_armed = 0;
             decide(1);
         }
         if (now > next_resend) {
             decide(1);
             next_resend += RESEND_US;
         }
+        if (now > next_lease) {
+            // the injection command again inside inject.v's lease, while ours is on
+            if (s_aux_sent.bits) {
+                uint8_t c[LSN_CMD_LEN];
+                lsn_cmd_inject(c, s_aux_sent.bits, 0, s_ain_sent, s_aux_sent.l, s_aux_sent.r);
+                uart_write_bytes(HOST_UART, c, sizeof c);
+            }
+            next_lease += LEASE_US;
+        }
         if (s_save_at && now > s_save_at) {
             s_save_at = 0;
             snd_save();
         }
         if (now > next_status) {
-            ESP_LOGI(TAG, "packets %lu (bad %lu, lost in the FPGA %lu), telegrams %lu, refused %lu, "
+            ESP_LOGI(TAG, "packets %lu (bad %lu, lost in the FPGA %lu, gaps %lu, parity dropped %lu), "
+                     "telegrams %lu, refused %lu, "
                      "segments dropped %lu, trace lost %lu, capture packets %lu (bad %lu), dumps %lu, "
                      "audio in %s (phone %s, TOSLINK %s)",
                      (unsigned long)s_rx.good, (unsigned long)s_rx.bad,
-                     (unsigned long)s_fpga_dropped, (unsigned long)s_mm.telegrams, (unsigned long)s_mm.rejected,
+                     (unsigned long)s_fpga_dropped, (unsigned long)s_gaps, (unsigned long)s_par_dropped,
+                     (unsigned long)s_mm.telegrams, (unsigned long)s_mm.rejected,
                      (unsigned long)s_mm.seg_dropped, (unsigned long)s_trace_lost, (unsigned long)s_rx.cap_good,
                      (unsigned long)s_rx.cap_bad, (unsigned long)s_cap_dumps, src_name(s_src_seen),
                      s_streaming ? "streaming" : "idle", s_opt_seen == 2 ? "not PCM" : opt_name(s_opt_seen));
@@ -482,6 +613,7 @@ void host_start(void)
     ain_init(&s_ain);
     wheel_init(&s_wheel);
     snd_load();
+    inj_load();
     s_trace = xQueueCreate(64, sizeof(mm_tel_t));
     ESP_ERROR_CHECK(s_trace ? ESP_OK : ESP_ERR_NO_MEM);
     const uart_config_t cfg = {

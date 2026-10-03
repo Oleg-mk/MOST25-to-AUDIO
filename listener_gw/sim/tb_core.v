@@ -20,6 +20,8 @@ module tb_core;
     parameter       FADE_LOG2 = 0;                   // the injector's fades: 2^FADE_LOG2 frames (0: one step)
     parameter       FADE_TEST = 0;                   // 1: inject DIN, switch to DIN2, off - long enough for full fades
     parameter       CAPTURE = 0;                     // 1: dump the power-up capture, then capture and dump anew
+    parameter       LEASE_TEST = 0;                  // 1: "inject" once, never repeated and never "off"
+    parameter       INJ_LEASE = 198000000;           // the injector's lease in clk_s (inject.v; real: 2 s)
     parameter real  GAP_AFTER_LOCK_US = -1.0;        // > 0: the line dies this long after LOCK...
     parameter real  GAP_US  = 20.0;                  // ...for this long (logged in out_gap.txt)
     parameter real  FB_DEAD_AFTER_LOCK_US = -1.0;    // > 0: TX_FB dies this long after LOCK, for good
@@ -105,6 +107,7 @@ module tb_core;
     reg  idin = 1'b0;                                // audio in, from the DSP model
     reg  idin2 = 1'b0;                               // audio in 2 (the S/PDIF receiver's place)
     listener_core #(.HOLD(8), .HOLD_RE(24), .SI_QDIV(4), .SI_FCAL(24'd2000), .INJ_FADE_LOG2(FADE_LOG2),
+                    .INJ_LEASE(INJ_LEASE),
                     .L_FRAMES(8), .LN48(22'd132000), .LN44(22'd143673), .LSPLIT(22'd137836),
                     .LDEV(22'd175), .K48(20'd275050), .K44(20'd253277),
                     .UPD(4), .LOCK_N(4), .SHIFT_ACC(16), .LOCK_ACC(32), .UNLOCK_ACC(256),
@@ -232,10 +235,10 @@ module tb_core;
             $fwrite(fcfg, "%0d %0d %0d %0d %0d %0d %0d %0d %0d %0d\n", $time, c, bad, w, l0, l1, l2, r0, r1, r2);
         end
     endtask
-    // one coefficient word for amp_out (command 03); commit with the last one
+    // one coefficient word for amp_out (command 03) of the set tagged t; commit with the last one
     integer wi;
-    task send_word(input [7:0] a, input [31:0] v, input commit);
-        send_cmd(8'h03, a, v[31:24], v[23:16], v[15:8], v[7:0], {7'd0, commit}, 8'd0, 1'b0);
+    task send_word(input [7:0] a, input [31:0] v, input commit, input [7:0] t);
+        send_cmd(8'h03, a, v[31:24], v[23:16], v[15:8], v[7:0], {7'd0, commit}, t, 1'b0);
     endtask
 
     // DSP model on the audio input: an I2S slave on our BCLK/LRCK, sending
@@ -268,13 +271,15 @@ module tb_core;
         end
         @(posedge lock);                                            // the loop has locked
         repeat (2000) @(posedge clk_s);
-        // J3's coefficients (map: sim/dsp_asm.py): every biquad straight through
-        // (b0 = 1.0 at 0, 5, .. 35), stream 0 to L x 1 and R x 0.5, gains at once
-        // (1 - k = 0 at 46, with the commit)
-        for (wi = 0; wi < 8; wi = wi + 1) send_word(5 * wi, 32'h1000_0000, 1'b0);   // not i: it feeds samp
-        send_word(8'd40, 32'h1000_0000, 1'b0);
-        send_word(8'd41, 32'h0800_0000, 1'b0);
-        send_word(8'd46, 32'h0000_0000, 1'b1);
+        // J3's coefficients (map: sim/dsp_asm.py), the whole set of 47 words under
+        // one tag, as amp_out switches only on a whole set: every biquad straight
+        // through (b0 = 1.0 at 0, 5, .. 35, the rest 0), stream 0 to L x 1 and
+        // R x 0.5, the other streams off, gains at once (1 - k = 0 at 46, with
+        // the commit)
+        for (wi = 0; wi < 46; wi = wi + 1)                                         // not i: it feeds samp
+            send_word(wi, (wi < 40 && wi % 5 == 0) || wi == 40 ? 32'h1000_0000 :
+                          wi == 41 ? 32'h0800_0000 : 32'h0000_0000, 1'b0, 8'd1);
+        send_word(8'd46, 32'h0000_0000, 1'b1, 8'd1);
         send_cmd(8'h01, 8'd3, 8'd4, 8'd1, 8'd3, 8'd2, 8'd4, 8'd1, 1'b1);   // wrong XOR: must be ignored
         send_cmd(8'h01, 8'd3, 8'd3, 8'd4, 8'd1, 8'd2, 8'd1, 8'd4, 1'b0);   // A: 24 bit, scrambled
         repeat (50000) @(posedge clk_s);
@@ -288,6 +293,9 @@ module tb_core;
             send_cmd(8'h01, 8'd2, 8'd1, 8'd2, 8'd0, 8'd3, 8'd4, 8'd0, 1'b0);   // B: J3 16 bit, bytes 1..4
             repeat (556000) @(posedge clk_s);
             send_cmd(8'h02, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 8'd0, 1'b0);
+        end else if (LEASE_TEST) begin
+            // once, then nothing: the lease must end it as an "off" would
+            send_cmd(8'h02, 8'd3, 8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 1'b0);
         end else begin
             if (!INJ_EARLY && !NO_INJECT) begin
 `ifdef NOFIX

@@ -85,7 +85,16 @@ runs down, the output fades out and waits for 200 ms of audio again. If the
 ring's clocks stop (the Si514 is re-centred, the ring sleeps), the write
 waits; the phone keeps sending, the buffer fills and new audio is dropped.
 When the clocks come back, what is buffered no longer joins what arrives
-next, so it is dropped whole and the output restarts on fresh audio.
+next, so it is dropped whole and the output restarts on fresh audio; the
+ring's rate is measured anew first (zeros go out meanwhile), since a ring
+that restarted at the other rate would be converted 8.8 % off, far beyond
+the loop's 1000 ppm (critical audit, R11).
+
+The buffer: 16384 frames in PSRAM, 200 ms kept. Without PSRAM, 8192 frames
+in internal RAM cannot keep 200 ms with room above it (as first written
+rm_init refused it at both phone rates and the output stayed silent: audit
+R10); `rm_target_ms` gives what they can - 125 ms at 48 kHz, 136 ms at
+44.1, above the 120 ms A2DP jitter takes - and the console says so.
 
 ## The host
 
@@ -101,16 +110,44 @@ if everything checkable holds: message type 0x00, target and source in their
 address ranges, TelID 0-3, TelLen within 12 (11 to a group address), data not
 idle. Segmented messages are put together by source and target; a segment
 sent again (a NAKed telegram comes up to 6 times) is skipped, a gap in
-MsgCnt or 5 s of silence drops the transfer.
+MsgCnt or 5 s of silence drops the transfer. Before that, a whole block is
+dropped if its frames disagree in parity: the FPGA counts the block's frames
+whose bits 4..511 XOR to 1, every clean block of a ring has the same count
+(the parity bit sees to it, whatever its rule), the host learns that count
+over the first 256 blocks and drops a block with another one - a bit flipped
+that biphase mark let through without a code error (the FPGA already drops a
+block in which the code broke). If no count holds 95 % of the blocks, the bit
+is no parity on that ring and is not used (the console says which).
 
 **The model** (`amp_model`): AuxIn (0x24) Allocate / SourceInfo / DeAllocate
 give the AUX source's channels; AudioAmplifier (0x22) Connect (StartResult,
 then Result) / SinkInfo / DisConnect / Mute give each sink's channels and
 state. Ack forms skip their SenderHandle. Every change is idempotent, and a
-channel list that is not ascending within 0..59 is ignored.
+channel list that is not ascending within 0..59 is ignored. Since the
+critical audit of 2026-10-03:
+- a request to "any instance" (InstID 0 or 0xFF) is filed under the instance
+  its device has shown, or waits under 0 until the device's answer names it;
+- a Connect.Result counts only while that sink's Connect.StartResult is
+  still open; DisConnect, an Error and a reset close it, so a late Result
+  never brings a cancelled connection back;
+- SourceInfo / SinkInfo are taken only for PCM at 2 or 3 bytes a sample, 1 or
+  2 channels, with a list exactly that long; any other format voids what was
+  known instead of being read as stereo by its length;
+- Mute to SinkNr 0 is kept per instance and given to sinks seen later.
 
 **Decisions**, sent when they change, at start-up and every 2 s (the FPGA's
-injection is off after a core reset; a repeated command changes nothing):
+injection is off after a core reset; a repeated command changes nothing).
+The injection command goes out every 0.5 s besides, inside the FPGA's 2 s
+lease: a host that hangs takes our audio out within 2 s. Each coefficient
+set carries a tag of its own, and the FPGA switches only on a whole set.
+Injection needs two more things: it must be allowed (`i` on the console,
+kept in NVS, off on a new board - nothing of ours goes into a car's ring
+before a recording of that car has shown the telegrams read right), and
+AUX's channels must have been told since the last gap in the control blocks
+(a frame counter that skips, a block dropped for parity or by the FPGA, or
+the ring gone): a gap may have hidden the DeAllocate that gave those bytes to
+another source, so injection waits for AUX's next Allocate.Result or
+SourceInfo. J3 keeps its map through a gap.
 
 - 02: our audio into the AUX source's frame bytes while an amplifier sink is
   connected to exactly those channels and one of our sources is live: the
@@ -196,7 +233,8 @@ recording while pressing them finds them.
 **Capture** (`listener_gw/rtl/capture.v`, command 04): the FPGA keeps the
 line's first 65536 runs after power-up - the ring's start-up - and captures
 anew or dumps on command. Keys on the console: `c` captures now and dumps
-when full, `d` dumps what was captured, `h` help. The dump's 41-byte packets
+when full, `d` dumps what was captured, `i` allows AUX injection or takes it back
+(kept in NVS; off on a new board), `h` help. The dump's 41-byte packets
 (sync A5 C5) come on the same UART as the control blocks, in the gaps between
 them; `lsn_link` hands them to the host, which collects them (64 KB in PSRAM)
 and, when the trailer has come, prints them from the low-priority task:
@@ -304,6 +342,9 @@ make -C test
 | UART link: 6 packets after noise, one with a flipped bit, one short of a byte, A5 5A inside each | the 4 intact ones, byte by byte and in one call; the packet right after the short one survives |
 | Telegram decoding, 23 blocks (see test 5) | 6 telegrams out, 5 blocks refused; the gapped and the stale transfer dropped |
 | Model: AUX on and off in every order, Ack forms, Info recovery, 24 bit | each decision as expected |
+| Model, the orders the critical audit (2026-10-03) found it getting wrong: Mute to all sinks before any sink is known (before SinkInfo, before Connect); a Connect to InstID 0 answered from instance 1, and to 0xFF once the instance is known; a Mute to InstID 0; a Result after DisConnect, a DisConnect while the Connect is open, a Result after an Error; SinkInfo / SourceInfo as PCM 8 bit x 4 channels on 4 bytes, 24-bit stereo on 4 bytes, MPEG2 | each as the amplifier itself sees it; the same 13 checks against the model as it stood at 7ff5d2f: all 13 fail |
+| The internal-RAM fallback, 8192 frames | 200 ms refused at 44.1 and 48 kHz (the audit's finding); `rm_target_ms` gives 136 / 125 ms, which rm_init takes; the PSRAM buffer keeps its 200 ms |
+| UART link: a coefficient word with its set's tag | the tag in the byte after F, the XOR over it |
 | The source: phone and TOSLINK input, lock, settle, blips, not PCM, loss | each pick as expected; seven broken variants of `ain.c` each caught |
 | Sound settings from telegrams: 4 volume sources, tone, loudness, balance | each as sent; the source order holds |
 | The other sinks: which ones, their levels, balance and mute | each as expected; eight broken variants of `amp_model.c`, `sound.c` and `dsp_img.c` each caught |
@@ -311,7 +352,7 @@ make -C test
 | Shelves on the rounded words, -12..+12 dB, 44.1 and 48 kHz | full gain within 0.008 dB (15 Hz, 0.45 fs), the other band within 0.001 dB; every setting stable |
 | The firmware's set through the FPGA engine's model | L and R within 0.0002 dB of volume + balance + shelves at 50 Hz, 1 kHz, 12 kHz |
 | Three sinks mixed, through the same model | every sink's sine on L and R within 0.0003 dB of its level and balance, the mono one on both sides |
-| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, AVRCP, the host and J3's sound | no compiler warnings; app 983 KB of a 1.5 MB partition (4 MB flash) |
+| Firmware build, ESP-IDF v6.1, esp32, with AAC, SBC, AVRCP, the host and J3's sound | no compiler warnings; app 987 KB of a 1.5 MB partition (4 MB flash) |
 
 Not proved: nothing has run on an ESP32 yet, and the decoder has never seen
 a real control block - which blocks the checks let through, whether the

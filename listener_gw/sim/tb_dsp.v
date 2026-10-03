@@ -9,8 +9,9 @@
 //   F n  pos x18 wid x3 mon x3        frame n done, with the positions it was collected with
 //   S n  lastframe in_w               the engine started, on this frame's samples
 //   E n  out_w bank                   the program ended: outputs and the bank it used
-//   W n  bank addr value commit inuse a coefficient word the design accepted (n = starts
+//   W n  bank addr value commit inuse tag  a coefficient word the design accepted (n = starts
 //                                    so far; inuse = the ring side's bank at that moment)
+//   K n  bank                         a commit switched the banks: bank holds a whole set now
 //   BANKERR / OVERRUN                 the bank changed during a run / a run missed its frame
 //   out_i2s.txt: LRCK SD at every rising BCLK
 `timescale 1ns/1ps
@@ -92,10 +93,13 @@ module tb_dsp;
     // --------------------------------------------------------- engine log
     integer nstart = 0, nend = 0;
     reg run_d = 1'b0, bank_d = 1'b1;
+    reg ctgl_d = 1'b0;
     always @(posedge clk_s) begin
         if (dut.w_ok)
-            $fwrite(slog, "W %0d %0d %0d %0d %0d %0d\n", nstart, dut.bank_w, dut.p_q[53:48],
-                    $signed(dut.p_q[47:16]), dut.p_q[8], dut.bank_r);
+            $fwrite(slog, "W %0d %0d %0d %0d %0d %0d %0d\n", nstart, dut.bank_w, dut.p_q[53:48],
+                    $signed(dut.p_q[47:16]), dut.p_q[8], dut.bank_r, dut.p_q[7:0]);
+        if (dut.c_tgl !== ctgl_d) $fwrite(slog, "K %0d %0d\n", nstart, dut.c_bank);
+        ctgl_d <= dut.c_tgl;
     end
     always @(posedge clk_r) begin
         if (dut.start) begin

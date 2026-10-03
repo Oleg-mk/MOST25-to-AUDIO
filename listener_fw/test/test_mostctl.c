@@ -402,10 +402,102 @@ static void test_wheel(void)
     CHECK(ngot == 2 && wheel_tel(&w, &got[1]) == WHEEL_NONE, "the block sent again: no second key");
 }
 
+// The orders of telegrams a critical audit (2026-10-03, R04 R07 R08 R09) showed the
+// model getting wrong: each must now come out as the amplifier itself sees it.
+static mm_tel_t tel_i(uint16_t src, uint16_t tgt, uint8_t inst, uint16_t fkt, uint8_t op, const uint8_t *d, int n)
+{
+    mm_tel_t t = tel(src, tgt, 0x22, fkt, op, d, n);
+    t.inst = inst;
+    return t;
+}
+
+#define FEED_I(a, ...) do { mm_tel_t _t = tel_i(__VA_ARGS__); am_tel(a, &_t); } while (0)
+
+static void test_audit(void)
+{
+    am_t a;
+    printf("amp_model, the audit's orders:\n");
+    const uint8_t conn[] = {1, 0, 8, 9, 10, 11}, sink1[] = {1}, mute_all[] = {0, 1}, mute1[] = {1, 1},
+                  kinfo[] = {1, 0x00, 2, 2, 0, 8, 9, 10, 11};
+    // R04: Mute to all sinks before any sink is known; the sink seen afterwards is muted
+    am_init(&a);
+    FEED_I(&a, AMP, HU, 1, 0x113, MM_OP_STATUS, mute_all, 2);
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, kinfo, 9);
+    CHECK(pos_is(am_main(&a), 16, 9, 10, 11, 12) && am_main_muted(&a), "Mute(all) before SinkInfo: sink 1 muted");
+    am_init(&a);
+    FEED_I(&a, HU, AMP, 1, 0x113, MM_OP_SETGET, mute_all, 2);
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 16 && am_main_muted(&a), "Mute(all) before Connect: sink 1 muted");
+    const uint8_t unmute_all[] = {0, 0};
+    FEED_I(&a, AMP, HU, 1, 0x113, MM_OP_STATUS, unmute_all, 2);
+    CHECK(!am_main_muted(&a), "unmute all");
+
+    // R07: a Connect to "any instance" (0), answered with the real one (1)
+    am_init(&a);
+    FEED_I(&a, HU, AMP, 0, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(pos_is(am_main(&a), 16, 9, 10, 11, 12), "Connect to InstID 0, Result from InstID 1: sink 1 at 9..12");
+    // ...and once the amplifier has shown its instance, a wildcard request goes straight to it (0xFF as well)
+    am_init(&a);
+    const uint8_t kinfo2[] = {2, 0x00, 2, 1, 0, 20, 21};
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, kinfo2, 7);
+    FEED_I(&a, HU, AMP, 0xFF, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(pos_is(am_main(&a), 16, 9, 10, 11, 12), "instance known, Connect to InstID 0xFF: sink 1 at 9..12");
+    FEED_I(&a, HU, AMP, 0, 0x113, MM_OP_SETGET, mute1, 2);
+    CHECK(am_main_muted(&a), "Mute to InstID 0 reaches the sink on instance 1");
+    int n_inst1 = 0, n_inst0 = 0;
+    for (int i = 0; i < AM_SINKS; i++) {
+        n_inst1 += a.sink[i].used && a.sink[i].inst == 1;
+        n_inst0 += a.sink[i].used && a.sink[i].inst == 0;
+    }
+    CHECK(n_inst0 == 0 && n_inst1 == 2, "no sink filed under instance 0 (%d), two under 1 (%d)", n_inst0, n_inst1);
+
+    // R08: a Result that comes after the DisConnect brings nothing back
+    am_init(&a);
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    FEED_I(&a, HU, AMP, 1, 0x112, MM_OP_STARTRESULT, sink1, 1);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 0, "a late Connect.Result after DisConnect: still off");
+    // the same with the DisConnect between StartResult and Result
+    am_init(&a);
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, HU, AMP, 1, 0x112, MM_OP_STARTRESULT, sink1, 1);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 0, "DisConnect while the Connect was open: its Result changes nothing");
+    // and an Error closes it too
+    am_init(&a);
+    const uint8_t err[] = {0x20, 1};
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_ERROR, err, 2);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 0, "Connect turned down (Error): a Result after it changes nothing");
+
+    // R09: formats J3 cannot take are refused, and void what was known
+    am_init(&a);
+    const uint8_t pcm8x4[] = {1, 0x00, 1, 4, 0, 8, 9, 10, 11}, mp2[] = {1, 0x21, 2, 2, 0, 8, 9, 10, 11},
+                  short_l[] = {1, 0x00, 3, 2, 0, 8, 9, 10, 11};
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, pcm8x4, 9);
+    CHECK(am_main(&a).bits == 0, "SinkInfo PCM 8 bit x 4 channels on 4 bytes: not taken for stereo 16");
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, kinfo, 9);
+    CHECK(am_main(&a).bits == 16, "SinkInfo PCM 16 bit stereo: taken");
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, short_l, 9);
+    CHECK(am_main(&a).bits == 0, "24 bit stereo on 4 bytes: refused, and the stereo known before is void");
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, kinfo, 9);
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, mp2, 9);
+    CHECK(am_main(&a).bits == 0, "SinkInfo MPEG2: not PCM, the stereo known before is void");
+    mm_tel_t t = tel(AUX, HU, 0x24, 0x100, MM_OP_STATUS, pcm8x4, 9);
+    am_tel(&a, &t);
+    CHECK(a.src[0].ch.n == 0, "SourceInfo PCM 8 bit x 4 channels: no channels taken for AUX");
+}
+
 int main(void)
 {
     test_decode();
     test_model();
+    test_audit();
     test_extras();
     test_chain();
     test_ain();

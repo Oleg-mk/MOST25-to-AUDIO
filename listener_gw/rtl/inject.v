@@ -71,10 +71,19 @@
 // this frame opened on time, and the I2S clocks run. Any of these lost stops
 // it at once, mid-frame, with no fade; a new frame starts it again, from
 // silence. It never touches the preamble or bytes 0 and 61..63.
+//
+// Lease. "On" holds for LEASE clk_s cycles after the last good command 02
+// that said on (default 2 s); the host repeats its command every 0.5 s. With
+// none in that time - the host hung, or its UART is gone - the setting falls
+// to off here, as if the host had sent off, and the ring side fades out.
+// None of the checks above sees a host that hangs while our own BCLK runs;
+// before the lease an "on" outlived it for as long as the ring ran, and after
+// a re-allocation it missed, our audio would have landed in another source.
 module inject #(
     parameter INJ_LOCK  = 8,                // frames in a row before injecting
     parameter FADE_LOG2 = 8,                // a fade takes 2^FADE_LOG2 frames (0..8)
-    parameter HOLD      = 3                 // frames at 0 after DIN switches
+    parameter HOLD      = 3,                // frames at 0 after DIN switches
+    parameter LEASE     = 198_000_000       // clk_s cycles an "on" lasts without a repeat (2 s)
 ) (
     input  wire        clk_s,
     input  wire        rst_s,
@@ -129,18 +138,23 @@ module inject #(
         w02_m   <= m_in;
         for (k = 0; k < 6; k = k + 1) w02_p[6 * k +: 6] <= p_q[45 - 8 * k -: 6];
     end
+    reg [27:0] lease = 28'd0;                // clk_s cycles the "on" in c_m has left
     always @(posedge clk_s) begin
         if (rst_s) begin
             // the ring side keeps its copy through its own resets (below), so
             // a reset here reaches it as a command: one more toggle if it was on
             if (c_m != 8'd0) c_tgl <= ~c_tgl;
-            c_m <= 8'd0;
+            c_m <= 8'd0; lease <= 28'd0;
             for (k = 0; k < 6; k = k + 1) c_pos[k] <= 6'd1;
         end else if (w02_off) begin
-            c_m <= 8'd0; c_tgl <= ~c_tgl;
+            c_m <= 8'd0; c_tgl <= ~c_tgl; lease <= 28'd0;
         end else if (w02_on) begin
-            c_m <= w02_m; c_tgl <= ~c_tgl;
+            c_m <= w02_m; c_tgl <= ~c_tgl; lease <= LEASE[27:0];
             for (k = 0; k < 6; k = k + 1) c_pos[k] <= w02_p[6 * k +: 6];
+        end else if (c_m != 8'd0) begin
+            // the lease runs out: off, as the host would have sent it
+            if (lease != 28'd0) lease <= lease - 28'd1;
+            else begin c_m <= 8'd0; c_tgl <= ~c_tgl; end
         end
     end
 

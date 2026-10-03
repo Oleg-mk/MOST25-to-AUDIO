@@ -21,9 +21,12 @@ carries into audio and data the owner can use:
   of the car's own AUX source while the amplifier plays them, so it is heard
   through the factory system with the factory controls.
 
-If anything fails, the ring passes straight through: a multiplexer on the
-board falls back to the fibre's own signal, and a watchdog does so even if
-the FPGA's clocks die.
+If the FPGA's part fails, the ring passes straight through: a multiplexer on
+the board falls back to the fibre's own signal, and a watchdog does so even if
+the FPGA's clocks die. That path - the fibre receiver and transmitter and the
+multiplexer - runs on the always-on 3.3 V (3V3_AON): it covers the FPGA, its
+clocks and the regeneration, not a loss of that supply or a failed fibre part,
+and it is an electrical path, not an optical bypass.
 
 ## Parts
 
@@ -166,12 +169,29 @@ left overlapping a pad or another reference.
   listener's silence, so this stays as it is.
 - **Cars whose AUX is not a MOST source** - mixed inside the head unit - have
   no AUX bytes to replace; the phone cannot be injected there. Listening
-  (J2, J3) works everywhere.
+  (J2, J3) needs the audio on the fibre as plain PCM: cars without the
+  external amplifier, or with a copy-protected stream (DTCP), give it nothing
+  to play (docs/vehicle_survey.md). Having MOST25 does not make a car one of
+  them - only a recording of that car says.
 - **The per-car scales** - volume, tone, the other sinks' mixer levels - are
   placeholders until a real ring is recorded.
 - **What an amplifier does on its own** is not on the bus: if it turns the
   music down while a prompt plays, J3 does not; it follows what the head unit
   sends (levels, mutes).
+- **The control channel's CRC is not checked**: its polynomial is in no
+  document we have. What is checked instead: the FPGA drops a block in which
+  the line broke its code, and the host drops a block whose frames disagree
+  in parity (the count a clean block has is learnt on the ring). A bit can
+  still flip unseen in a way neither shows; the CRC follows once a recording
+  gives the polynomial.
+- **Injection is guarded** (critical audit, 2026-10-03). It is off until
+  allowed on the host's console ('i', kept in flash), so nothing of ours
+  enters a car's ring before a recording of that car has shown the telegrams
+  read right. The FPGA keeps an "on" for 2 s after the host's last command
+  (repeated every 0.5 s), so a host that hangs takes our audio out. After any
+  gap in the control blocks, injection waits until AUX's channels are told
+  again (the car's next Allocate.Result or SourceInfo for AUX), since the gap
+  may have hidden the DeAllocate that gave those bytes to another source.
 
 ## Bring-up, in this order
 
@@ -183,8 +203,8 @@ left overlapping a pad or another reference.
    pattern, the block-start marker, the parity rule - and shows the control
    telegrams the host decodes.
 2. **Regeneration**, on the bench with a loop of fibre, then in the car.
-3. **Injection**, from the phone and from the TOSLINK input, then J3's sound
-   and the per-car scales.
+3. **Injection**, allowed with 'i' on the console only now, from the phone and
+   from the TOSLINK input, then J3's sound and the per-car scales.
 
 The battery input is built for ISO 16750-2 test B (a suppressed load dump,
 35 V for up to 400 ms) and ISO 7637-2 pulses 1, 2a, 3a and 3b: the buck is an

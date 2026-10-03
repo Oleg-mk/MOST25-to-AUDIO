@@ -16,8 +16,10 @@
 //                                3 24-bit; P[2] mono; P[5:4] stream 0..2)
 //   C = 02  audio into the ring: M  L0 L1 L2  R0 R1 R2  (M[1:0] as W; M[2] the source:
 //                                0 = M2's I2S, 1 = the board's S/PDIF input; M[7] keep bit 511)
-//   C = 03  a coefficient word:  A  V3 V2 V1 V0  F  0   (address 0..63, Q4.28 MSB
-//                                first, F = 1: commit after this word)
+//   C = 03  a coefficient word:  A  V3 V2 V1 V0  F  T   (address 0..63, Q4.28 MSB
+//                                first, F = 1: commit after this word, T the set's
+//                                tag: the same in every word of a set, another for
+//                                the next; amp_out.v switches only on a whole set)
 //   Lx/Rx are frame byte indices, most significant byte first; the FPGA takes
 //   0..63 for 01 and only 1..60 for 02.
 //   C = 04  capture (listener_gw/rtl/capture.v): M  0 0 0 0 0 0
@@ -88,5 +90,5 @@ void lsn_cmd_source(uint8_t out[LSN_CMD_LEN], int stream, int bits, int mono, co
 void lsn_cmd_stereo(uint8_t out[LSN_CMD_LEN], int bits, const uint8_t l[3], const uint8_t r[3]);
 void lsn_cmd_inject(uint8_t out[LSN_CMD_LEN], int bits, int keep_parity, int spdif_in,
                     const uint8_t l[3], const uint8_t r[3]);
-void lsn_cmd_word(uint8_t out[LSN_CMD_LEN], uint8_t addr, int32_t value, int commit);
+void lsn_cmd_word(uint8_t out[LSN_CMD_LEN], uint8_t addr, int32_t value, int commit, uint8_t tag);
 void lsn_cmd_capture(uint8_t out[LSN_CMD_LEN], uint8_t mode);       // LSN_CAP_* bits
