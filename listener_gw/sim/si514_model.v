@@ -19,9 +19,15 @@
 // write that does not preserve it (no read-modify-write) is counted in
 // `bad_rmw`. Everything is observable hierarchically (freq, fcentre, counters).
 // START_HZ is the frequency the part runs at from power-up, as the factory
-// set it (any 3.3 V CMOS Si514 off the shelf, 100 kHz to 250 MHz); the
-// registers' start-up content is not modelled beyond the 49.152 MHz defaults
-// - the first large change overwrites all of it.
+// set it (any 3.3 V CMOS Si514 off the shelf, 100 kHz to 250 MHz). The
+// registers start as the 49.152 MHz defaults for that frequency, and for any
+// other as an HS_DIV and M that give it (VCO from 2.08 GHz, LS_DIV 1): a small
+// change written to a part that was never centred moves its factory frequency,
+// as the real part's would.
+// power(0) takes the supply away (5V_SW off while the FPGA runs on USB): no
+// output, no I2C, pending settles and calibrations lost. power(1) is a new
+// power-up: START_HZ again, every register as at the first, the address search
+// counted in n_probe again; the counters run on.
 `timescale 1ns/1ps
 module si514_model #(
     parameter [6:0] ADDR      = 7'h55,
@@ -41,6 +47,13 @@ module si514_model #(
     real freq, fcentre, m_now;
     integer n_small, n_fcal, bad_small, bad_rmw, n_nack, n_probe, n_glitch;
     reg  oe, cal_busy, seen_ours;
+    reg  powered;
+    integer    bitc;                        // the I2C slave (below)
+    reg  [7:0] sh, ptr;
+    reg        active, addressed, rd, sending, mack;
+    integer    nbyte;
+    real t_on;                              // the last power-up: settles and calibrations
+                                            // begun before it are lost
     integer i;
 
     function real mval;
@@ -54,18 +67,44 @@ module si514_model #(
         begin hsval = {regs[11][1:0], regs[10]}; end
     endfunction
 
+    task power_up;
+        integer hs, mi, mf;
+        real m;
+        begin
+            for (i = 0; i < 256; i = i + 1) regs[i] = 8'h00;
+            regs[132] = 8'h84;
+            // start-up: 49.152 MHz (HS_DIV 44, M 67.6263), calibrated there
+            regs[0] = 8'h23; regs[5] = 8'hDE; regs[6] = 8'h5F; regs[7] = 8'h0A; regs[8] = 8'h74;
+            regs[9] = 8'h08; regs[10] = 8'd44; regs[11] = 8'h00;
+            if (START_HZ > 0.0 && START_HZ != 49.152e6) begin    // another factory frequency
+                hs = $rtoi(2.08e9 / START_HZ) + 1;
+                if (hs < 10) hs = 10;
+                if (hs > 1022) hs = 1022;
+                m = START_HZ * hs / (FXO * (1.0 + DSI_PPM * 1e-6));
+                mi = $rtoi(m); mf = $rtoi((m - mi) * 536870912.0);
+                regs[9] = {2'b00, mi[8:3]}; regs[8] = {mi[2:0], mf[28:24]};
+                regs[7] = mf[23:16]; regs[6] = mf[15:8]; regs[5] = mf[7:0];
+                regs[10] = hs[7:0]; regs[11] = {6'd0, hs[9:8]};
+            end
+            m_now = mval(0);
+            freq = FXO * (1.0 + DSI_PPM * 1e-6) * m_now / hsval(0);
+            if (START_HZ > 0.0) freq = START_HZ;                  // the factory start-up frequency
+            fcentre = freq; oe = 1'b1; cal_busy = 1'b0;
+            seen_ours = 1'b0; sda_low = 1'b0; active = 1'b0; sending = 1'b0;
+            t_on = $realtime; powered = 1'b1;
+        end
+    endtask
+    task power(input on);
+        if (on) power_up;
+        else begin
+            powered = 1'b0; freq = 0.0; oe = 1'b0; cal_busy = 1'b0;
+            sda_low = 1'b0; active = 1'b0; sending = 1'b0;
+        end
+    endtask
+
     initial begin
-        for (i = 0; i < 256; i = i + 1) regs[i] = 8'h00;
-        regs[132] = 8'h84;
-        // start-up: 49.152 MHz (HS_DIV 44, M 67.6263), calibrated there
-        regs[0] = 8'h23; regs[5] = 8'hDE; regs[6] = 8'h5F; regs[7] = 8'h0A; regs[8] = 8'h74;
-        regs[9] = 8'h08; regs[10] = 8'd44; regs[11] = 8'h00;
-        m_now = mval(0);
-        freq = FXO * (1.0 + DSI_PPM * 1e-6) * m_now / hsval(0);
-        if (START_HZ > 0.0) freq = START_HZ;                      // the factory start-up frequency
-        fcentre = freq; oe = 1'b1; cal_busy = 1'b0;
         n_small = 0; n_fcal = 0; bad_small = 0; bad_rmw = 0; n_nack = 0; n_probe = 0; n_glitch = 0;
-        seen_ours = 1'b0; sda_low = 1'b0;
+        power_up;
     end
 
     // --------------------------------------------------- frequency behaviour
@@ -89,7 +128,7 @@ module si514_model #(
             if (a == 8'd9) begin
                 n_small = n_small + 1;
                 fork : settle
-                    #(SETTLE_NS) apply_m;
+                    #(SETTLE_NS) if (powered && $realtime - SETTLE_NS >= t_on) apply_m;
                 join_none
             end
             if (a == 8'd132) begin
@@ -101,10 +140,12 @@ module si514_model #(
                     fork : cal
                         begin
                             #(FCAL_NS);
-                            m_now = mval(0);
-                            fcentre = FXO * (1.0 + DSI_PPM * 1e-6) * m_now / hsval(0);
-                            cal_busy = 1'b0;
-                            if (oe) freq = fcentre;
+                            if (powered && $realtime - FCAL_NS >= t_on) begin   // not lost to a power-down
+                                m_now = mval(0);
+                                fcentre = FXO * (1.0 + DSI_PPM * 1e-6) * m_now / hsval(0);
+                                cal_busy = 1'b0;
+                                if (oe) freq = fcentre;
+                            end
                         end
                     join_none
                 end else if (oe && !cal_busy) begin
@@ -118,23 +159,19 @@ module si514_model #(
     // bitc counts SCL falling edges in a byte: data on 0..7, ACK clock at 8.
     // A START is followed by SCL's own fall, which is not a data bit: -1.
     // sending = this slave drives data bytes (read transfer after its address).
-    integer    bitc;
-    reg  [7:0] sh, ptr;
-    reg        active, addressed, rd, sending, mack;
-    integer    nbyte;
-    always @(negedge sda) if (scl) begin                   // START / repeated START
+    always @(negedge sda) if (scl && powered) begin                   // START / repeated START
         bitc = -1; active = 1'b1; addressed = 1'b0; rd = 1'b0; sending = 1'b0;
         nbyte = 0; sda_low = 1'b0;
     end
-    always @(posedge sda) if (scl) begin                   // STOP
+    always @(posedge sda) if (scl && powered) begin                   // STOP
         active = 1'b0; sending = 1'b0; sda_low = 1'b0;
     end
-    always @(posedge scl) if (active && bitc >= 0) begin
+    always @(posedge scl) if (powered && active && bitc >= 0) begin
         if (bitc < 8) begin
             if (!sending) sh = {sh[6:0], sda};
         end else if (sending) mack = !sda;                  // master's ACK on our byte
     end
-    always @(negedge scl) if (active) begin
+    always @(negedge scl) if (powered && active) begin
         if (bitc < 0) bitc = 0;                             // the START's own fall
         else if (bitc < 8) begin
             bitc = bitc + 1;

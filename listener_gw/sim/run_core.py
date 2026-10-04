@@ -30,6 +30,15 @@ Corners (stimulus from make_stim.py, simulation tb_core.v, checks check_core.py)
              pass, and MCLK and BCLK must not move before the centring. As first
              written the ring domain ran on the start-up frequency until then,
              out of timing above 78 MHz
+  si_off     48 kHz ring over 480 frames, a Si514 that starts at 125 MHz; 200 us after
+             LOCK its supply goes for 1 ms and it comes back at 125 MHz with its
+             factory settings (5V_SW off while the FPGA runs on its own USB): LOCK
+             must drop at once, every line built in clk_r be low and stay low, the
+             core take the part for lost after SI_LOST and hold the I2C lines and
+             the UART low, then centre it anew before MCLK or BCLK moves, and LOCK
+             come back. As first written the lines froze where they were, half at
+             3.3 V on chips without supply, and the loop resumed on the old M with
+             the ring domain on the factory frequency: LOCK never came back
   capture    core48 over 840 frames, the capture buffer 512 runs (CAP_AW 9): the host
              dumps the power-up capture, then captures anew with a dump when full.
              Both dumps must arrive whole (every packet, the trailer's count 512),
@@ -74,6 +83,7 @@ SRC = ["tb_core.v", "si514_model.v"] + [str(RTL / f) for f in (
     "si514_ctrl.v", "tx_pre.v", "dpll.v", "listener_core.v")]
 
 LEASE_CLK = 29700          # corner lease: the injector's lease, 300 us of clk_s
+SI_LOST_CLK = 20000        # tb_core's SI_LOST: clk_s of a dead clk_r before the Si514 is lost
 
 CORNERS = [
     # name        stimulus (make_stim.py)                                    compile options
@@ -107,6 +117,10 @@ CORNERS = [
                                                   "-Ptb_core.FADE_LOG2=8"]),
     ("lease", ["--fs", "48000", "--frames", "300", "--pwd", "0.316", "--jit", "0.195",
                "--ppm", "0", "--seed", "7"], ["-Ptb_core.LEASE_TEST=1", f"-Ptb_core.INJ_LEASE={LEASE_CLK}"]),
+    ("si_off", ["--fs", "48000", "--frames", "480", "--pwd", "0.316", "--jit", "0.195",
+                "--ppm", "0", "--seed", "7"], ["-Ptb_core.MAXCLK=1100000", "-Ptb_core.SI_START_HZ=125000000.0",
+                                               "-Ptb_core.SI_OFF_AFTER_LOCK_US=200", "-Ptb_core.SI_OFF_US=1000",
+                                               f"-Ptb_core.SI_LOST={SI_LOST_CLK}"]),
 ]
 
 
@@ -153,6 +167,8 @@ def main():
             ok = cc.check_fbdead(d, 48000) & cc.check_wd(d)
         elif name == "clk_stop":
             ok = cc.check_clkstop(d)
+        elif name == "si_off":
+            ok = cc.check_sioff(d, 48000, SI_LOST_CLK / 99.0) & cc.check_wd(d)
         elif name == "bit_err":
             ok = cc.check_err(d, 48000) & cc.check_wd(d)
         elif name == "lease":

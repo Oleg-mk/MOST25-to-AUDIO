@@ -62,6 +62,8 @@ module listener_core #(
     // Si514's I2C address is not a parameter: si514_ctrl finds it.
     parameter        SI_QDIV   = 62,        // I2C 393 kHz
     parameter [23:0] SI_FCAL   = 24'd1188000, // 12 ms
+    parameter [17:0] SI_LOST   = 18'd131072,  // clk_s of a dead clk_r, not ours, before the Si514
+                                              // counts as lost (1.3 ms; 0 = never, for a mutation run)
     parameter        L_FRAMES  = 64,
     parameter [21:0] LN48 = 22'd1056000, LN44 = 22'd1149388, LSPLIT = 22'd1102694,
     parameter [21:0] LDEV = 22'd1400,
@@ -83,7 +85,7 @@ module listener_core #(
     output wire       tx_regen,
     output reg        lock,                 // 1 = regenerated (U11 -> U2 select on the board)
     output wire       tdm_bclk, tdm_fs, tdm_sd0, tdm_sd1,
-    output reg        mclk,                 // 512 Fs = clk_r / 2, for the receiver's DSP/codec
+    output wire       mclk,                 // 512 Fs = clk_r / 2, for the receiver's DSP/codec
     output wire       uart_tx,
     input  wire       uart_rx,              // host commands, same baud as uart_tx
     output wire       i2s_bclk, i2s_lrck, i2s_dout,
@@ -126,18 +128,21 @@ module listener_core #(
     wire do_c, do_u, si_busy, si_off, si_nack, si_centred, pll_lk, pll_gear;
     wire [37:0] mfix; wire [9:0] hs;
     reg  [1:0] ok2;
+    reg  si_lost;                           // the Si514 lost: below, after r_alive
+    reg  loop_rst /* synthesis syn_maxfan = 64 */;   // the loop and the I2C side: rst_s, or lost
+    wire si_scl, si_sda;
     dpll #(.UPD(UPD), .LOCK_N(LOCK_N), .KP_A(KP_A), .KI_A(KI_A), .KP_T(KP_T), .KI_T(KI_T),
            .SHIFT_ACC(SHIFT_ACC), .LOCK_ACC(LOCK_ACC), .UNLOCK_ACC(UNLOCK_ACC),
            .L_FRAMES(L_FRAMES), .LN48(LN48), .LN44(LN44), .LSPLIT(LSPLIT), .LDEV(LDEV),
            .K48(K48), .K44(K44))
-         u_pll (.clk(clk_s), .rst(rst_s), .rx_lk(rx_lk), .fe_valid(fev), .fe_rise(fer), .fe_t(fet),
+         u_pll (.clk(clk_s), .rst(loop_rst), .rx_lk(rx_lk), .fe_valid(fev), .fe_rise(fer), .fe_t(fet),
                 .tx_ev(tx_ev), .tx_t(tx_t), .regen_ok(ok2[1]), .si_busy(si_busy), .si_nack(si_nack),
                 .do_centre(do_c), .do_update(do_u), .mfix(mfix), .hs(hs),
                 .centred(si_centred), .locked(pll_lk), .gear(pll_gear));
     si514_ctrl #(.QDIV(SI_QDIV), .FCAL_WAIT(SI_FCAL))
-         u_si (.clk(clk_s), .rst(rst_s), .do_centre(do_c), .do_update(do_u), .mfix(mfix), .hs(hs),
+         u_si (.clk(clk_s), .rst(loop_rst), .do_centre(do_c), .do_update(do_u), .mfix(mfix), .hs(hs),
                .busy(si_busy), .out_off(si_off), .nack_err(si_nack),
-               .scl_o(i2c_scl_o), .sda_o(i2c_sda_o), .sda_i(i2c_sda_i));
+               .scl_o(si_scl), .sda_o(si_sda), .sda_i(i2c_sda_i));
 
     // ------------------------------------------------ ring-clock domain reset
     // Held until the Si514 has been centred once and while its output is off
@@ -161,10 +166,11 @@ module listener_core #(
     // (with the bytes our audio replaced on the ring: what left us, not what came)
     wire tdm_valid; wire [9:0] tdm_n;
     wire ij_on, ij_w3; wire [35:0] ij_pos; wire [47:0] ij_val;
+    wire t_bclk, t_fs, t_sd0, t_sd1;        // the pins: gated below while clk_r is dead
     tdm_out u_tdm (.clk_s(clk_s), .rst_s(rst_s), .byte_we(bwe), .byte_addr(ba), .byte_data(bd),
                    .frame_done(fd), .enable(rx_lk), .clk_r(clk_r), .rst_r(rst_r),
                    .sub_on(ij_on), .sub_w3(ij_w3), .sub_pos(ij_pos), .sub_val(ij_val),
-                   .bclk(tdm_bclk), .fs(tdm_fs), .sd0(tdm_sd0), .sd1(tdm_sd1), .valid(tdm_valid),
+                   .bclk(t_bclk), .fs(t_fs), .sd0(t_sd0), .sd1(t_sd1), .valid(tdm_valid),
                    .phase_n(tdm_n));
 
     // ------------------------------------- J3: the amplifier's outputs on I2S
@@ -178,11 +184,12 @@ module listener_core #(
     reg [1:0] r48;
     always @(posedge clk_s) r48_s <= ui_q < 16'h10CC;
     always @(posedge clk_r) r48 <= {r48[0], r48_s};
+    wire a_bclk, a_lrck, a_sd, a_spdif;     // the pins: gated below while clk_r is dead
     amp_out    u_amp (.clk_s(clk_s), .rst_s(rst_s), .cmd_ok(hok), .cmd(hcmd), .cmd_p(hp),
                       .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                       .clk_r(clk_r), .rst_r(rst_r), .phase_n(tdm_n), .run(tdm_valid),
                       .sub_on(ij_on), .sub_w3(ij_w3), .sub_pos(ij_pos), .sub_val(ij_val), .rate48(r48[1]),
-                      .bclk(i2s_bclk), .lrck(i2s_lrck), .sd(i2s_dout), .spdif(spdif),
+                      .bclk(a_bclk), .lrck(a_lrck), .sd(a_sd), .spdif(a_spdif),
                       .overrun());
 
     // ------------------------------------------------- audio into the ring
@@ -199,8 +206,8 @@ module listener_core #(
     // stops with clk_r, i.e. while the Si514 is being centred, and is held
     // low until the first centring (a shelf part's start-up frequency is not
     // a clock for anything on J2 or J3).
-    initial mclk = 1'b0;
-    always @(posedge clk_r) mclk <= rst_r ? 1'b0 : ~mclk;
+    reg m_clk = 1'b0;                       // the pin: gated below while clk_r is dead
+    always @(posedge clk_r) m_clk <= rst_r ? 1'b0 : ~m_clk;
 
     // ------------------------------------------------ capture (command 04)
     // M = P0: bit 0 capture anew, bit 1 dump what was captured, bit 2 (with
@@ -215,9 +222,10 @@ module listener_core #(
                                   .busy(cap_busy));
 
     // ------------------------------------------------------------ UART out
+    wire u_txd;                             // the pin: held low while the Si514 is lost
     ctrl_uart u_ua (.clk(clk_s), .rst(rst_s), .byte_we(bwe), .byte_addr(ba), .byte_data(bd),
                     .frame_done(fd), .frame_par(fpar), .blk_idx(bi), .blk_known(bk),
-                    .locked(rx_lk), .ui_q(ui_q), .txd(uart_tx),
+                    .locked(rx_lk), .ui_q(ui_q), .txd(u_txd),
                     .cap_req(cap_req), .cap_pkt(cap_pkt), .cap_take(cap_take), .cap_done(cap_done));
 
     // ------------------------------------------------ LOCK, decided in clk_s
@@ -233,6 +241,46 @@ module listener_core #(
         else if (quiet != 6'h3F) quiet <= quiet + 6'd1;
     end
     wire r_alive = (quiet != 6'h3F);
+
+    // ------------------------------------------ the lines built in clk_r, while it is dead
+    // They freeze when clk_r stops, each at whatever level it had. With this module
+    // on its own USB and 5V_SW off (the ring asleep, a laptop on the module), half of
+    // them would hold 3.3 V on chips without supply - U13, U15, the TOSLINK
+    // transmitter J6, the host M2 - and feed those rails through their input diodes.
+    // So they are low from 0.65 us after clk_r's last edge, through a register, so
+    // that no glitch of the compare reaches a pin. While the Si514 is centred they
+    // carry nothing anyway. On from power-up, as r_alive is under rst_s: the lines
+    // are the ring domain's reset levels until clk_r runs.
+    reg pads_on = 1'b1;
+    always @(posedge clk_s) pads_on <= r_alive;
+    assign tdm_bclk = t_bclk & pads_on;  assign tdm_fs   = t_fs & pads_on;
+    assign tdm_sd0  = t_sd0 & pads_on;   assign tdm_sd1  = t_sd1 & pads_on;
+    assign mclk     = m_clk & pads_on;
+    assign i2s_bclk = a_bclk & pads_on;  assign i2s_lrck = a_lrck & pads_on;
+    assign i2s_dout = a_sd & pads_on;    assign spdif    = a_spdif & pads_on;
+
+    // ------------------------------------------------------------ the Si514 lost
+    // Its clock dead for SI_LOST clk_s, not by our command (si_off), after it had
+    // been centred: its supply went with 5V_SW while this module runs on its own
+    // USB (or the part failed). It comes back, if at all, at its factory frequency
+    // with none of our settings, so the loop and the I2C side are held in reset
+    // and centre it anew: resuming on the old M (dpll.v) would track a clock that
+    // is not ours and never lock again. Meanwhile nothing of ours feeds its pins or
+    // the host's: the I2C lines are held low, as R11/R12 pull them up to the
+    // module's 3.3 V, and so is the UART to M2. A Si514 never centred is not lost:
+    // the UART stays up to debug a part that does not start.
+    reg [17:0] dead_t;
+    always @(posedge clk_s) begin
+        if (rst_s || r_alive || si_off) dead_t <= 18'd0;
+        else if (dead_t != SI_LOST) dead_t <= dead_t + 18'd1;
+        if (rst_s || r_alive) si_lost <= 1'b0;
+        else if (SI_LOST != 18'd0 && dead_t == SI_LOST && si_centred) si_lost <= 1'b1;
+        loop_rst <= rst_s | si_lost;
+    end
+    initial begin si_lost = 1'b0; loop_rst = 1'b1; end
+    assign i2c_scl_o = si_scl & ~si_lost;
+    assign i2c_sda_o = si_sda & ~si_lost;
+    assign uart_tx   = u_txd & ~si_lost;
 
     always @(posedge clk_s) ok2 <= {ok2[0], regen_ok};
     // TX_FB alive: our TX comes back through U9 with a preamble every frame.

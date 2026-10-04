@@ -206,6 +206,19 @@ left overlapping a pad or another reference.
 3. **Injection**, allowed with 'i' on the console only now, from the phone and
    from the TOSLINK input, then J3's sound and the per-car scales.
 
+On the bench, keep J4 powered while the FPGA module is on its own USB, or plug
+that USB in only to flash. With J4 dead from the start, the module still feeds
+the unpowered ESP32 through its UART line, and the Si514 through R11/R12. The
+FPGA cannot tell that state from a Si514 that does not start, and the UART must
+stay up to debug that.
+
+In the car it is covered: once the Si514 has run and then gone with 5V_SW (the
+ring asleep, a laptop on the FPGA module), the FPGA holds every such line low
+and centres the Si514 anew when it returns (listener_gw/README.md, Ring clock).
+The other way round is harmless: the ESP32 on its USB drives the unpowered FPGA
+module through R20/R21, and the GW2AR's inputs are hot-socket rated at 150 uA at
+most (DS226, Table 3-4).
+
 The battery input is built for ISO 16750-2 test B (a suppressed load dump,
 35 V for up to 400 ms) and ISO 7637-2 pulses 1, 2a, 3a and 3b: the buck is an
 LMR38020 (80 V in, 85 V absolute maximum), the TVS an SMBJ36A in front of the

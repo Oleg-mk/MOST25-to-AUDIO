@@ -29,6 +29,10 @@ module tb_core;
     parameter real  CLKS_STOP_AFTER_LOCK_US = -1.0;  // > 0: clk_s stops this long after LOCK and
                                                      // the run ends 200 us later (out_clkstop.txt)
     parameter real  WD_TW_NS = 10000.0;              // the board's bypass watchdog U11 (R23 x C25)
+    parameter real  SI_OFF_AFTER_LOCK_US = -1.0;     // > 0: the Si514's supply goes this long after LOCK
+    parameter real  SI_OFF_US = 1000.0;              // (5V_SW off, the module on USB) for this long, and
+                                                     // it comes back at SI_START_HZ (out_sioff.txt)
+    parameter [17:0] SI_LOST = 18'd20000;            // the core's SI_LOST (202 us; 0 = never: mutation)
     // 99 MHz exactly: the stimulus is 8 samples per clock at 792 Msps, and the
     // Si514 model runs in real time, so a clock off by 100 ppm (#5.05) would
     // move the ring by 100 ppm against clk_r. Each edge is placed at its exact
@@ -107,7 +111,7 @@ module tb_core;
     reg  idin = 1'b0;                                // audio in, from the DSP model
     reg  idin2 = 1'b0;                               // audio in 2 (the S/PDIF receiver's place)
     listener_core #(.HOLD(8), .HOLD_RE(24), .SI_QDIV(4), .SI_FCAL(24'd2000), .INJ_FADE_LOG2(FADE_LOG2),
-                    .INJ_LEASE(INJ_LEASE),
+                    .INJ_LEASE(INJ_LEASE), .SI_LOST(SI_LOST),
                     .L_FRAMES(8), .LN48(22'd132000), .LN44(22'd143673), .LSPLIT(22'd137836),
                     .LDEV(22'd175), .K48(20'd275050), .K44(20'd253277),
                     .UPD(4), .LOCK_N(4), .SHIFT_ACC(16), .LOCK_ACC(32), .UNLOCK_ACC(256),
@@ -183,6 +187,36 @@ module tb_core;
         $fwrite(fgap, "%0.3f %0.3f\n", tg0, $realtime);      // ns
         $fclose(fgap);
     end
+    // The Si514's supply lost after LOCK and back SI_OFF_US later. Every line built in
+    // clk_r must be low 2 us after its clock stopped and stay low; while the core has
+    // the part lost, the I2C lines and the UART must stay low; back at its factory
+    // frequency, the part must be centred anew before the ring domain moves, and
+    // LOCK must come back.
+    real    t_off = -1.0, t_on = -1.0, t_lost = -1.0, t_cen2 = -1.0, t_mclk_on = -1.0, t_bclk_on = -1.0;
+    reg [8:0] pads_a = 9'h1FF, pads_b = 9'h1FF;      // TDM BCLK FS SD0 SD1, MCLK, I2S BCLK LRCK DOUT, S/PDIF
+    reg [3:0] held = 4'hF;                           // si_lost, SCL, SDA, UART just before the supply returns
+    integer n_pad_up = 0, n_held_up = 0;
+    always @(posedge dut.si_lost) if (t_lost < 0.0) t_lost = $realtime;
+    always @(posedge dut.u_pll.centred) if (t_on > 0.0 && t_cen2 < 0.0) t_cen2 = $realtime;
+    always @(posedge mclk) if (t_on > 0.0 && t_mclk_on < 0.0) t_mclk_on = $realtime;
+    always @(posedge bclk) if (t_on > 0.0 && t_bclk_on < 0.0) t_bclk_on = $realtime;
+    always @(posedge bclk or posedge fs or posedge sd0 or posedge sd1 or posedge mclk or posedge ibclk
+             or posedge ilrck or posedge isd or posedge spdif)
+        if (t_off > 0.0 && t_on < 0.0 && $realtime > t_off + 2000.0) n_pad_up = n_pad_up + 1;
+    always @(posedge scl_o or posedge sda_o or posedge utx) if (dut.si_lost) n_held_up = n_held_up + 1;
+    initial if (SI_OFF_AFTER_LOCK_US > 0.0) begin
+        @(posedge lock);
+        #(SI_OFF_AFTER_LOCK_US * 1000.0);
+        u_dev.power(1'b0); t_off = $realtime;
+        #2000;
+        pads_a = {bclk, fs, sd0, sd1, mclk, ibclk, ilrck, isd, spdif};
+        #(SI_OFF_US * 1000.0 - 3000.0);
+        pads_b = {bclk, fs, sd0, sd1, mclk, ibclk, ilrck, isd, spdif};
+        held = {dut.si_lost, scl_o, sda_o, utx};
+        #1000;
+        u_dev.power(1'b1); t_on = $realtime;
+    end
+
     reg tx_d = 0; integer run = 0;
     always @(posedge clk_r) begin                    // regenerated runs, in clk_r cycles
         run = run + 1;
@@ -351,6 +385,14 @@ module tb_core;
                 t_cen, t_mclk1, t_bclk1, SI_START_HZ);
         $fclose(fsi);
         $fwrite(ffs, "late %0d\n", fs_late); $fclose(ffs);
+        if (SI_OFF_AFTER_LOCK_US > 0.0) begin
+            fcs = $fopen("out_sioff.txt", "w");
+            // ns: supply off, lost, back, centred again, first MCLK and BCLK after;
+            // the lines 2 us after and just before, the held ones, rising edges where none may be
+            $fwrite(fcs, "%0.3f %0.3f %0.3f %0.3f %0.3f %0.3f %b %b %b %0d %0d\n", t_off, t_lost, t_on,
+                    t_cen2, t_mclk_on, t_bclk_on, pads_a, pads_b, held, n_pad_up, n_held_up);
+            $fclose(fcs);
+        end
         fcs = $fopen("out_wd.txt", "w");                  // the watchdog model over the whole run
         $fwrite(fcs, "%0d\n", sel_drops); $fclose(fcs);
         $finish;

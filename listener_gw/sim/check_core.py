@@ -947,6 +947,47 @@ def check_clkstop(d, tw_ns=10000.0):
     return ok
 
 
+def check_sioff(d, fs, lost_us):
+    """The Si514's supply lost after LOCK and back later at its factory frequency
+    (tb SI_OFF_AFTER_LOCK_US; out_sioff.txt): 5V_SW off while the module runs on
+    USB. LOCK must drop within 5 us; every line built in clk_r must be low 2 us
+    after the clock stopped and stay low; the core must take the part for lost
+    lost_us (+ 2 us) after the stop and hold the I2C lines and the UART low until
+    the clock returns; then the part must be centred anew (a second FCAL) before
+    MCLK or BCLK moves, and LOCK must come back. No small change may leave its
+    window, nothing may be addressed wrongly. As first written the core resumed on
+    the old M, the ring domain ran on the factory frequency, and LOCK never came back."""
+    w = (d / "out_sioff.txt").read_text().split()
+    t_off, t_lost, t_on, t_cen2, t_mclk, t_bclk = map(float, w[:6])
+    pads_a, pads_b, held, n_pad, n_held = w[6], w[7], w[8], int(w[9]), int(w[10])
+    ev = []
+    for l in (d / "out_lock.txt").read_text().splitlines():
+        t, lk = l.split()[0], l.split()[1]
+        if lk in ("lock=0", "lock=1"):
+            ev.append((int(t) / 1000.0, lk == "lock=1"))          # ps -> ns
+    kv = dict(zip(*[iter((d / "out_si514.txt").read_text().split())] * 2))
+    first = next((t for t, v in ev if v), None)
+    drop = next((t for t, v in ev if not v and t >= t_off), None)
+    back = next((t for t, v in ev if v and t > t_on), None)
+    ok = (first is not None and first < t_off and drop is not None and drop - t_off <= 5000.0
+          and pads_a == "0" * 9 and pads_b == "0" * 9 and n_pad == 0
+          and lost_us * 1e3 <= t_lost - t_off <= lost_us * 1e3 + 2000.0 and held == "1000" and n_held == 0
+          and t_on < t_cen2 < t_mclk and t_cen2 < t_bclk and back is not None
+          and int(kv["fcal"]) == 2 and int(kv["bad_small"]) == 0 and int(kv["bad_rmw"]) == 0
+          and int(kv["nack"]) == 0 and int(kv["found"], 16) == int(kv["addr"], 16))
+    after = lambda t: f"{(t - t_on) / 1e3:.0f} us" if t > 0 else "never"
+    frame = 1e9 / fs
+    print(f"SI  : {'PASS' if ok else 'FAIL'}  LOCK at {first / 1e6 if first else -1:.2f} ms; supply off at "
+          f"{t_off / 1e6:.3f} ms for {(t_on - t_off) / 1e3:.0f} us: LOCK dropped "
+          f"{(drop - t_off) / 1e3 if drop else -1:.2f} us after; the lines (TDM 4, MCLK, I2S 3, S/PDIF) "
+          f"{pads_a} at 2 us, {pads_b} at the end, {n_pad} rising edges; lost "
+          f"{(t_lost - t_off) / 1e3 if t_lost > 0 else -1:.1f} us after, lost/SCL/SDA/UART {held}, "
+          f"{n_held} rising edges; back: centred again {after(t_cen2)} after, MCLK {after(t_mclk)}, "
+          f"BCLK {after(t_bclk)}, LOCK {f'{(back - t_on) / frame:.0f} frames' if back else 'never'} after; "
+          f"fcal {kv['fcal']}, bad_small {kv['bad_small']}, bad_rmw {kv['bad_rmw']}, nack {kv['nack']}")
+    return ok
+
+
 d_truth_ref = None          # the frames as the ring sent them, for the counts in TDM/I2S reports
 
 

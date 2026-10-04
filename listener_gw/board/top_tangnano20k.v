@@ -120,7 +120,8 @@ module top_tangnano20k (
     // the module's own audio amplifier shares pins 54..56 with J2: kept shut down
     assign pa_en = 1'b0;
 
-    // open drain: R11/R12 (2k to 3V3_SW) pull high
+    // open drain: R11/R12 (2k to 3V3_SW) pull high; the core holds both low while
+    // the Si514 is lost (its supply off with 5V_SW, this module on its own USB)
     assign si_scl = scl_o ? 1'bz : 1'b0;
     assign si_sda = sda_o ? 1'bz : 1'b0;
 
