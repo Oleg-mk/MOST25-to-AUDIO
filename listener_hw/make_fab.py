@@ -7,6 +7,8 @@ most_listener.kicad_pcb and the sheet:
   * the pick-and-place file of the SMD parts;
   * the same BOM and pick-and-place in JLCPCB's format, for an order with SMD assembly: every
     SMD part carries the LCSC number chosen below, every rotation JLCPCB's correction;
+  * the schematic as a PDF, and an assembly drawing of the top (every reference, the silk's
+    hidden ones too, the polarity marks, the outline);
   * a README with the board's numbers, taken from the board itself, and the order steps.
 
 Every date KiCad writes into these files becomes the board's title-block date. The package
@@ -202,6 +204,15 @@ def normalise(path, date):
     path.write_text(t, encoding="utf-8", newline="\n")
 
 
+def normalise_pdf(path, date):
+    """KiCad's PDF creation stamp, (D:YYYY:MM:DD:hh:mm:ss), -> the board's date at midnight; the
+    same length, so the PDF's offsets hold."""
+    y, m, d = date.split("-")
+    b = path.read_bytes()
+    b = re.sub(rb"\(D:\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}\)", f"(D:{y}:{m}:{d}:00:00:00)".encode(), b)
+    path.write_bytes(b)
+
+
 def zip_files(target, files, date):
     stamp = tuple(int(v) for v in date.split("-")) + (0, 0, 0)
     with zipfile.ZipFile(target, "w") as z:
@@ -295,6 +306,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 | `most_listener-pos.csv` | pick-and-place, SMD parts on the top, mm, KiCad's rotations |
 | `most_listener-bom-jlcpcb.csv` | JLCPCB's BOM: the parts it places, with their LCSC numbers |
 | `most_listener-cpl-jlcpcb.csv` | JLCPCB's pick-and-place: the same parts, JLCPCB's rotations |
+| `most_listener-schematic.pdf` | the schematic |
+| `most_listener-assembly.pdf` | the top side for assembly: every reference (also those hidden on the silk), the polarity marks, the outline |
 
 ## The board
 
@@ -365,6 +378,11 @@ def main():
     run("sch", "export", "bom", "--output", str(OUT / "most_listener-bom.csv"),
         "--fields", "Reference,Value,Footprint,${QUANTITY}", "--labels", "Refs,Value,Footprint,Qty",
         "--group-by", "Value,Footprint", "--ref-range-delimiter", "", str(SCH))
+    run("sch", "export", "pdf", "--black-and-white", "--output", str(OUT / "most_listener-schematic.pdf"), str(SCH))
+    run("pcb", "export", "pdf", "--layers", "F.Fab,F.Silkscreen,Edge.Cuts", "--mode-single", "--scale", "0",
+        "--exclude-value", "--black-and-white", "--output", str(OUT / "most_listener-assembly.pdf"), str(PCB))
+    for p in OUT.glob("*.pdf"):
+        normalise_pdf(p, n["date"])
     fab = sorted(p for p in OUT.iterdir() if p.suffix in (".gtl", ".gbl", ".gtp", ".gto", ".gts", ".gbs", ".gm1",
                                                          ".drl", ".gbrjob"))
     for p in fab:

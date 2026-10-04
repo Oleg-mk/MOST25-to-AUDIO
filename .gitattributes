@@ -3,3 +3,9 @@
 * text=auto eol=lf
 *.png binary
 *.pdf binary
+# kit/: what the project hands over (tools/make_kit.py). The builds byte for byte (their sha256
+# are in BUILD.txt); the Windows launchers with CRLF, the macOS ones with LF (bash stops at a CR)
+kit/2_flash/**/*.fs -text
+kit/2_flash/**/*.bin binary
+kit/**/*.bat text eol=crlf
+kit/**/*.command text eol=lf

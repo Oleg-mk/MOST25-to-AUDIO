@@ -23,3 +23,5 @@ listener_hw/_restore_backup_*/
 
 # recordings of a car (tools/console_log.py) and what tools/trace_decode.py makes of them
 logs/
+# the laptop kit's Python environment, made by its launchers on the first run
+.venv/

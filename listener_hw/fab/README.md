@@ -17,6 +17,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 | `most_listener-pos.csv` | pick-and-place, SMD parts on the top, mm, KiCad's rotations |
 | `most_listener-bom-jlcpcb.csv` | JLCPCB's BOM: the parts it places, with their LCSC numbers |
 | `most_listener-cpl-jlcpcb.csv` | JLCPCB's pick-and-place: the same parts, JLCPCB's rotations |
+| `most_listener-schematic.pdf` | the schematic |
+| `most_listener-assembly.pdf` | the top side for assembly: every reference (also those hidden on the silk), the polarity marks, the outline |
 
 ## The board
 

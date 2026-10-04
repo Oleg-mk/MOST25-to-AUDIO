@@ -131,6 +131,10 @@ def main():
                         "o = subprocess.run(['git', 'status', '--porcelain', '--', 'fab'], capture_output=True, "
                         "text=True).stdout; print(o or 'fab/ is the committed package'); sys.exit(1 if o.strip() else 0)"],
              hw)
+        # kit/ hands over copies of fab/, of the builds and of the laptop's programs: each equal to its
+        # source, and no build older than its committed sources
+        step("kit: the copies and the builds match their sources (tools/make_kit.py --check)",
+             [py, str(ROOT / "tools" / "make_kit.py"), "--check"], ROOT)
 
     print("\n" + "=" * 60)
     for name, verdict, dt in results:
