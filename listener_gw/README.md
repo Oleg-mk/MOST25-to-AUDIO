@@ -377,7 +377,12 @@ Build: `cd board && python build.py` - it runs `gw_sh build.tcl`, then `check_ti
 timing (TNS not 0) or keeps less than 10 % above its constraint. The
 bitstream is `board/impl/pnr/listener.fs`. Place and route is deterministic:
 the same sources give the same result; any change moves the margins, which
-is why the check runs on every build.
+is why the check runs on every build. It goes into the module's SPI flash
+(`kit/2_flash`), and the FPGA reads it from there every time 5V_SW comes up
+with the ring: at 25 MHz (`-loading_rate 250/10` in build.tcl) that takes
+about 290 ms. Gowin's default, 2.5 MHz, took 2.9 s - long enough to miss the
+head unit's Connect after a wake (UG290 Table 3-3; the same setting as
+JLR-MOST-Reader's).
 
 ## Not proved - read before trusting it on a car
 

@@ -28,4 +28,10 @@ set_option -verilog_std v2001
 set_option -use_mspi_as_gpio 1
 set_option -use_sspi_as_gpio 1
 set_option -timing_driven 1
+# the bitstream is read from the module's flash at 25 MHz (250/10) instead of the default 2.5 MHz:
+# one bit a clock, the 7.26 Mbit took 2.9 s to configure every time 5V_SW came up with the ring,
+# long enough to miss the head unit's Connect; about 290 ms now (UG290 Table 3-3; the flash's limit
+# is 66.6 MHz). The same setting as JLR-MOST-Reader's (its commit 171035c); -bit_compress leaves the
+# bitstream uncompressed in this gw_sh, so it is not set.
+set_option -loading_rate 250/10
 run all

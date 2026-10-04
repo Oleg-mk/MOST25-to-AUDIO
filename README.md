@@ -185,7 +185,9 @@ left overlapping a pad or another reference.
   hear. At a cold start the ring, the FPGA and the ESP32 wake together
   (WAKE); if the head unit connects the amplifier to AUX before the host is
   listening, the phone is not injected until the head unit next changes a
-  source. Asking (a SourceInfo.Get on the control channel) would end the
+  source. The FPGA reads its bitstream from the module's flash in about
+  290 ms (25 MHz; Gowin's default 2.5 MHz took 2.9 s), so that window is
+  kept short. Asking (a SourceInfo.Get on the control channel) would end the
   listener's silence, so this stays as it is.
 - **Cars whose AUX is not a MOST source** - mixed inside the head unit - have
   no AUX bytes to replace; the phone cannot be injected there. Listening
