@@ -36,7 +36,7 @@ and it is an electrical path, not an optical bypass.
 | [listener_gw](listener_gw) | FPGA (Sipeed Tang Nano 20K): receiver, regenerator on a ring-locked clock (an Si514 the FPGA steers), TDM/UART outputs, J3's DSP engine and its S/PDIF twin, audio injection from the host or the S/PDIF input | Gowin EDA 1.9.12; simulation: Icarus Verilog (OSS CAD Suite) |
 | [listener_fw](listener_fw) | ESP32 host (M2, ESP32-DevKitC-VIE): Bluetooth A2DP in (AAC, SBC), the phone's rate onto the ring's, MOST telegram decoding, the amplifier model, J3's coefficients, the steering wheel's track keys to the phone (AVRCP) | ESP-IDF v6.1; host tests: gcc |
 | [virtual_most_source](virtual_most_source) | MOST25 frames and Biphase Mark line coding - the simulations' stimulus | Python + numpy |
-| [tools](tools) | `capture_analyse.py`: what a recording of a real line says (UI and rate, preamble patterns, block marker, parity rule, frame control), with its test on known frames | Python |
+| [tools](tools) | `console_log.py`: a recording of the host's console on a laptop on M2's USB port, kept whole, with marks and alarms (the port lost, the ESP32 started anew, a loss counter rising, silence); `trace_decode.py`: that recording at home - every telegram, the sound values a car's scales are fixed from, the telegrams beside each mark, the starts, losses and silences, and each dump through `capture_analyse.py`: what a recording of a real line says (UI and rate, preamble patterns, block marker, parity rule, frame control); each with its test (the console's formats against host.c's own, a made-up recording, known frames) | Python; pyserial for the recorder |
 | [docs](docs) | the MOST control formats the host decodes, which cars carry audio and how they send volume, the research behind the regenerator's clock | - |
 
 Each part's README says how it works, what is verified and how.
@@ -219,9 +219,10 @@ left overlapping a pad or another reference.
    FPGA listening: J2's TDM and UART, and the capture (command 04: the FPGA
    keeps the line's first 65536 runs after power-up, the host's `d` key dumps
    them, `c` captures anew; `tools/capture_analyse.py` reads them) from a real
-   ring. This settles what the simulations could only assume - the preamble
-   pattern, the block-start marker, the parity rule - and shows the control
-   telegrams the host decodes.
+   ring, recorded with `tools/console_log.py` and read with
+   `tools/trace_decode.py`. This settles what the simulations could only
+   assume - the preamble pattern, the block-start marker, the parity rule - and
+   shows the control telegrams the host decodes.
 2. **Regeneration**, on the bench with a loop of fibre, then in the car.
 3. **Injection**, allowed with 'i' on the console only now, from the phone and
    from the TOSLINK input, then J3's sound and the per-car scales.
@@ -257,7 +258,10 @@ Everything above is verified in simulation, host tests and builds; nothing
 has run on hardware yet. The PCB is placed, routed and passes DRC; no board
 has been ordered; its manufacturing package is in `listener_hw/fab`. The per-car
 pieces - the volume, tone and mixer-level scales - wait for a recording of a
-real ring; the listener's own trace is the tool that makes it.
+real ring; the listener's own trace is the tool that makes it: `console_log.py`
+records it with a mark at each end of a control's travel, and
+`trace_decode.py`'s `sound.txt` lists every value between the marks
+(listener_fw/README.md, Recording).
 
 This repository starts from the earlier `most-bus` project (commit 08ea5fb,
 2026-09-26), where the listener grew next to a shelved STM32 + ADAU1466

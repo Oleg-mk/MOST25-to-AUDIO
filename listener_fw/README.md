@@ -213,7 +213,8 @@ whose SpeakerLevel carries dB: raw volume -> dB on a square law over an
 assumed maximum (BMW 63, known; 40 elsewhere, a guess), 1 dB per bass /
 treble step (+-12 dB), 2 dB per balance step with the other side silent from
 10 steps, loudness +8 dB of bass at -40 dB and below, 1 dB per MixerLevel
-step. A recording of the car's ring while stepping each control fixes them.
+step. A recording of the car's ring while stepping each control fixes them
+(Recording, below: `sound.txt`).
 
 **Steering-wheel keys** (`wheel`, `phone_ctl`). On the Jaguar XF the gateway
 (0x161) sends the wheel's track keys to the touchscreen (0x16E), which tells
@@ -250,8 +251,8 @@ CAP END
 `python tools/capture_analyse.py console.log` turns that into the UI and the
 ring's rate, every frame, the preamble patterns and the one that marks a
 block, the parity rule, the frame control bits, the boundary descriptor and
-the pulse-width distortion. Record the console at 921600 baud with timestamps;
-a dump takes about 2 s to print.
+the pulse-width distortion; a recording (below) keeps every dump, and
+`trace_decode.py` runs that on each. A dump takes about 2 s to print.
 
 **Trace**: every telegram goes to the console, e.g.
 `0001F2A0 0100>0180 22.01.111 SetGet/StartResult [6] 01 00 08 09 0A 0B` -
@@ -260,6 +261,27 @@ low-priority task prints them; when the console falls behind, lines are
 dropped and counted, never UART bytes. A status line every 10 s counts
 packets, bad packets, blocks lost in the FPGA, telegrams, refused blocks and
 dropped transfers.
+
+**Recording** (`tools/console_log.py`, on a laptop on M2's USB port): the
+console kept whole, every byte in `logs/<date>-<time>-<n>.log` with the PC's
+time of each chunk beside it (`.idx`), a new pair after every reconnect, the
+marks and their notes in `.marks.txt`. The port is opened with DTR and RTS off
+and they are never touched: on the DevKitC they reset the ESP32. It beeps when
+the port goes, when the ESP32 starts anew, when one of the status line's loss
+counters rises (bad, lost in the FPGA, segments dropped, trace lost), after
+25 s without a line, and when the host does not answer a key. Keys: `m` a mark,
+`n` a note to it, `d` the dump, `c` a capture anew (it asks), `q` quit; `i` is
+never sent. At home `python tools/trace_decode.py` (the newest recording, or
+`logs/<stamp>`) writes `logs/<stamp>.d/`: `summary.txt` (the segments, the
+ESP32's starts, the counters and every rise, the silences, the marks, the
+dumps, the functions by count), `telegrams.csv`, `sound.txt` (what the host
+takes for J3's sound: each value's lowest and highest and every change, with
+the marks between), `functions.txt`, `marks.txt` (the telegrams from 5 s
+before each mark to 3 s after, each with how often its function came in the
+whole recording: a rare one beside a mark is the key that was pressed),
+`console.txt` and each dump with `capture_analyse.py`'s reading. For a car's
+scales, step each control from one end to the other with a mark at each end;
+for a wheel key, press it and mark.
 
 ## Build
 

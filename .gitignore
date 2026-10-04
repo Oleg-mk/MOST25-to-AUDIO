@@ -20,3 +20,6 @@ listener_hw/.history/
 listener_hw/_restore_backup_*/
 
 # firmware: listener_fw/.gitignore (ESP-IDF build, fetched components, tests)
+
+# recordings of a car (tools/console_log.py) and what tools/trace_decode.py makes of them
+logs/
