@@ -5,21 +5,21 @@
       "Application": "Pcbnew",
       "Version": "10.0.6"
     },
-    "CreationDate": "2026-10-03T00:00:00+00:00"
+    "CreationDate": "2026-10-04T00:00:00+00:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
       "Name": "most_listener",
       "GUID": "6d6f7374-5f6c-4697-9374-656e65722e6b",
-      "Revision": "1.5"
+      "Revision": "1.6"
     },
     "Size": {
-      "X": 122.6,
+      "X": 123.65,
       "Y": 79.0
     },
     "LayerNumber": 2,
     "BoardThickness": 1.6,
-    "Finish": "None"
+    "Finish": "ENIG"
   },
   "DesignRules": [
     {
@@ -72,6 +72,7 @@
   "MaterialStackup": [
     {
       "Type": "Legend",
+      "Color": "White",
       "Name": "Top Silk Screen"
     },
     {
@@ -80,6 +81,7 @@
     },
     {
       "Type": "SolderMask",
+      "Color": "Green",
       "Thickness": 0.01,
       "Name": "Top Solder Mask"
     },
@@ -102,6 +104,7 @@
     },
     {
       "Type": "SolderMask",
+      "Color": "Green",
       "Thickness": 0.01,
       "Name": "Bottom Solder Mask"
     },

@@ -1,4 +1,4 @@
-# Manufacturing package: MOST25 to AUDIO: listener board, rev 1.5 (2026-10-03)
+# Manufacturing package: MOST25 to AUDIO: listener board, rev 1.6 (2026-10-04)
 
 Written by `make_fab.py` from `most_listener.kicad_pcb` and the sheet; do not edit by hand. Run it
 again after any change to the board: `check_all.py` fails while this folder does not match.
@@ -20,10 +20,10 @@ again after any change to the board: `check_all.py` fails while this folder does
 
 ## The board
 
-- 122.5 x 78.9 mm, 2 layers, FR-4 1.6 mm,
+- 123.55 x 78.9 mm, 2 layers, FR-4 1.6 mm,
   35 um (1 oz) copper on both sides.
-- Tracks from 0.25 mm, clearance 0.15 mm; 251 vias of 0.6/0.3 mm.
-- Smallest hole 0.3 mm; 381 plated and 15 non-plated holes; no slots.
+- Tracks from 0.25 mm, clearance 0.15 mm; 252 vias of 0.6/0.3 mm.
+- Smallest hole 0.3 mm; 382 plated and 17 non-plated holes; no slots.
 - Solder mask on both sides, silkscreen on the top only.
 - Surface finish ENIG: flat pads for U4/U11 (VSSOP-8, 0.5 mm pitch) and the exposed pads of U5
   (WSON-6, 2 x 2 mm) and U6 (HSOP-8).
@@ -51,11 +51,14 @@ again after any change to the board: `check_all.py` fails while this folder does
    - F1 (C2925010) is an LCSC part. If JLCPCB holds none, its BOM page buys it from LCSC
      with the order.
    - On 2026-10-01 JLCPCB held 9 SRC4192IDBR (U13). For more boards, consign the rest.
-4. **Placement preview.** Before paying, check pin 1 of every IC, and the polarity of D1..D3,
-   C44, C45, C63 and C78.
-   - The rotations follow JLCKicadTools' table. The HSOP-8 (U6) is turned like a SOIC-8.
-   - U5 (WSON-6), U7 (Si514), X1 and the diodes keep KiCad's rotation. These are the likeliest
-     to need a turn.
+4. **Placement preview.** Before paying, check pin 1 of every IC and of X1, and the polarity of
+   D1..D3, C44, C45, C63, C78 and C81.
+   - The rotations were read off each chosen part's LCSC footprint (2026-10-03). A generic
+     table gets these wrong: the electrolytics (reversed) and U4, U8..U11, U14, U16, U18 (a
+     quarter turn off). Each pin 1 dot goes to the board's pin 1 mark, the + of each
+     electrolytic to the side of its silk +.
+   - U7 (Si514) is consigned and has no LCSC footprint: JLCPCB draws its own, so check its
+     pin 1 against the board's mark.
 5. **Consigned:** U7 (Si514). Send these to JLCPCB, or add them through its global sourcing.
    For the Si514, any code by the rule above.
 6. **By hand, after delivery.** These are not in JLCPCB's files. Their holes follow these exact
@@ -64,8 +67,8 @@ again after any change to the board: `check_all.py` fails while this folder does
    - J2 (ANALYSER): pin header 1x08, 2.54 mm
    - J3 (I2S): pin header 1x06, 2.54 mm
    - J4 (VBAT_IN): Molex 43650-0200, Micro-Fit 3.0, right angle
-   - J5 (PLR135/T10): Everlight, T10 housing
-   - J6 (PLT133/T10W): Everlight, T10 housing
+   - J5 (FCR684205R): Cliff ORJ-5 / OTJ-5 (FCR684205R / FCR684205T), from TME or Farnell (not at LCSC)
+   - J6 (FCR684205T): Cliff ORJ-5 / OTJ-5 (FCR684205R / FCR684205T), from TME or Farnell (not at LCSC)
    - J7 (RCA 75R): BKL Electronic 0101153
    - J8 (LINE L): BKL Electronic 0101153
    - J9 (LINE R): BKL Electronic 0101153

@@ -244,8 +244,8 @@ def courtyard(fp):
 
 
 def texts(fp):
-    """Small parts: the reference above the part in 0.8 mm text; test points show their net
-    instead; the mounting holes show nothing."""
+    """Small parts: the reference above the part in 1.0 mm text (JLCPCB's least, with its 0.15
+    stroke); test points show their net instead; the mounting holes show nothing."""
     ref = fp.GetReference()
     r, v = fp.Reference(), fp.Value()
     if ref.startswith("H"):
@@ -259,7 +259,7 @@ def texts(fp):
         return
     bb = courtyard(fp)
     t = r
-    pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetTop() - mm(0.6))
+    pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetTop() - mm(0.7))
     if ref.startswith("TP"):
         r.SetVisible(False)
         t = v
@@ -273,8 +273,8 @@ def texts(fp):
             pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetBottom() + mm(0.8))
         if just < 0:
             v.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
-    t.SetTextSize(pcbnew.VECTOR2I(mm(0.8), mm(0.8)))
-    t.SetTextThickness(mm(0.12))
+    t.SetTextSize(pcbnew.VECTOR2I(mm(1.0), mm(1.0)))
+    t.SetTextThickness(mm(0.15))
     t.SetTextAngleDegrees(0)
     t.SetPosition(pos)
 
@@ -424,6 +424,29 @@ def canonical(path):
     path.write_text(re.sub(r'\(uuid ""\)', number, head + body + tail), encoding="utf-8", newline="\n")
 
 
+# the stack-up JLCPCB is ordered with (fab/README.md): FR-4 1.6 mm, 1 oz copper, ENIG, green mask
+# and white silk; the job file make_fab.py exports carries it to the board house
+STACKUP = (("F.SilkS", '(type "Top Silk Screen")', '(color "White")'),
+           ("F.Paste", '(type "Top Solder Paste")'),
+           ("F.Mask", '(type "Top Solder Mask")', '(color "Green")', "(thickness 0.01)"),
+           ("F.Cu", '(type "copper")', "(thickness 0.035)"),
+           ("dielectric 1", '(type "core")', "(thickness 1.51)", '(material "FR4")', "(epsilon_r 4.5)",
+            "(loss_tangent 0.02)"),
+           ("B.Cu", '(type "copper")', "(thickness 0.035)"),
+           ("B.Mask", '(type "Bottom Solder Mask")', '(color "Green")', "(thickness 0.01)"),
+           ("B.Paste", '(type "Bottom Solder Paste")'),
+           ("B.SilkS", '(type "Bottom Silk Screen")'))
+
+
+def stackup(path):
+    t3, t4 = "\t" * 3, "\t" * 4
+    layers = "".join(f'{t3}(layer "{name}"\n' + "".join(f"{t4}{a}\n" for a in attrs) + f"{t3})\n"
+                     for name, *attrs in STACKUP)
+    block = f'\t\t(stackup\n{layers}{t3}(copper_finish "ENIG")\n{t3}(dielectric_constraints no)\n\t\t)\n'
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("\n\t(setup\n", "\n\t(setup\n" + block, 1), encoding="utf-8", newline="\n")
+
+
 def main():
     out = HERE / f"{PROJECT}.kicad_pcb"
     if out.exists() and "--fresh" not in sys.argv:
@@ -435,6 +458,7 @@ def main():
     (HERE / f"{PROJECT}.kicad_dru").write_text(RULES, encoding="utf-8", newline="\n")
     pcbnew.SaveBoard(str(out), board)
     canonical(out)
+    stackup(out)
     print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm, no tracks")
     parked = [r for r, (x, y, rot) in PLACE.items() if x > W]
     if parked:

@@ -98,14 +98,24 @@ LCSC = {
     ("TPS60403", "SOT-23-5"): ("C11338", "TI TPS60403DBVR"),
     ("24.576MHz", "Oscillator_SMD_Abracon_ASE-4Pin_3.2x2.5mm"): ("C2831388", "YXC OT322524.576MJBA4SL, 3.3 V CMOS"),
 }
-# JLCPCB's rotation minus KiCad's, by footprint: the community table JLCKicadTools'
-# cpl_rotations_db.csv for KiCad's library footprints; the HSOP-8 is not in it and takes the
-# SOIC-8's (the same body). Unlisted footprints keep KiCad's rotation. The first match wins.
-ROTATIONS = (
-    (r"^SOT-23", -90), (r"^SOT-353", 180), (r"^SOT-363", 180), (r"^TSSOP-", 270), (r"^SSOP-", 270),
-    (r"^SOIC-", 270), (r"^VSSOP-8_3.0x3.0mm", 270), (r"^VSSOP-8_", 180), (r"^CP_Elec_6.3x7.7", 180),
-    (r"^CP_Elec_10x10", 180), (r"^Texas_HSOP-8", 270),
-)
+# JLCPCB's rotation minus KiCad's, by LCSC part: JLCPCB's zero is the part's own LCSC (EasyEDA)
+# footprint, so each turn was read off that footprint, pad by pad against KiCad's (2026-10-03).
+# Pin 1 bottom-right with the pins in columns, as LCSC draws these SOT-23-5/6, SOT-353 and
+# SOT-363: 180. Pin 1 bottom-left with the pins in rows (U9's SC-70-5, the VSSOP-8, the TSSOPs,
+# the SSOP, the SOIC and the HSOP-8, an ESOP-8 to LCSC): 270. U9 shares KiCad's footprint with U1
+# and U3 but not LCSC's, so the key is the part. Drawn as KiCad's, 0: the WSON-6, X1, the
+# electrolytics (+ on pad 1, left), the diodes (cathode on pad 1, left), the inductors, and every
+# chip resistor, capacitor, bead and fuse (pads along X). The community table this replaces put
+# the SOT-23s, U9 and the VSSOP-8s a quarter turn off and the electrolytics in reversed. A placed
+# part neither listed nor a chip part stops the script.
+JLC_TURN = {
+    "C353880": 180, "C135822": 180, "C7833": 180, "C130005": 180, "C55266": 180, "C11338": 180,
+    "C2677837": 270, "C352969": 270, "C5149193": 270, "C96215": 270, "C2662561": 270,
+    "C107671": 270, "C192421": 270,
+    "C2876250": 0, "C2831388": 0, "C53330124": 0, "C359220": 0, "C8678": 0, "C135070": 0,
+    "C84374": 0, "C1330797": 0, "C2041547": 0,
+}
+CHIP = re.compile(r"^(R|C|L|Fuse)_\d{4}_\d{4}Metric$")
 
 
 def run(*args):
@@ -129,6 +139,60 @@ def board_numbers(text):
             "thickness": float(re.search(r'\(general\s+\(thickness ([\d.]+)\)', text).group(1)),
             "min_track": min(widths), "vias": vias, "min_hole": min(holes),
             "slots": "drill oval" in text}
+
+
+SILK_TEXT, SILK_LINE = 1.0, 0.15        # JLCPCB's least on silk: text height, and stroke and line width
+TEXTS = ("property", "fp_text", "gr_text")
+LINES = ("fp_line", "fp_rect", "fp_circle", "fp_arc", "fp_poly", "gr_line", "gr_rect", "gr_circle",
+         "gr_arc", "gr_poly")
+
+
+def silk_under(text):
+    """Visible F.SilkS texts under SILK_TEXT high or SILK_LINE thick, and F.SilkS lines thinner
+    than SILK_LINE: JLCPCB prints them blurred or not at all. KiCad's DRC checks the texts (the
+    project's limits) but has no rule for the lines."""
+    stack, cur = [], []
+    for m in re.finditer(r'\(|\)|"(?:[^"\\]|\\.)*"|[^\s()]+', text):
+        t = m.group(0)
+        if t == "(":
+            stack.append(cur)
+            cur = []
+        elif t == ")":
+            done, cur = cur, stack.pop()
+            cur.append(done)
+        else:
+            cur.append(t)
+    bad, owner = [], [""]
+
+    def kid(node, name):
+        return next((x for x in node if isinstance(x, list) and x and x[0] == name), None)
+
+    def walk(node):
+        if node[0] == "footprint":
+            ref = next((x[2] for x in node if isinstance(x, list) and x[:2] == ["property", '"Reference"']), "")
+            owner[0] = ref.strip('"')
+        layer = kid(node, "layer")
+        if layer and layer[1] == '"F.SilkS"':
+            eff = kid(node, "effects")
+            hidden = kid(node, "hide") in (["hide", "yes"],) or (eff is not None and "hide" in eff)
+            if node[0] in TEXTS and eff is not None and not hidden:
+                font = kid(eff, "font")
+                size, thick = kid(font, "size"), kid(font, "thickness")
+                if float(size[1]) < SILK_TEXT - 1e-6 or (thick and float(thick[1]) < SILK_LINE - 1e-6):
+                    bad.append(f"text {node[2] if len(node) > 2 else ''} at {owner[0] or 'the board'}")
+            elif node[0] in LINES:
+                stroke = kid(node, "stroke")
+                width = kid(stroke, "width") if stroke else kid(node, "width")
+                if width and float(width[1]) < SILK_LINE - 1e-6:
+                    bad.append(f"{node[0]} of {owner[0] or 'the board'}, {width[1]} mm")
+        for x in node:
+            if isinstance(x, list) and x:
+                walk(x)
+        if node[0] == "footprint":
+            owner[0] = ""
+
+    walk(cur[0])
+    return bad
 
 
 def normalise(path, date):
@@ -155,7 +219,7 @@ HAND_PARTS = {
     "PinHeader_1x08_P2.54mm_Vertical": "pin header 1x08, 2.54 mm",
     "PinHeader_1x06_P2.54mm_Vertical": "pin header 1x06, 2.54 mm",
     "Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal": "Molex 43650-0200, Micro-Fit 3.0, right angle",
-    "Everlight_TOSLINK_T10": "Everlight, T10 housing",
+    "Cliff_TOSLINK_ORJ5_OTJ5": "Cliff ORJ-5 / OTJ-5 (FCR684205R / FCR684205T), from TME or Farnell (not at LCSC)",
     "BKL_0101153_RCA_RA": "BKL Electronic 0101153",
     "Sipeed_TangNano20K": "Sipeed Tang Nano 20K, on its own pin headers",
     "Espressif_ESP32-DevKitC_V4": "Espressif ESP32-DevKitC-VIE, on its own pin headers",
@@ -186,6 +250,11 @@ def jlc_files(out):
             consigned.append((b["Refs"], b["Value"]))
     if missing:
         sys.exit("no LCSC part chosen for: " + "; ".join(missing))
+    code_of = {ref: code for _, refs, _, code, _ in rows for ref in refs.split(",")}
+    unread = {f"{code_of[p['Ref']]} ({p['Package']})" for p in pos
+              if code_of[p["Ref"]] and code_of[p["Ref"]] not in JLC_TURN and not CHIP.match(p["Package"])}
+    if unread:
+        sys.exit("no JLCPCB rotation read for: " + "; ".join(sorted(unread)))
     with (out / "most_listener-bom-jlcpcb.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["Comment", "Designator", "Footprint", "LCSC Part #", "Manufacturer Part"])
@@ -194,7 +263,7 @@ def jlc_files(out):
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["Designator", "Mid X", "Mid Y", "Layer", "Rotation"])
         for p in pos:
-            turn = next((d for pattern, d in ROTATIONS if re.search(pattern, p["Package"])), 0)
+            turn = JLC_TURN.get(code_of[p["Ref"]], 0)
             w.writerow([p["Ref"], f"{float(p['PosX']):.4f}mm", f"{float(p['PosY']):.4f}mm",
                         "Top" if p["Side"] == "top" else "Bottom", f"{(float(p['Rot']) + turn) % 360:g}"])
     return {"hand": hand, "consigned": consigned, "lines": len(rows), "codes": len({r[3] for r in rows if r[3]})}
@@ -260,11 +329,14 @@ again after any change to the board: `check_all.py` fails while this folder does
    - F1 (C2925010) is an LCSC part. If JLCPCB holds none, its BOM page buys it from LCSC
      with the order.
    - On 2026-10-01 JLCPCB held 9 SRC4192IDBR (U13). For more boards, consign the rest.
-4. **Placement preview.** Before paying, check pin 1 of every IC, and the polarity of D1..D3,
-   C44, C45, C63 and C78.
-   - The rotations follow JLCKicadTools' table. The HSOP-8 (U6) is turned like a SOIC-8.
-   - U5 (WSON-6), U7 (Si514), X1 and the diodes keep KiCad's rotation. These are the likeliest
-     to need a turn.
+4. **Placement preview.** Before paying, check pin 1 of every IC and of X1, and the polarity of
+   D1..D3, C44, C45, C63, C78 and C81.
+   - The rotations were read off each chosen part's LCSC footprint (2026-10-03). A generic
+     table gets these wrong: the electrolytics (reversed) and U4, U8..U11, U14, U16, U18 (a
+     quarter turn off). Each pin 1 dot goes to the board's pin 1 mark, the + of each
+     electrolytic to the side of its silk +.
+   - U7 (Si514) is consigned and has no LCSC footprint: JLCPCB draws its own, so check its
+     pin 1 against the board's mark.
 5. **Consigned:** {consigned}. Send these to JLCPCB, or add them through its global sourcing.
    For the Si514, any code by the rule above.
 6. **By hand, after delivery.** These are not in JLCPCB's files. Their holes follow these exact
@@ -276,7 +348,12 @@ again after any change to the board: `check_all.py` fails while this folder does
 def main():
     if not KICAD.exists():
         sys.exit(f"kicad-cli not found: {KICAD}")
-    n = board_numbers(PCB.read_text(encoding="utf-8"))
+    text = PCB.read_text(encoding="utf-8")
+    under = silk_under(text)
+    if under:
+        sys.exit(f"silkscreen under JLCPCB's {SILK_TEXT}/{SILK_LINE} mm: " + "; ".join(under[:20]) +
+                 (f"; and {len(under) - 20} more" if len(under) > 20 else ""))
+    n = board_numbers(text)
     OUT.mkdir(exist_ok=True)
     for old in OUT.iterdir():
         old.unlink()
