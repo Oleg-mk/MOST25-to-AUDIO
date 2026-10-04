@@ -1,0 +1,11 @@
+the host's firmware for M2 (ESP32-DevKitC-VIE): three images and where each goes (../README.md)
+commit     0ede8a76e1d6d57c23d6c573b4abb5b6b646d2fd
+version    b80fb4c  (the console shows it at start: "App version:")
+built      Oct  4 2026 11:43:53, ESP-IDF v6.1
+chip       esp32, flash dio 4MB 40m
+offset     0x1000 bootloader.bin
+offset     0x8000 partition-table.bin
+offset     0x10000 listener_fw.bin
+sha256:bootloader.bin 67b549cb58a0f1ed79719492fc5179124d8fa54c71247b8e2c66bb41ef60feef
+sha256:partition-table.bin 5295e8c42d6fb5f95e4e8a185932c6191d27cfc5078322475347e40e71af815a
+sha256:listener_fw.bin 3fa55cc5d11b738f35104152b5e3fba158f1d6ca4fb2bc4191ffd026c7e56579
