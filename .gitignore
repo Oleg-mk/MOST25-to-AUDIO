@@ -18,6 +18,14 @@ listener_hw/erc.rpt
 listener_hw/work/
 listener_hw/.history/
 listener_hw/_restore_backup_*/
+# board v2.0: the same for its folder
+listener_hw2/*.kicad_prl
+listener_hw2/*-backups/
+listener_hw2/~*.lck
+listener_hw2/fp-info-cache
+listener_hw2/work/
+listener_hw2/.history/
+listener_hw2/_restore_backup_*/
 
 # firmware: listener_fw/.gitignore (ESP-IDF build, fetched components, tests)
 
