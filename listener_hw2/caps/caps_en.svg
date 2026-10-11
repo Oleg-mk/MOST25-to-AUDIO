@@ -1,0 +1,269 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="594mm" height="420mm" viewBox="0 0 594 420" font-family="Arial, sans-serif" fill="none" stroke="black" stroke-width="0.25">
+<rect width="594" height="420" fill="white" stroke="none"/>
+<rect x="5" y="5" width="584" height="410" stroke-width="0.5"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,2 L10,5 L0,8 z" fill="black" stroke="none"/></marker></defs>
+<text x="12.00" y="15.00" font-size="5.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">MOST25-to-AUDIO listener v2.0: the end caps of the 80×30×2 tube (gen_caps.py)</text>
+<text x="12.00" y="21.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Scale 2:1, mm. Each cap seen from outside its end; u from the flange's left outer edge, v from its bottom one, w from its outer face into the tube. Openings: the part + 0.25 a side, corners R 0.25; the SMA's and the RCAs' holes: the thread + the same.</text>
+<text x="16.00" y="36.00" font-size="4.2" text-anchor="start" font-weight="bold" fill="black" stroke="none">Input cap (J1, J5, J4, M2's micro-USB, SMA) — in_cap</text>
+<text x="16.00" y="42.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">seen from outside (blocks dashed, the board's end dash-dotted)</text>
+<path d="M32.00,134.00 L232.00,134.00 L232.00,128.00 L212.00,128.00 L212.00,69.00 L211.97,68.74 L211.87,68.50 L211.71,68.29 L211.50,68.13 L211.26,68.03 L211.00,68.00 L53.00,68.00 L52.74,68.03 L52.50,68.13 L52.29,68.29 L52.13,68.50 L52.03,68.74 L52.00,69.00 L52.00,128.00 L32.00,128.00 Z" stroke-width="0.5"/>
+<path d="M56.00,120.00 L56.06,120.69 L56.24,121.37 L56.54,122.00 L56.94,122.57 L57.43,123.06 L58.00,123.46 L58.63,123.76 L59.31,123.94 L60.00,124.00 L204.00,124.00 L204.69,123.94 L205.37,123.76 L206.00,123.46 L206.57,123.06 L207.06,122.57 L207.46,122.00 L207.76,121.37 L207.94,120.69 L208.00,120.00 L208.00,76.00 L207.94,75.31 L207.76,74.63 L207.46,74.00 L207.06,73.43 L206.57,72.94 L206.00,72.54 L205.37,72.24 L204.69,72.06 L204.00,72.00 L60.00,72.00 L59.31,72.06 L58.63,72.24 L58.00,72.54 L57.43,72.94 L56.94,73.43 L56.54,74.00 L56.24,74.63 L56.06,75.31 L56.00,76.00 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M72.00,104.70 L192.00,104.70 L192.00,101.50 L72.00,101.50 Z" stroke-width="0.2" stroke-dasharray="3,1,0.5,1"/>
+<path d="M74.10,100.60 L74.14,100.79 L74.25,100.95 L74.41,101.06 L74.60,101.10 L104.50,101.10 L104.50,101.50 L104.54,101.69 L104.65,101.85 L104.81,101.96 L105.00,102.00 L113.00,102.00 L113.19,101.96 L113.35,101.85 L113.46,101.69 L113.50,101.50 L113.50,101.10 L125.00,101.10 L125.19,101.06 L125.35,100.95 L125.46,100.79 L125.50,100.60 L125.50,75.00 L125.46,74.81 L125.35,74.65 L125.19,74.54 L125.00,74.50 L74.60,74.50 L74.41,74.54 L74.25,74.65 L74.14,74.81 L74.10,75.00 Z" stroke-width="0.5"/>
+<path d="M142.90,124.40 L142.94,124.59 L143.05,124.75 L143.21,124.86 L143.40,124.90 L164.60,124.90 L164.79,124.86 L164.95,124.75 L165.06,124.59 L165.10,124.40 L165.10,106.90 L165.06,106.71 L164.95,106.55 L164.79,106.44 L164.60,106.40 L143.40,106.40 L143.21,106.44 L143.05,106.55 L142.94,106.71 L142.90,106.90 Z" stroke-width="0.5"/>
+<path d="M132.70,101.50 L132.74,101.69 L132.85,101.85 L133.01,101.96 L133.20,102.00 L175.26,102.00 L175.45,101.96 L175.61,101.85 L175.72,101.69 L175.76,101.50 L175.76,82.76 L175.72,82.57 L175.61,82.41 L175.45,82.30 L175.26,82.26 L133.20,82.26 L133.01,82.30 L132.85,82.41 L132.74,82.57 L132.70,82.76 Z" stroke-width="0.5"/>
+<path d="M203.61,85.30 L203.55,84.37 L203.36,83.45 L203.04,82.57 L202.61,81.74 L202.07,80.98 L201.44,80.29 L200.71,79.70 L199.91,79.22 L199.05,78.85 L198.15,78.59 L197.23,78.47 L196.29,78.47 L195.37,78.59 L194.47,78.85 L193.61,79.22 L192.81,79.70 L192.08,80.29 L191.45,80.98 L190.91,81.74 L190.48,82.57 L190.16,83.45 L189.97,84.37 L189.91,85.30 L189.97,86.23 L190.16,87.15 L190.48,88.03 L190.91,88.86 L191.45,89.62 L192.08,90.31 L192.81,90.90 L193.61,91.38 L194.47,91.75 L195.37,92.01 L196.29,92.13 L197.23,92.13 L198.15,92.01 L199.05,91.75 L199.91,91.38 L200.71,90.90 L201.44,90.31 L202.07,89.62 L202.61,88.86 L203.04,88.03 L203.36,87.15 L203.55,86.23 Z" stroke-width="0.5"/>
+<path d="M57.40,120.00 L57.45,120.51 L57.60,121.00 L57.84,121.44 L58.16,121.84 L58.56,122.16 L59.01,122.40 L59.49,122.55 L60.00,122.60 L71.40,122.60 L76.00,122.60 L76.00,105.70 L76.00,104.70 L71.40,104.70 L71.40,100.70 L73.60,100.70 L73.60,99.70 L73.60,73.40 L71.40,73.40 L60.00,73.40 L59.49,73.45 L59.01,73.60 L58.56,73.84 L58.16,74.16 L57.84,74.56 L57.60,75.00 L57.45,75.49 L57.40,76.00 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<line x1="64.40" y1="58.00" x2="64.40" y2="68.00" stroke-width="0.25" marker-end="url(#a)"/>
+<path d="M64.40,72.00 L64.40,87.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="64.40" y="56.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">ST2.2×9.5</text>
+<path d="M192.60,122.60 L204.00,122.60 L204.51,122.55 L205.00,122.40 L205.44,122.16 L205.84,121.84 L206.16,121.44 L206.40,121.00 L206.55,120.51 L206.60,120.00 L206.60,95.20 L192.60,95.20 L190.20,95.20 L190.20,99.70 L190.20,100.70 L192.60,100.70 L192.60,104.70 L188.00,104.70 L188.00,105.70 L188.00,122.60 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<path d="M176.80,91.30 L186.90,91.30 L186.90,73.40 L176.80,73.40 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<line x1="181.80" y1="58.00" x2="181.80" y2="68.00" stroke-width="0.25" marker-end="url(#a)"/>
+<path d="M181.80,72.00 L181.80,87.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="181.80" y="56.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">ST2.2×9.5, ground</text>
+<path d="M37.40,134.00 L37.40,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M46.60,134.00 L46.60,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M217.40,134.00 L217.40,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M226.60,134.00 L226.60,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<line x1="52.00" y1="138.00" x2="212.00" y2="138.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="132.00" y="136.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">80.0</text>
+<line x1="32.00" y1="145.00" x2="232.00" y2="145.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="132.00" y="143.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">100.0</text>
+<line x1="24.00" y1="128.00" x2="24.00" y2="68.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="22.80" y="98.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 22.80 98.00)">30.0</text>
+<line x1="237.00" y1="134.00" x2="237.00" y2="128.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="235.80" y="131.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 235.80 131.00)">3.0</text>
+<text x="16.00" y="160.00" font-size="3.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">Sizes: what — u — v — w</text>
+<text x="16.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">J1's housing, with the notch for its standoff</text>
+<text x="140.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">11.05…36.75</text>
+<text x="167.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.00…26.75</text>
+<text x="191.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0…2.0</text>
+<text x="16.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">M2's micro-USB, its plug's overmould</text>
+<text x="140.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">45.45…56.55</text>
+<text x="167.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">1.55…10.80</text>
+<text x="191.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0…2.0</text>
+<text x="16.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">J5's frame and J4's face (one opening: 1.17 between them)</text>
+<text x="140.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">40.35…61.88</text>
+<text x="167.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.00…22.87</text>
+<text x="191.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0…2.0</text>
+<text x="16.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">the antenna's SMA bulkhead: Ø6.85, centre</text>
+<text x="140.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">72.38</text>
+<text x="167.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">21.35</text>
+<text x="191.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0..2.0</text>
+<text x="16.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 0 edge): post</text>
+<text x="140.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…9.70</text>
+<text x="167.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…27.30</text>
+<text x="191.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="16.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 0 edge): ledge over the board</text>
+<text x="140.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">9.70…10.80</text>
+<text x="167.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.65…27.30</text>
+<text x="191.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…4.3</text>
+<text x="16.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 0 edge): ledge under the board</text>
+<text x="140.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">9.70…12.00</text>
+<text x="167.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…11.65</text>
+<text x="191.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…3.5</text>
+<text x="16.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 0 edge): ST2.2×9.5 screw through the top</text>
+<text x="140.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.20</text>
+<text x="167.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">28.00…30.00</text>
+<text x="191.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">5.00</text>
+<text x="16.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 60 edge): post</text>
+<text x="140.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">70.30…77.30</text>
+<text x="167.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…16.40</text>
+<text x="191.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="16.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 60 edge): lip over the board</text>
+<text x="140.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">69.10…70.30</text>
+<text x="167.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.65…16.40</text>
+<text x="191.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="16.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 60 edge): lip under the board</text>
+<text x="140.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">68.00…70.30</text>
+<text x="167.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…11.65</text>
+<text x="191.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="16.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">ground block (over J4's side): block</text>
+<text x="140.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">62.40…67.45</text>
+<text x="167.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">18.35…27.30</text>
+<text x="191.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="16.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">ground block (over J4's side): ST2.2×9.5 screw through the top, ground under it</text>
+<text x="140.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">64.90</text>
+<text x="167.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">28.00…30.00</text>
+<text x="191.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">5.00</text>
+<text x="16.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">the saddle</text>
+<text x="140.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-10.00…90.00</text>
+<text x="167.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-3.00…0.00</text>
+<text x="191.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0…11.0</text>
+<text x="16.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">ear hole: Ø4.6, a teardrop, its point away from the flange</text>
+<text x="140.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-5.00</text>
+<text x="167.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-3.00…0.00</text>
+<text x="191.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.50</text>
+<text x="16.00" y="233.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">ear hole: Ø4.6, a teardrop, its point away from the flange</text>
+<text x="140.00" y="233.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">85.00</text>
+<text x="167.00" y="233.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-3.00…0.00</text>
+<text x="191.00" y="233.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.50</text>
+<text x="207.00" y="154.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">section at u = 10.40 (inside to the right)</text>
+<path d="M215.00,232.00 L237.00,232.00 L237.00,226.00 L219.00,226.00 L219.00,166.00 L215.00,166.00 Z" stroke-width="0.5"/>
+<path d="M219.00,197.70 L223.60,197.70 L223.60,171.40 L219.00,171.40 Z" stroke-width="0.5"/>
+<text x="224.80" y="185.55" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.3</text>
+<path d="M219.00,198.70 L222.60,198.70 L223.60,197.70 L219.00,197.70 Z" stroke-width="0.5"/>
+<path d="M219.00,220.60 L222.00,220.60 L222.00,203.70 L219.00,203.70 Z" stroke-width="0.5"/>
+<text x="223.20" y="213.15" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">1.5</text>
+<path d="M219.00,203.70 L222.00,203.70 L221.00,202.70 L219.00,202.70 Z" stroke-width="0.5"/>
+<path d="M219.00,202.70 L247.00,202.70 L247.00,199.50 L219.00,199.50 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="248.00" y="201.90" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">board: 9.65 above the floor</text>
+<path d="M219.00,226.00 L247.00,226.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M219.00,222.00 L247.00,222.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M219.00,170.00 L247.00,170.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M219.00,166.00 L247.00,166.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="248.00" y="225.00" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">tube wall</text>
+<text x="239.00" y="230.00" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">saddle</text>
+<line x1="215.00" y1="236.00" x2="219.00" y2="236.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="217.00" y="234.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">2.0</text>
+<line x1="215.00" y1="243.00" x2="237.00" y2="243.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="226.00" y="241.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">11.0</text>
+<text x="16.00" y="246.20" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">seen from below (the outer face at the top)</text>
+<path d="M32.00,250.20 L232.00,250.20 L232.00,272.20 L32.00,272.20 Z" stroke-width="0.5"/>
+<path d="M52.00,272.20 L52.00,254.20 L212.00,254.20 L212.00,272.20" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M38.75,266.45 L38.26,265.88 L37.88,265.24 L37.60,264.55 L37.44,263.82 L37.40,263.08 L37.48,262.33 L37.68,261.61 L38.00,260.94 L38.41,260.32 L38.93,259.78 L39.52,259.32 L40.18,258.97 L40.89,258.74 L41.63,258.62 L42.37,258.62 L43.11,258.74 L43.82,258.97 L44.48,259.32 L45.07,259.78 L45.59,260.32 L46.00,260.94 L46.32,261.61 L46.52,262.33 L46.60,263.08 L46.56,263.82 L46.40,264.55 L46.12,265.24 L45.74,265.88 L45.25,266.45 L43.91,267.80 L40.09,267.80 Z" stroke-width="0.4"/>
+<circle cx="42.00" cy="263.20" r="9.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="42.00" y="275.40" font-size="2.4" text-anchor="middle" font-weight="normal" fill="black" stroke="none">Ø4.6</text>
+<path d="M218.75,266.45 L218.26,265.88 L217.88,265.24 L217.60,264.55 L217.44,263.82 L217.40,263.08 L217.48,262.33 L217.68,261.61 L218.00,260.94 L218.41,260.32 L218.93,259.78 L219.52,259.32 L220.18,258.97 L220.89,258.74 L221.63,258.62 L222.37,258.62 L223.11,258.74 L223.82,258.97 L224.48,259.32 L225.07,259.78 L225.59,260.32 L226.00,260.94 L226.32,261.61 L226.52,262.33 L226.60,263.08 L226.56,263.82 L226.40,264.55 L226.12,265.24 L225.74,265.88 L225.25,266.45 L223.91,267.80 L220.09,267.80 Z" stroke-width="0.4"/>
+<circle cx="222.00" cy="263.20" r="9.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="222.00" y="275.40" font-size="2.4" text-anchor="middle" font-weight="normal" fill="black" stroke="none">Ø4.6</text>
+<line x1="235.00" y1="250.20" x2="235.00" y2="272.20" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="236.20" y="262.20" font-size="2.6" text-anchor="start" font-weight="normal" fill="black" stroke="none">11.0</text>
+<text x="308.00" y="36.00" font-size="4.2" text-anchor="start" font-weight="bold" fill="black" stroke="none">Output cap (J6, RCA J7..J9) — out_cap</text>
+<text x="308.00" y="42.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">seen from outside (blocks dashed, the board's end dash-dotted)</text>
+<path d="M324.00,134.00 L524.00,134.00 L524.00,128.00 L504.00,128.00 L504.00,69.00 L503.97,68.74 L503.87,68.50 L503.71,68.29 L503.50,68.13 L503.26,68.03 L503.00,68.00 L345.00,68.00 L344.74,68.03 L344.50,68.13 L344.29,68.29 L344.13,68.50 L344.03,68.74 L344.00,69.00 L344.00,128.00 L324.00,128.00 Z" stroke-width="0.5"/>
+<path d="M348.00,120.00 L348.06,120.69 L348.24,121.37 L348.54,122.00 L348.94,122.57 L349.43,123.06 L350.00,123.46 L350.63,123.76 L351.31,123.94 L352.00,124.00 L496.00,124.00 L496.69,123.94 L497.37,123.76 L498.00,123.46 L498.57,123.06 L499.06,122.57 L499.46,122.00 L499.76,121.37 L499.94,120.69 L500.00,120.00 L500.00,76.00 L499.94,75.31 L499.76,74.63 L499.46,74.00 L499.06,73.43 L498.57,72.94 L498.00,72.54 L497.37,72.24 L496.69,72.06 L496.00,72.00 L352.00,72.00 L351.31,72.06 L350.63,72.24 L350.00,72.54 L349.43,72.94 L348.94,73.43 L348.54,74.00 L348.24,74.63 L348.06,75.31 L348.00,76.00 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M364.00,104.70 L484.00,104.70 L484.00,101.50 L364.00,101.50 Z" stroke-width="0.2" stroke-dasharray="3,1,0.5,1"/>
+<path d="M461.70,100.90 L461.74,101.09 L461.85,101.25 L462.01,101.36 L462.20,101.40 L481.60,101.40 L481.79,101.36 L481.95,101.25 L482.06,101.09 L482.10,100.90 L482.10,82.76 L482.06,82.57 L481.95,82.41 L481.79,82.30 L481.60,82.26 L462.20,82.26 L462.01,82.30 L461.85,82.41 L461.74,82.57 L461.70,82.76 Z" stroke-width="0.5"/>
+<path d="M459.30,87.40 L459.24,86.11 L459.05,84.82 L458.73,83.57 L458.30,82.35 L457.74,81.18 L457.08,80.07 L456.30,79.03 L455.43,78.07 L454.47,77.20 L453.43,76.42 L452.32,75.76 L451.15,75.20 L449.93,74.77 L448.68,74.45 L447.39,74.26 L446.10,74.20 L444.81,74.26 L443.52,74.45 L442.27,74.77 L441.05,75.20 L439.88,75.76 L438.77,76.42 L437.73,77.20 L436.77,78.07 L435.90,79.03 L435.12,80.07 L434.46,81.18 L433.90,82.35 L433.47,83.57 L433.15,84.82 L432.96,86.11 L432.90,87.40 L432.90,88.60 L432.96,89.89 L433.15,91.18 L433.47,92.43 L433.90,93.65 L434.46,94.82 L435.12,95.93 L435.90,96.97 L436.77,97.93 L437.73,98.80 L438.77,99.58 L439.88,100.24 L441.05,100.80 L442.27,101.23 L443.52,101.55 L444.81,101.74 L446.10,101.80 L447.39,101.74 L448.68,101.55 L449.93,101.23 L451.15,100.80 L452.32,100.24 L453.43,99.58 L454.47,98.80 L455.43,97.93 L456.30,96.97 L457.08,95.93 L457.74,94.82 L458.30,93.65 L458.73,92.43 L459.05,91.18 L459.24,89.89 L459.30,88.60 Z" stroke-width="0.5"/>
+<path d="M425.62,87.40 L425.56,86.11 L425.37,84.82 L425.05,83.57 L424.62,82.35 L424.06,81.18 L423.40,80.07 L422.62,79.03 L421.75,78.07 L420.79,77.20 L419.75,76.42 L418.64,75.76 L417.47,75.20 L416.25,74.77 L415.00,74.45 L413.71,74.26 L412.42,74.20 L411.13,74.26 L409.84,74.45 L408.59,74.77 L407.37,75.20 L406.20,75.76 L405.09,76.42 L404.05,77.20 L403.09,78.07 L402.22,79.03 L401.44,80.07 L400.78,81.18 L400.22,82.35 L399.79,83.57 L399.47,84.82 L399.28,86.11 L399.22,87.40 L399.22,88.60 L399.28,89.89 L399.47,91.18 L399.79,92.43 L400.22,93.65 L400.78,94.82 L401.44,95.93 L402.22,96.97 L403.09,97.93 L404.05,98.80 L405.09,99.58 L406.20,100.24 L407.37,100.80 L408.59,101.23 L409.84,101.55 L411.13,101.74 L412.42,101.80 L413.71,101.74 L415.00,101.55 L416.25,101.23 L417.47,100.80 L418.64,100.24 L419.75,99.58 L420.79,98.80 L421.75,97.93 L422.62,96.97 L423.40,95.93 L424.06,94.82 L424.62,93.65 L425.05,92.43 L425.37,91.18 L425.56,89.89 L425.62,88.60 Z" stroke-width="0.5"/>
+<path d="M395.14,87.40 L395.08,86.11 L394.89,84.82 L394.57,83.57 L394.14,82.35 L393.58,81.18 L392.92,80.07 L392.14,79.03 L391.27,78.07 L390.31,77.20 L389.27,76.42 L388.16,75.76 L386.99,75.20 L385.77,74.77 L384.52,74.45 L383.23,74.26 L381.94,74.20 L380.65,74.26 L379.36,74.45 L378.11,74.77 L376.89,75.20 L375.72,75.76 L374.61,76.42 L373.57,77.20 L372.61,78.07 L371.74,79.03 L370.96,80.07 L370.30,81.18 L369.74,82.35 L369.31,83.57 L368.99,84.82 L368.80,86.11 L368.74,87.40 L368.74,88.60 L368.80,89.89 L368.99,91.18 L369.31,92.43 L369.74,93.65 L370.30,94.82 L370.96,95.93 L371.74,96.97 L372.61,97.93 L373.57,98.80 L374.61,99.58 L375.72,100.24 L376.89,100.80 L378.11,101.23 L379.36,101.55 L380.65,101.74 L381.94,101.80 L383.23,101.74 L384.52,101.55 L385.77,101.23 L386.99,100.80 L388.16,100.24 L389.27,99.58 L390.31,98.80 L391.27,97.93 L392.14,96.97 L392.92,95.93 L393.58,94.82 L394.14,93.65 L394.57,92.43 L394.89,91.18 L395.08,89.89 L395.14,88.60 Z" stroke-width="0.5"/>
+<path d="M349.40,120.00 L349.45,120.51 L349.60,121.00 L349.84,121.44 L350.16,121.84 L350.56,122.16 L351.00,122.40 L351.49,122.55 L352.00,122.60 L363.40,122.60 L368.00,122.60 L368.00,105.70 L368.00,104.70 L363.40,104.70 L363.40,100.70 L366.20,100.70 L366.20,99.70 L366.20,73.40 L363.40,73.40 L352.00,73.40 L351.49,73.45 L351.00,73.60 L350.56,73.84 L350.16,74.16 L349.84,74.56 L349.60,75.00 L349.45,75.49 L349.40,76.00 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<line x1="356.40" y1="58.00" x2="356.40" y2="68.00" stroke-width="0.25" marker-end="url(#a)"/>
+<path d="M356.40,72.00 L356.40,87.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="356.40" y="56.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">ST2.2×9.5</text>
+<path d="M484.60,122.60 L496.00,122.60 L496.51,122.55 L497.00,122.40 L497.44,122.16 L497.84,121.84 L498.16,121.44 L498.40,121.00 L498.55,120.51 L498.60,120.00 L498.60,76.00 L498.55,75.49 L498.40,75.00 L498.16,74.56 L497.84,74.16 L497.44,73.84 L497.00,73.60 L496.51,73.45 L496.00,73.40 L484.60,73.40 L482.40,73.40 L482.40,99.70 L482.40,100.70 L484.60,100.70 L484.60,104.70 L480.10,104.70 L480.10,105.70 L480.10,122.60 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<line x1="491.60" y1="58.00" x2="491.60" y2="68.00" stroke-width="0.25" marker-end="url(#a)"/>
+<path d="M491.60,72.00 L491.60,87.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="491.60" y="56.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">ST2.2×9.5</text>
+<path d="M329.40,134.00 L329.40,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M338.60,134.00 L338.60,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M509.40,134.00 L509.40,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M518.60,134.00 L518.60,128.00" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<line x1="344.00" y1="138.00" x2="504.00" y2="138.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="424.00" y="136.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">80.0</text>
+<line x1="324.00" y1="145.00" x2="524.00" y2="145.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="424.00" y="143.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">100.0</text>
+<line x1="316.00" y1="128.00" x2="316.00" y2="68.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="314.80" y="98.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 314.80 98.00)">30.0</text>
+<line x1="529.00" y1="134.00" x2="529.00" y2="128.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="527.80" y="131.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 527.80 131.00)">3.0</text>
+<text x="308.00" y="160.00" font-size="3.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">Sizes: what — u — v — w</text>
+<text x="308.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">J6's frame</text>
+<text x="432.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">58.85…69.05</text>
+<text x="459.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.30…22.87</text>
+<text x="483.00" y="164.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0…2.0</text>
+<text x="308.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">J7's bushing: slot 13.20 wide, 13.80 tall, centre</text>
+<text x="432.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">51.05</text>
+<text x="459.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">20.00</text>
+<text x="483.00" y="169.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0..2.0</text>
+<text x="308.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">J9's bushing: slot 13.20 wide, 13.80 tall, centre</text>
+<text x="432.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">34.21</text>
+<text x="459.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">20.00</text>
+<text x="483.00" y="173.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0..2.0</text>
+<text x="308.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">J8's bushing: slot 13.20 wide, 13.80 tall, centre</text>
+<text x="432.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">18.97</text>
+<text x="459.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">20.00</text>
+<text x="483.00" y="178.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0..2.0</text>
+<text x="308.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 60 edge): post</text>
+<text x="432.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…9.70</text>
+<text x="459.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…27.30</text>
+<text x="483.00" y="183.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="308.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 60 edge): lip over the board</text>
+<text x="432.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">9.70…11.10</text>
+<text x="459.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.65…27.30</text>
+<text x="483.00" y="187.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="308.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 60 edge): lip under the board</text>
+<text x="432.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">9.70…12.00</text>
+<text x="459.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…11.65</text>
+<text x="483.00" y="192.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="308.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">left block (y 60 edge): ST2.2×9.5 screw through the top</text>
+<text x="432.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.20</text>
+<text x="459.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">28.00…30.00</text>
+<text x="483.00" y="196.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">5.00</text>
+<text x="308.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 0 edge): post</text>
+<text x="432.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">70.30…77.30</text>
+<text x="459.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…27.30</text>
+<text x="483.00" y="201.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="308.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 0 edge): lip over the board</text>
+<text x="432.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">69.20…70.30</text>
+<text x="459.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">13.65…27.30</text>
+<text x="483.00" y="206.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="308.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 0 edge): lip under the board</text>
+<text x="432.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">68.05…70.30</text>
+<text x="459.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.70…11.65</text>
+<text x="483.00" y="210.60" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">2.0…8.0</text>
+<text x="308.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">right block (y 0 edge): ST2.2×9.5 screw through the top</text>
+<text x="432.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">73.80</text>
+<text x="459.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">28.00…30.00</text>
+<text x="483.00" y="215.20" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">5.00</text>
+<text x="308.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">the saddle</text>
+<text x="432.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-10.00…90.00</text>
+<text x="459.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-3.00…0.00</text>
+<text x="483.00" y="219.80" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">0…11.0</text>
+<text x="308.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">ear hole: Ø4.6, a teardrop, its point away from the flange</text>
+<text x="432.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-5.00</text>
+<text x="459.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-3.00…0.00</text>
+<text x="483.00" y="224.40" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.50</text>
+<text x="308.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">ear hole: Ø4.6, a teardrop, its point away from the flange</text>
+<text x="432.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">85.00</text>
+<text x="459.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">-3.00…0.00</text>
+<text x="483.00" y="229.00" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.50</text>
+<text x="499.00" y="154.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">section at u = 10.40 (inside to the right)</text>
+<path d="M507.00,232.00 L529.00,232.00 L529.00,226.00 L511.00,226.00 L511.00,166.00 L507.00,166.00 Z" stroke-width="0.5"/>
+<path d="M511.00,197.70 L523.00,197.70 L523.00,171.40 L511.00,171.40 Z" stroke-width="0.5"/>
+<text x="524.20" y="185.55" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.0</text>
+<path d="M511.00,198.70 L522.00,198.70 L523.00,197.70 L511.00,197.70 Z" stroke-width="0.5"/>
+<path d="M511.00,220.60 L523.00,220.60 L523.00,203.70 L511.00,203.70 Z" stroke-width="0.5"/>
+<text x="524.20" y="213.15" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">6.0</text>
+<path d="M511.00,203.70 L523.00,203.70 L522.00,202.70 L511.00,202.70 Z" stroke-width="0.5"/>
+<path d="M511.00,202.70 L539.00,202.70 L539.00,199.50 L511.00,199.50 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="540.00" y="201.90" font-size="2.5" text-anchor="start" font-weight="normal" fill="black" stroke="none">board: 9.65 above the floor</text>
+<path d="M511.00,226.00 L539.00,226.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M511.00,222.00 L539.00,222.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M511.00,170.00 L539.00,170.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M511.00,166.00 L539.00,166.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="540.00" y="225.00" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">tube wall</text>
+<text x="531.00" y="230.00" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">saddle</text>
+<line x1="507.00" y1="236.00" x2="511.00" y2="236.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="509.00" y="234.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">2.0</text>
+<line x1="507.00" y1="243.00" x2="529.00" y2="243.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="518.00" y="241.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">11.0</text>
+<text x="308.00" y="241.60" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">seen from below (the outer face at the top)</text>
+<path d="M324.00,245.60 L524.00,245.60 L524.00,267.60 L324.00,267.60 Z" stroke-width="0.5"/>
+<path d="M344.00,267.60 L344.00,249.60 L504.00,249.60 L504.00,267.60" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M330.75,261.85 L330.26,261.28 L329.88,260.64 L329.60,259.95 L329.44,259.22 L329.40,258.48 L329.48,257.73 L329.68,257.01 L330.00,256.34 L330.41,255.72 L330.93,255.18 L331.52,254.72 L332.18,254.37 L332.89,254.14 L333.63,254.02 L334.37,254.02 L335.11,254.14 L335.82,254.37 L336.48,254.72 L337.07,255.18 L337.59,255.72 L338.00,256.34 L338.32,257.01 L338.52,257.73 L338.60,258.48 L338.56,259.22 L338.40,259.95 L338.12,260.64 L337.74,261.28 L337.25,261.85 L335.91,263.20 L332.09,263.20 Z" stroke-width="0.4"/>
+<circle cx="334.00" cy="258.60" r="9.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="334.00" y="270.80" font-size="2.4" text-anchor="middle" font-weight="normal" fill="black" stroke="none">Ø4.6</text>
+<path d="M510.75,261.85 L510.26,261.28 L509.88,260.64 L509.60,259.95 L509.44,259.22 L509.40,258.48 L509.48,257.73 L509.68,257.01 L510.00,256.34 L510.41,255.72 L510.93,255.18 L511.52,254.72 L512.18,254.37 L512.89,254.14 L513.63,254.02 L514.37,254.02 L515.11,254.14 L515.82,254.37 L516.48,254.72 L517.07,255.18 L517.59,255.72 L518.00,256.34 L518.32,257.01 L518.52,257.73 L518.60,258.48 L518.56,259.22 L518.40,259.95 L518.12,260.64 L517.74,261.28 L517.25,261.85 L515.91,263.20 L512.09,263.20 Z" stroke-width="0.4"/>
+<circle cx="514.00" cy="258.60" r="9.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="514.00" y="270.80" font-size="2.4" text-anchor="middle" font-weight="normal" fill="black" stroke="none">Ø4.6</text>
+<line x1="527.00" y1="245.60" x2="527.00" y2="267.60" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="528.20" y="257.60" font-size="2.6" text-anchor="start" font-weight="normal" fill="black" stroke="none">11.0</text>
+<text x="12.00" y="284.70" font-size="3.2" text-anchor="start" font-weight="bold" fill="black" stroke="none">Notes</text>
+<text x="12.00" y="290.20" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Print: FDM in PETG or ASA (PLA softens in a car), or order MJF PA12; the outer face on the bed, no supports; 100 % infill (the screws go into the blocks): both caps 18.1 cm³, about 23 g of PETG.</text>
+<text x="12.00" y="295.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">No wall thinner than 1.2 mm. The 2.0 mm flange sits on the tube's end. Cut the 80×30×2 tube to the soldered board: its input end to the farthest of its output end and the RCA fronts (nominally 98.05), +0.1/−0 mm; ends square and deburred.</text>
+<text x="12.00" y="299.80" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">The blocks stand 0.7 off the tube's walls, floor and top: a tube in tolerance takes them unmeasured. The board: its edges in the side blocks' slots (2.0 for the 1.6 board, the posts 0.3 off its edges, each lip's tip a 0.5×45° lead-in);</text>
+<text x="12.00" y="304.60" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  the lower lip carries it 9.65 above the floor, the upper holds it. By J1 the lips are short ledges (2.3 and 1.5 mm): J1's pin is 1.55 from the edge. The RCA bushings go through 13.2×13.8 slots: BKL does not dimension the axis (6.45..7.05).</text>
+<text x="12.00" y="309.40" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Assembly: the leads cut as check_fit says (M1 flush, J4/J5 short before M2, the RCA thin pins to 2 mm). Clip the antenna pigtail's U.FL onto M2's WROVER-IE; lead the cable past the module's antenna end, not across its shield,</text>
+<text x="12.00" y="314.20" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  under the board to its y = 60 edge, along it and round it up to the SMA beyond 8 mm from the input end (past the blocks); tape it and the spare, a flat loop, to the board's underside. The SMA into the input cap from inside, the lock washer and nut outside; that cap onto the board's input end, outside the tube.</text>
+<text x="12.00" y="319.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  Lay the tube on its top and the board M2 up; slide the board and cap in, output end first: the free end can droop onto J7/J8/J9 (1.25 under the tube's top); M2 and the cable rest on nothing.</text>
+<text x="12.00" y="323.80" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  Fit the output cap, holding the board's end at the slots by the RCA bushings; then turn it over. Once the U.FL is on, never let the board rest on M2 (the cable has 0.88 under the WROVER-IE's end).</text>
+<text x="12.00" y="328.60" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Fixing: DIN 7981 C ST2.2×9.5 self-tapping screws through the tube's top, 3.0 mm from its end: a Ø2.4 hole in the tube; the flange flush with the tube's outline, Ø1.6 drilled square through it into the block; tightened until the head seats:</text>
+<text x="12.00" y="333.40" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  input cap u 6.20; input cap u 64.90; output cap u 6.20; output cap u 73.80 (u from the left edge, seen from outside that end).</text>
+<text x="12.00" y="338.20" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Mounting in the car: the tube rests on the two saddles; four screws through the ears, ST4.2 self-tapping (DIN 7981) or M4 in the Ø4.6 holes, a DIN 125 M4 washer (Ø9) under each head.</text>
+<text x="12.00" y="343.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">The tube's ground: an M2 ring terminal and a serrated washer under the ground block's screw (input cap, u 64.90, over J4); a 3–5 cm wire</text>
+<text x="12.00" y="347.80" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  to J4's harness ground next to the plug (soldered, heat-shrunk). The tube bare, or cleaned to metal under the washer.</text>
+<text x="12.00" y="352.60" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Antenna: a 150 mm U.FL-to-SMA pigtail, any with a plain-hex panel jack (8 mm, its thread with flats or none): a round Ø6.85 hole, the flange 2.0 of the 3.2 it takes.</text>
+</svg>
