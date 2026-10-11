@@ -15,6 +15,8 @@ the board, not the circuit:
   * J5/J6 are Cliff ORJ-8/OTJ-8 (FCR684208R/T) instead of ORJ-5/OTJ-5 (the user's decision of
     2026-10-07): the same pins, supply and speed, 10.0 mm high with no screw ear instead of 19.0.
     Their footprint and body are drawn here.
+  * M1's and M2's footprints have holes only for the pins in use and the corner pins that hold the
+    module (the user's decision of 2026-10-11): the free pins come out of the header strips.
 tools/check_v2_circuit.py holds the two sheets to the same parts and nets (J5/J6's part numbers and
 footprint excepted), so the gateware, the firmware and kit/2_flash hold for v2.0 unchanged. v1.6's
 files are not touched.
@@ -24,19 +26,26 @@ files are not touched.
 from __future__ import annotations
 
 import importlib.util
+import re
 import uuid as _uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 PROJECT = "most_listener_v2"
-DATE, REV = "2026-10-07", "2.0"
+DATE, REV = "2026-10-11", "2.0"
 # the module as its data sheet v1.3 shows it (p.3-4 photos): USB-C 2.0 mm and HDMI about 4 mm past
 # the PCB's ends
 TANG_USB_OVER, TANG_HDMI_OVER = 2.0, 4.0
 # J5/J6: Cliff ORJ-8 and OTJ-8, drawings FCR684208R and FCR684208T rev 2 (29/06/23). In the footprint's
 # frame (origin at pin 2, the port towards +y): the metal pegs 2.60 and the plastic bosses 5.10 in front
 # of the pins, the bosses 5.60 apart; the face 11.00 in front of the pins, the rear 2.50 behind them
+# the modules' pins with no net in this circuit have no hole on the board (the user's decision of
+# 2026-10-11): their pins come out of the header strips. The corner pins stay to hold the module:
+# M1's four are all in use, M2 keeps 1 (3V3) and 38 (CLK) free
+MODULE_FREE_PINS = {"Sipeed_TangNano20K": (4, 6, 7, 11, 15, 16, 17, 18, 24, 29, 34, 36),
+                    "Espressif_ESP32-DevKitC_V4": (2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 18, 23, 24, 27, 28, 29,
+                                                   30, 31, 33, 34, 36, 37)}
 FP_ORJ8, FP_ORJ5 = "Cliff_TOSLINK_ORJ8_OTJ8", "Cliff_TOSLINK_ORJ5_OTJ5"
 ORJ8_MPN = {"J5": "FCR684208R", "J6": "FCR684208T"}
 ORJ8_PEG, ORJ8_BOSS, ORJ8_BOSS_X = 2.60, 5.10, 2.80
@@ -165,7 +174,188 @@ def patch(gen, here: Path):
     gen.cliff_body = lambda: orj8_body(gen)
     new = {gen.FP_TANG: (gen.FP_TANG, tangnano_footprint), FP_ORJ5: (FP_ORJ8, lambda: orj8_footprint(gen))}
     gen.NEW_FOOTPRINTS = tuple(new.get(name, (name, make)) for name, make in gen.NEW_FOOTPRINTS)
+    gen.NEW_FOOTPRINTS = tuple((name, sparse(name, make)) for name, make in gen.NEW_FOOTPRINTS)
+    sparse_symbols(gen)
+    review_fixes(gen)
     return gen
+
+
+# the critical review of 2026-10-11 (the user's "1-5 ... робимо"): what v2.0 adds to v1.6's circuit
+V2_SERIES = {"R47": ("5V_SW", "5V_A"), "R48": ("VNEG_P", "VNEG_A"), "R49": ("I2S_BCLK_F", "I2S_BCLK_D"),
+             "R50": ("I2S_LRCK_F", "I2S_LRCK_D"), "R51": ("I2S_DOUT_F", "I2S_DOUT_D"), "R52": ("RX_IN_U3", "RX_IN"),
+             "R53": ("U1-Y", "RX_BUF")}
+V2_SHUNT = {"C84": "5V_A", "C85": "VNEG_A"}
+
+
+def review_fixes(gen):
+    """U17's supplies filtered: V+ from 5V_A (5V_SW through R47 10R, C84 10u; U16, the DAC's LDO, with C50 and
+    C79 takes 5V_A too), V- from VNEG_A (U18's VNEG_P
+    through R48 10R, C85 10u) - the 250 kHz pump and the buck's ripple no longer reach the op-amp unfiltered.
+    The DAC and the ESP32 take the I2S clocks and data through their own 33R at the FPGA (R49-R51), and U3 drives
+    RX_IN through R52 33R: the long lines are terminated at their source. Drawn in a frame of their own; the
+    blocks of v1.6 only see their labels and rails renamed. R53 33R after U1 (RX_BUF, as R43 on the reader v2.0,
+    2026-10-11) sits in the optics block, in the gap of v1.6's wire from U1's output to RX_BUF's node."""
+    gen.S["5V_A"] = gen.rail("5V_A")
+    gen.S["VNEG_P"] = gen.rail("VNEG_P")
+    v1_up, v1_lbl = gen.Sheet.up, gen.Sheet.lbl
+
+    def part(sh, ref):
+        return next((p for p in sh.parts if p.ref == ref), None)
+
+    def up(self, key, p, stub=0.0):
+        p = (round(p[0], 3), round(p[1], 3))
+        u15, u17, u18 = part(self, "U15"), part(self, "U17"), part(self, "U18")
+        u16 = part(self, "U16")
+        if key == "5V_SW" and u16 is not None and u17 is None and stub == 2.54:
+            vin = u16.p("1")
+            if p == (round(vin[0] - 7.62, 3), vin[1]):          # U16's input and C50: 5V_A too
+                key = "5V_A"
+        if key == "5V_SW" and u17 is not None and stub == 0:
+            vp = u17.p("8")
+            c76_top = (round(u15.p("6")[0] + 40.64, 3), 119.38)
+            if p in ((round(vp[0] + 2.54, 3), vp[1]), c76_top):
+                key = "5V_A"
+        if key == "VNEG_A" and u18 is not None:
+            po = u18.p("1")
+            if p == (round(po[0] + 5.08, 3), po[1]):
+                key = "VNEG_P"
+        return v1_up(self, key, p, stub)
+
+    def lbl(self, name, pin, length, side):
+        pin = (round(pin[0], 3), round(pin[1], 3))
+        for ref, pads in (("U15", ("13", "14", "15")), ("M2", ("21", "22"))):
+            prt = part(self, ref)
+            if prt is not None and name.startswith("I2S_") and any(prt.p(n) == pin for n in pads):
+                name = name[:-2] + "_D"
+        u3 = part(self, "U3")
+        if name == "RX_IN" and u3 is not None and u3.p("4") == pin:
+            name = "RX_IN_U3"
+        return v1_lbl(self, name, pin, length, side)
+
+    gen.Sheet.up, gen.Sheet.lbl = up, lbl
+    v1_line_out = gen.line_out_block
+
+    def line_out_block(sh):
+        v1_line_out(sh)
+        # C78/C79 stay the bulk of 5V_SW at this end: v1.6 wires them to C76's top, which is 5V_A now
+        c78, c79 = part(sh, "C78").p("1"), part(sh, "C79").p("1")
+        top = (round(part(sh, "U15").p("6")[0] + 40.64, 3), 119.38)
+        for seg in ((c79, top), (c78, c79)):
+            assert seg in sh.segs, "C78/C79's wiring changed in gen_listener.py"
+            sh.segs.remove(seg)
+        sh.up("5V_A", c79, 0)            # C79 sits at U16 on the board: on the filtered side of R47
+        sh.up("5V_SW", c78, 0)
+        review_block(gen, sh)
+
+    gen.line_out_block = line_out_block
+    v1_optics = gen.optics_block
+
+    def optics_block(sh):
+        v1_optics(sh)
+        y = part(sh, "U1").p("4")
+        node = (round(y[0] + 12.7, 3), y[1])
+        assert (y, node) in sh.segs, "U1's output wiring changed in gen_listener.py"
+        sh.segs.remove((y, node))
+        r = sh.at_pin("R", "R53", "33", "1", (round(y[0] + 2.54, 3), y[1]), r=90, fp=gen.SMD["R"])
+        sh.wire(y, r.p("1"))
+        sh.wire(r.p("2"), node)
+
+    gen.optics_block = optics_block
+
+
+def review_block(gen, sh):
+    sh.frame(411.48, 158.75, 580.34, 284.48, "12. v2.0: ФІЛЬТРИ ЖИВЛЕННЯ U17, УЗГОДЖЕННЯ I2S ДО ЦАП І RX_IN")
+    smd, c0805 = gen.SMD, "Capacitor_SMD:C_0805_2012Metric"
+    # the op-amp's rails: rail -> R -> node with 10u -> filtered rail
+    for k, (rref, cref, src, dst) in enumerate((("R47", "C84", "5V_SW", "5V_A"), ("R48", "C85", "VNEG_P", "VNEG_A"))):
+        y = 177.8 + 22.86 * k
+        a = (424.18, y)
+        sh.wire(a, (a[0] + 5.08, y))
+        if src == "5V_SW":
+            sh.up(src, a, 0)
+        else:
+            sh.pwr += 1
+            sh.add(src, f"#PWR{sh.pwr:03d}", src, a[0], a[1], 180, ref_at=(a[0], a[1] - 3.81),
+                   val_at=(a[0], round(a[1] + 3.81, 3)))
+        r = sh.at_pin("R", rref, "10", "1", (a[0] + 5.08, y), r=90, fp=smd["R"])
+        n = (round(r.p("2")[0] + 5.08, 3), y)
+        sh.wire(r.p("2"), n)
+        c = sh.at_pin("C", cref, "10u", "1", n, fp=c0805)
+        sh.gnd(c.p("2"))
+        b = (round(n[0] + 7.62, 3), y)
+        sh.wire(n, b)
+        sh.flag(b)                       # the filtered rail is driven through R, not by a power pin
+        if dst == "5V_A":
+            sh.up(dst, b, 0)
+        else:
+            sh.pwr += 1
+            sh.add(dst, f"#PWR{sh.pwr:03d}", dst, b[0], b[1], 180, ref_at=(b[0], b[1] - 3.81),
+                   val_at=(b[0], round(b[1] + 3.81, 3)))
+    # 33R at the source: I2S from the FPGA to the DAC and the ESP32, RX_IN from U3
+    for k, (ref, src, dst) in enumerate((("R49", "I2S_BCLK_F", "I2S_BCLK_D"), ("R50", "I2S_LRCK_F", "I2S_LRCK_D"),
+                                         ("R51", "I2S_DOUT_F", "I2S_DOUT_D"), ("R52", "RX_IN_U3", "RX_IN"))):
+        y = 177.8 + 12.7 * k
+        r = sh.at_pin("R", ref, "33", "1", (500.38, y), r=90, fp=smd["R"])
+        sh.label(src, (492.76, y), "L"); sh.wire((492.76, y), r.p("1"))
+        sh.label(dst, (round(r.p("2")[0] + 7.62, 3), y), "R"); sh.wire(r.p("2"), (round(r.p("2")[0] + 7.62, 3), y))
+    yt = 236.22
+    for line in (
+        "U17 (OPA1678) більше не живиться прямо від шин: V+ = 5V_A (5V_SW через R47 10 Ом, C84 10 мкФ; від 5V_A живиться й U16, LDO ЦАП), V- = VNEG_A (VNEG_P насоса U18 через R48 10 Ом, C85 10 мкФ).",
+        "RC 10 Ом / 10 мкФ: зріз 1.6 кГц, на 250 кГц (насос) і на частоті перетворювача близько 45 дБ; спад на R47 до 0.2 В (U17 + U16 з ЦАП), на R48 близько 50 мВ. Бусина з 10 мкФ дала б резонанс на десятках кГц.",
+        "R49-R51: 33 Ом біля FPGA на гілці I2S до ЦАП і ESP32 (BCLK, LRCK, DOUT: 35-45 мм, кілька навантажень; PCM5102A бере такт з BCLK). J3 має свої R39-R41.",
+        "R52: 33 Ом на виході U3 (RX_IN до FPGA, близько 60 мм).",
+        "R53: 33 Ом на виході U1 (RX_BUF до U2, U3, U4; через U2 і R2 - TX кільця), як R43 у рідері v2.0; стоїть у блоці 3.",
+    ):
+        sh.text(line, 414.02, yt, 1.27)
+        yt += 3.81
+
+
+def sparse_symbols(gen):
+    """M1's and M2's symbols without the pins their footprints leave out, so the sheet and the board agree pin for
+    pin. The left-out pins keep their places in the symbol's pin table, so v1.6's blocks still find them; the
+    no-connect flags those blocks put there are dropped."""
+    gaps = set()
+    for key, name, w, h, pins, fp in (("TANG", "Tang_Nano_20K", 30.48, 53.34, gen.module_pins(), gen.FP_TANG),
+                                      ("DEVKITC", "ESP32_DevKitC", 20.32, 50.8, gen.devkitc_pins(), gen.FP_ESP)):
+        full = gen.S[key]
+        desc = re.search(r'\(property "Description" "([^"]*)"', full.text).group(1)
+        assert gen.ic(name, "M", w, h, pins, desc).text == full.text, f"{key}'s symbol changed in gen_listener.py"
+        free = {str(n) for n in MODULE_FREE_PINS[fp]}
+        sym = gen.ic(name, "M", w, h, [p for p in pins if p[0] not in free], desc)
+        sym.pins, sym.valpos = full.pins, full.valpos
+        gen.S[key] = sym
+    v1_add, v1_nc = gen.Sheet.add, gen.Sheet.nc
+
+    def add(self, key, ref, *a, **kw):
+        part = v1_add(self, key, ref, *a, **kw)
+        fp = {"TANG": gen.FP_TANG, "DEVKITC": gen.FP_ESP}.get(key)
+        if fp:
+            gaps.update(part.p(str(n)) for n in MODULE_FREE_PINS[fp])
+        return part
+
+    def nc(self, p):
+        if tuple(p) not in gaps:
+            v1_nc(self, p)
+
+    gen.Sheet.add, gen.Sheet.nc = add, nc
+
+
+def sparse(name, make):
+    """The module footprints without the pads of MODULE_FREE_PINS; other footprints as they are."""
+    if name not in MODULE_FREE_PINS:
+        return make
+
+    def footprint():
+        text = make()
+        for n in MODULE_FREE_PINS[name]:
+            old = re.findall(rf'\t\(pad "{n}" [^\n]*\n', text)
+            assert len(old) == 1, f"{name}: pad {n} not found once in the footprint"
+            text = text.replace(old[0], "")
+        old = "soldered to the board on two"
+        assert text.count(old) == 1, f"{name}: its description changed"
+        return text.replace(old, "only the pins in use and the corners have holes (the rest come out of the header "
+                                 "strips); soldered to the board on two")
+    return footprint
 
 
 def main(here: Path = HERE):

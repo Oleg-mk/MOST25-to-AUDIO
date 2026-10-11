@@ -59,9 +59,9 @@ BLOCKS = {
     # two 1u, the 3V3_DA that J6 runs on)
     "S/PDIF out": "R26 R27 C29 D4 R28 C31 U14 C48 C49".split(),
     # U15 PCM5102A with U16 (its 3V3_DAC), U17 OPA1678 with U18 (its -5.2 V), the filters, the
-    # decoupling and the jacks' ESD
+    # decoupling and the jacks' ESD; R47/C84 and R48/C85 filter U17's rails (5V_A, VNEG_A), 2026-10-11
     "line out": ("U15 U16 U17 U18 C50 C51 C52 C53 C54 C55 C56 C57 C58 C59 C60 C61 C62 "
-                 "C69 C70 C71 C72 C73 C74 C75 C76 C77 C78 C79 D5 D6 R32 R33 R43 R44 R45 R46").split(),
+                 "C69 C70 C71 C72 C73 C74 C75 C76 C77 C78 C79 C84 C85 D5 D6 R32 R33 R43 R44 R45 R46 R47 R48").split(),
     # U12 DIR9001, U13 SRC4192 and its X1, J5's supply (FB3, C30), the PLL filter, the reset and
     # the 3V3_DA decoupling of the three
     "TOSLINK in": "U12 U13 X1 FB3 C27 C28 C30 C32 C33 C34 C35 C36 C37 C38 C39 C40 R24 R25 R29 R30".split(),

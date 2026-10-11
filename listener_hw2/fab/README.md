@@ -1,4 +1,4 @@
-# Manufacturing package: MOST25 to AUDIO: listener board v2.0, rev 2.0 (2026-10-07)
+# Manufacturing package: MOST25 to AUDIO: listener board v2.0, rev 2.0 (2026-10-11)
 
 Written by `make_fab2.py` from `most_listener_v2.kicad_pcb` and the sheet; do not edit by hand. Run it
 again after any change to the board or the sheet.
@@ -27,9 +27,9 @@ only in the parts behind the connectors, and the gateware and the firmware are t
 
 | Assembly | Fitted | JLCPCB files | Parts JLCPCB places | BOM lines | Parts left off |
 |---|---|---|---|---|---|
-| **min** | the core + S/PDIF out | `most_listener_v2-bom-jlcpcb-min.csv`, `most_listener_v2-cpl-jlcpcb-min.csv` | 98 (50 top, 48 bottom) | 42 | 56 |
-| **mid** | the core + S/PDIF out + line out | `most_listener_v2-bom-jlcpcb-mid.csv`, `most_listener_v2-cpl-jlcpcb-mid.csv` | 134 (50 top, 84 bottom) | 51 | 20 |
-| **max** | the core + S/PDIF out + line out + TOSLINK in | `most_listener_v2-bom-jlcpcb-max.csv`, `most_listener_v2-cpl-jlcpcb-max.csv` | 154 (66 top, 88 bottom) | 57 | 0 |
+| **min** | the core + S/PDIF out | `most_listener_v2-bom-jlcpcb-min.csv`, `most_listener_v2-cpl-jlcpcb-min.csv` | 103 (44 top, 59 bottom) | 42 | 60 |
+| **mid** | the core + S/PDIF out + line out | `most_listener_v2-bom-jlcpcb-mid.csv`, `most_listener_v2-cpl-jlcpcb-mid.csv` | 143 (44 top, 99 bottom) | 52 | 20 |
+| **max** | the core + S/PDIF out + line out + TOSLINK in | `most_listener_v2-bom-jlcpcb-max.csv`, `most_listener_v2-cpl-jlcpcb-max.csv` | 163 (57 top, 106 bottom) | 58 | 0 |
 
 The core is everything not listed below: power, the ring with its bypass and watchdog, M1 (the
 FPGA), U7 (Si514), M2 (the host, Bluetooth in), J3 (I2S) and J2 (the analyser).
@@ -37,7 +37,7 @@ FPGA), U7 (Si514), M2 (the host, Bluetooth in), J3 (I2S) and J2 (the analyser).
 | Block | Its parts |
 |---|---|
 | S/PDIF out | C29 C31 C48 C49 D4 R26 R27 R28 U14 |
-| line out | C50 C51 C52 C53 C54 C55 C56 C57 C58 C59 C60 C61 C62 C69 C70 C71 C72 C73 C74 C75 C76 C77 C78 C79 D5 D6 R32 R33 R43 R44 R45 R46 U15 U16 U17 U18 |
+| line out | C50 C51 C52 C53 C54 C55 C56 C57 C58 C59 C60 C61 C62 C69 C70 C71 C72 C73 C74 C75 C76 C77 C78 C79 C84 C85 D5 D6 R32 R33 R43 R44 R45 R46 R47 R48 U15 U16 U17 U18 |
 | TOSLINK in | C27 C28 C30 C32 C33 C34 C35 C36 C37 C38 C39 C40 FB3 R24 R25 R29 R30 U12 U13 X1 |
 
 - **min.** J5 (TOSLINK in), J8 and J9 (line out) are fitted but not connected: J5 has no supply,
@@ -51,8 +51,8 @@ FPGA), U7 (Si514), M2 (the host, Bluetooth in), J3 (I2S) and J2 (the analyser).
 - 98 x 60 mm, 4 layers, FR-4 1.6 mm,
   35 um copper outside and 15 um inside: JLCPCB's stack-up JLC04161H-7628 (prepreg 7628 between the
   outer and the inner layers). In1 and In2 are solid ground.
-- Tracks from 0.25 mm, clearance 0.15 mm; 231 vias of 0.6/0.3 mm.
-- Smallest hole 0.3 mm; 365 plated and 11 non-plated holes; no slots.
+- Tracks from 0.2 mm, clearance 0.15 mm; 222 vias of 0.6/0.3 mm.
+- Smallest hole 0.3 mm; 319 plated and 14 non-plated holes; no slots.
 - Solder mask and silkscreen on both sides; SMD parts on both sides.
 - Surface finish ENIG: flat pads for U4/U11 (VSSOP-8, 0.5 mm pitch) and the exposed pads of U5
   (WSON-6, 2 x 2 mm) and U6 (HSOP-8).
