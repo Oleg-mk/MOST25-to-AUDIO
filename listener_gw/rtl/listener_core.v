@@ -5,7 +5,7 @@
 //                                         (inject: our audio into chosen bytes)
 //        rx_framer   -> tdm_out (clk_r) -> BCLK FS SD0 SD1  every frame byte, as it left us
 //        rx_framer   -> ctrl_uart       -> uart_tx          raw control blocks
-//        rx_framer   -> amp_out (clk_r) -> I2S, S/PDIF      up to 3 sources, tone, volume,
+//        rx_framer   -> amp_out (clk_r) -> I2S, S/PDIF      up to 4 sources, tone, volume,
 //                                                          balance: L R, as they left us
 //        uart_rx -> host_cmd -> amp_out, inject, capture    host picks bytes, sets coefficients,
 //                                                          asks for a capture or a dump

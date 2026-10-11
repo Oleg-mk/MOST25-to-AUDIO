@@ -21,11 +21,19 @@
 // Fader (0x204, 0x221) is not used: J3 is stereo, front and rear are for
 // whatever follows it.
 //
-// The amplifier's other sinks - navigation, phone, chimes, J3's streams 1
-// and 2 - play at their own level where a car sends one, else at the volume:
+// The amplifier's other sinks - J3's streams 1..3 - play at the first of
+// these a car sends, by SinkNr as Jaguar Land Rover numbers them (mObridge
+// MOST25 DA Series Guide pp. 18-19: 1 main, 2 phone, navigation and voice,
+// 3 parking sensors, 4 chimes):
 //   0x22.0x46D SpeakerLevel to that sink      dB, the loudest speaker (JLR AUD3)
+//   sink 4: chime_db                           fixed: the chimes never follow
+//                                              byte 8 or the volume, in any car
+//   sink 3: 0xF0.0x409 byte 10                 raw, parking sensors (Jaguar XF; a
+//                                              telegram of 11 bytes or more)
 //   0xF0.0x409 byte 8                          raw, navigation and phone (Jaguar XF)
-// and every sink, the main one too, at its MixerLevel on top:
+//   the volume
+// Bytes 8 and 10 come only in 0x409, so they need no other key on the car.
+// And every sink, the main one and the chimes too, at its MixerLevel on top:
 //   0x22.0x467 MixerLevel  Pos {x = SinkNr, 0 = every sink; y = 0}, then per
 //                          sink InputLevel, Balance, Fader (TSByte each; a
 //                          balance of 0x80 follows the main one) - catalogue
@@ -48,6 +56,8 @@
 enum { SND_VOL_46D, SND_VOL_BMW, SND_VOL_F0, SND_VOL_STD, SND_VOL_N };
 
 #define SND_SINKS 8                 // levels kept for SinkNr 1..8
+#define SND_JLR_PDC     3           // the parking sensors' sink (mObridge, above)
+#define SND_JLR_CHIMES  4           // the chimes' sink
 
 typedef struct {
     uint8_t vol_max[SND_VOL_N];     // raw value at 0 dB, per source (46D: unused)
@@ -59,6 +69,7 @@ typedef struct {
     float   loud_db_max;            // loudness: bass boost at the quietest
     float   loud_db_at;             // ...reached at this volume (dB), 0 at 0 dB
     float   mix_db_step;            // MixerLevel InputLevel, dB per step
+    float   chime_db;               // sink 4 without a SpeakerLevel of its own
 } snd_cfg_t;
 
 extern const snd_cfg_t snd_cfg_default;
@@ -78,6 +89,8 @@ typedef struct {
     uint8_t mix_bal[SND_SINKS];     // ...Balance, 0x80 = the main balance
     uint8_t annc_have;              // Jaguar XF's navigation and phone volume
     float   annc_db;                // ...dB
+    uint8_t park_have;              // Jaguar XF's parking sensor volume (0x409 byte 10)
+    float   park_db;                // ...dB
 } snd_t;
 
 #define SND_H_BAL    0x01
@@ -96,9 +109,11 @@ int snd_tel(snd_t *s, const snd_cfg_t *cfg, const mm_tel_t *t);
 // the best one says silence.
 float snd_volume_db(const snd_t *s);
 
-// The level a sink plays at, dB: sink 1 at the volume, another at its own
-// SpeakerLevel, else Jaguar XF's navigation/phone volume, else the volume;
-// then its MixerLevel on top. SND_SILENT if silent or nothing is known.
+// The level a sink plays at, dB: sink 1 at the volume; another at its own
+// SpeakerLevel, else sink 4 at chime_db, sink 3 at Jaguar XF's parking
+// sensor volume, else Jaguar XF's navigation/phone volume, else the volume;
+// then its MixerLevel on top. SND_SILENT if silent or nothing is known (the
+// chimes excepted: they need nothing heard).
 float snd_sink_db(const snd_t *s, const snd_cfg_t *cfg, int sink);
 
 // A sink's balance in steps: its MixerLevel balance, or the main one.

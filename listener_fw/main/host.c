@@ -14,16 +14,17 @@
 //       DIR9001 AUDIO, M2 pad 11; ain.h). Otherwise the car's own AUX passes
 //       untouched: we take nothing away from the car.
 //   01  J3 plays what the amplifier's sink 1 (the main zone) plays, and on
-//       streams 1 and 2 two more of its sinks - navigation, phone, chimes,
-//       whatever it mixes in (am_extras: connected, SinkNr 2 and up, lowest
-//       first)...
+//       streams 1..3 three more of its sinks - navigation and phone, parking
+//       sensors, chimes, whatever it mixes in (am_extras: connected, SinkNr 2
+//       and up, lowest first)...
 //   03  ...with the head unit's volume, mute, balance, bass, treble and
 //       loudness, and each other sink at its own level and mute: dsp_img
 //       turns them into the FPGA's coefficient set, written word by word and
 //       committed with the last (at most every 20 ms while the knob turns;
 //       at once when a sink comes or goes). The settings are kept in NVS, so
 //       after a restart J3 starts where it was, as the factory amplifier
-//       does; until a volume has been heard once, J3 is silent.
+//       does; until a volume has been heard once, J3 is silent but for the
+//       chimes (sink 4), which play at a fixed level of their own (sound.h).
 // And the steering wheel's track keys (wheel.h, Jaguar XF: 0xCA1) go to the
 // phone over AVRCP (phone_ctl) while the phone is what the car plays - our
 // audio in the AUX bytes, from the phone; otherwise they are the car's alone.
@@ -105,7 +106,7 @@
 #define STATUS_US   10000000
 #define IMG_MIN_US  20000               // coefficient sets at most 50 a second
 #define SAVE_US     10000000            // settings to flash 10 s after the last change
-#define SND_MAGIC   0x534E4432u         // "SND2": the stored layout (per-sink levels)
+#define SND_MAGIC   0x534E4433u         // "SND3": the stored layout (per-sink levels, byte 10)
 #define CAP_RUNS    65536u              // the FPGA's capture buffer (CAP_AW 16)
 #define PIN_OPT_ERR 13                  // DIR9001 ERROR (M2 pad 15): high = the S/PDIF input has no lock
 #define PIN_OPT_NPCM 27                 // DIR9001 AUDIO (M2 pad 11, board v1.3): high = not PCM (AC-3, DTS)
@@ -119,8 +120,8 @@ static am_t s_am;
 static QueueHandle_t s_trace;
 static uint32_t s_trace_lost;
 static am_pos_t s_aux_sent, s_main_sent;
-static am_sink_t s_ex_sent[2];                       // J3's streams 1, 2 as last sent
-static dsp_extra_t s_dx[2];                          // ...and as the coefficient set has them
+static am_sink_t s_ex_sent[DSP_N_EXTRAS];            // J3's streams 1..3 as last sent
+static dsp_extra_t s_dx[DSP_N_EXTRAS];               // ...and as the coefficient set has them
 static int64_t s_last_locked;
 static int s_stale = 1;
 static volatile int s_streaming;
@@ -254,7 +255,7 @@ static void send_image(void)
         ESP_LOGI(TAG, "J3: volume %.1f dB%s, L x %.4f, R x %.4f, bass %+.1f dB, treble %+.1f dB, %lu Hz",
                  snd_sink_db(&s_snd, &snd_cfg_default, 1), muted ? " (muted)" : "", gl, gr, bass, treble,
                  (unsigned long)fs);
-        for (int k = 0; k < 2; k++)
+        for (int k = 0; k < DSP_N_EXTRAS; k++)
             if (s_dx[k].sink) {
                 dsp_extra_levels(&s_snd, &snd_cfg_default, &s_dx[k], &gl, &gr);
                 ESP_LOGI(TAG, "J3 stream %d: sink %d at %.1f dB%s, L x %.4f, R x %.4f", k + 1, s_dx[k].sink,
@@ -286,11 +287,11 @@ static void decide(int force)
     const int spdif = src == AIN_TOSLINK;
     const am_pos_t aux = src != AIN_NONE && s_inj_allowed && s_inj_armed ? am_aux_playing(&s_am) : off,
                    main_zone = am_main(&s_am);
-    // the amplifier's other sinks, J3's streams 1 and 2
-    am_sink_t ex[2];
-    am_extras(&s_am, ex, 2);
-    dsp_extra_t dx[2];
-    for (int k = 0; k < 2; k++) {
+    // the amplifier's other sinks, J3's streams 1..3
+    am_sink_t ex[DSP_N_EXTRAS];
+    am_extras(&s_am, ex, DSP_N_EXTRAS);
+    dsp_extra_t dx[DSP_N_EXTRAS];
+    for (int k = 0; k < DSP_N_EXTRAS; k++) {
         dx[k].sink = ex[k].pos.bits ? ex[k].nr : 0;
         dx[k].muted = ex[k].muted;
     }
@@ -321,7 +322,7 @@ static void decide(int force)
             log_pos("J3 stereo (amp sink 1)", &main_zone);
         s_main_sent = main_zone;
     }
-    for (int k = 0; k < 2; k++)
+    for (int k = 0; k < DSP_N_EXTRAS; k++)
         if (force || !sink_eq(&ex[k], &s_ex_sent[k])) {
             lsn_cmd_source(c, 1 + k, ex[k].pos.bits, ex[k].mono, ex[k].pos.l, ex[k].pos.r);
             uart_write_bytes(HOST_UART, c, sizeof c);
@@ -624,7 +625,7 @@ void host_start(void)
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    // a TX buffer: a coefficient set (517 bytes) goes out without holding up the reading
+    // a TX buffer: a coefficient set (539 bytes) goes out without holding up the reading
     ESP_ERROR_CHECK(uart_driver_install(HOST_UART, 8192, 1024, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(HOST_UART, &cfg));
     ESP_ERROR_CHECK(uart_set_pin(HOST_UART, PIN_TX, PIN_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));

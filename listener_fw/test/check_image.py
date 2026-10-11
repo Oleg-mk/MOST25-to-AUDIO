@@ -7,11 +7,11 @@ bit-exact model of dsp_core (listener_gw/sim/dsp_asm.py): a sine on stream 0,
 both sides, until the gains have glided to their targets, then L and R are
 measured. They must be what the settings say, on the same shelves - which
 proves the firmware and the gateware agree on the map, the number format and
-the arithmetic. image_mix.txt: the amplifier's three sinks mixed - sink 1 on
+the arithmetic. image_mix.txt: the amplifier's four sinks mixed - sink 1 on
 stream 0 flat at -20 dB, sink 2 on stream 1 (mono, the same sample on both
 of its inputs, as amp_out feeds a mono stream) at -10 dB, sink 3 on stream 2
-at -26 dB with R 8 dB down; a sine of its own on each stream, and each must
-come out of L and R at its level.
+at -26 dB with R 8 dB down, sink 4 (the chimes) on stream 3 at -14 dB; a sine
+of its own on each stream, and each must come out of L and R at its level.
 """
 import math
 import sys
@@ -38,7 +38,7 @@ def main():
         ys = []
         for i in range(n):
             x = int(round(amp * math.sin(2 * math.pi * f * i / FS)))
-            ys.append(eng.run(c, [x, x, 0, 0, 0, 0]))
+            ys.append(eng.run(c, [x, x] + [0] * (2 * da.N_STREAMS - 2)))
         levels = []
         for side in (0, 1):
             sss = scc = ssc = ys_ = yc_ = 0.0
@@ -77,8 +77,8 @@ def check_mix():
     words = [int(l) for l in (HERE / "image_mix.txt").read_text().split("\n")
              if l.strip() and not l.startswith("#")]
     c = words + [0] * (da.C_WORDS - len(words))
-    # a whole number of cycles in the measured half, so the three do not leak into each other
-    f0, f1, f2 = 1008, 432, 3008
+    # a whole number of cycles in the measured half, so the four do not leak into each other
+    f0, f1, f2, f3 = 1008, 432, 3008, 2000
     amp = 0.25 * 2 ** 23
     n = 6000
     eng = da.Engine()
@@ -87,16 +87,17 @@ def check_mix():
         x0 = int(round(amp * math.sin(2 * math.pi * f0 * i / FS)))
         x1 = int(round(amp * math.sin(2 * math.pi * f1 * i / FS)))
         x2 = int(round(amp * math.sin(2 * math.pi * f2 * i / FS)))
-        ys.append(eng.run(c, [x0, x0, x1, x1, x2, x2]))
-    want = {f0: (-20.0, -20.0), f1: (-10.0, -10.0), f2: (-26.0, -34.0)}
+        x3 = int(round(amp * math.sin(2 * math.pi * f3 * i / FS)))
+        ys.append(eng.run(c, [x0, x0, x1, x1, x2, x2, x3, x3]))
+    want = {f0: (-20.0, -20.0), f1: (-10.0, -10.0), f2: (-26.0, -34.0), f3: (-14.0, -14.0)}
     worst = 0.0
     for f, (wl, wr) in want.items():
         got = (level_db(ys, 0, f, amp, n // 2, n), level_db(ys, 1, f, amp, n // 2, n))
         worst = max(worst, abs(got[0] - wl), abs(got[1] - wr))
-        print(f"  {f:5d} Hz (stream {[f0, f1, f2].index(f)}): L {got[0]:+.3f} dB (want {wl:+.3f}), "
+        print(f"  {f:5d} Hz (stream {[f0, f1, f2, f3].index(f)}): L {got[0]:+.3f} dB (want {wl:+.3f}), "
               f"R {got[1]:+.3f} dB (want {wr:+.3f})")
     ok = worst < 0.01
-    print(f"engine model: {'PASS' if ok else 'FAIL'}  the three sinks mixed as the firmware says, "
+    print(f"engine model: {'PASS' if ok else 'FAIL'}  the four sinks mixed as the firmware says, "
           f"within {worst:.4f} dB")
     return ok
 

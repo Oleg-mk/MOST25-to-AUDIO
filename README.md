@@ -7,10 +7,11 @@ carries into audio and data the owner can use:
 
 - **J3: what the factory amplifier would play**, as stereo I2S and, the
   same stream, as S/PDIF on TOSLINK and coax: the main source with the head
-  unit's volume, mute, balance, bass, treble and loudness applied, and the
-  amplifier's other sinks - navigation, phone, chimes - mixed in at their own
-  levels, so speakers moved to an amplifier or DSP of the owner's choice keep
-  the car's controls and its voices;
+  unit's volume, mute, balance, bass, treble and loudness applied, and up to
+  three more of the amplifier's sinks - navigation and phone, the parking
+  sensors, the chimes - mixed in at their own levels, so speakers moved to an
+  amplifier or DSP of the owner's choice keep the car's controls and its
+  voices;
 - **J2: everything, raw**: every frame byte on two TDM8 lines, the control
   channel's blocks on UART, MCLK from the ring - for an analyser or a DSP.
   J2 and J3 show the frame as it leaves the listener: when the phone plays
@@ -196,8 +197,13 @@ left overlapping a pad or another reference.
   external amplifier, or with a copy-protected stream (DTCP), give it nothing
   to play (docs/vehicle_survey.md). Having MOST25 does not make a car one of
   them - only a recording of that car says.
-- **The per-car scales** - volume, tone, the other sinks' mixer levels - are
-  placeholders until a real ring is recorded.
+- **The per-car scales** - volume, tone, the other sinks' mixer levels, the
+  Jaguar XF's navigation and parking-sensor levels (0xF0.0x409 bytes 8 and
+  10) - are placeholders until a real ring is recorded.
+- **Sink 4 is the chimes in every car**, as Jaguar Land Rover numbers the
+  amplifier's sinks: with no SpeakerLevel of its own it plays at a fixed
+  -6 dB, never at the volume, so a chime is heard with the volume down. A car
+  that puts something else on sink 4 gets that at -6 dB too.
 - **What an amplifier does on its own** is not on the bus: if it turns the
   music down while a prompt plays, J3 does not; it follows what the head unit
   sends (levels, mutes).

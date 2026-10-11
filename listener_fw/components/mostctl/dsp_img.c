@@ -100,7 +100,7 @@ void dsp_extra_levels(const snd_t *s, const snd_cfg_t *cfg, const dsp_extra_t *e
     side_gains(cfg, pow(10.0, db / 20.0), snd_sink_balance(s, ex->sink), gl, gr);
 }
 
-int dsp_image(const snd_t *s, const snd_cfg_t *cfg, int muted, const dsp_extra_t ex[2], double fs,
+int dsp_image(const snd_t *s, const snd_cfg_t *cfg, int muted, const dsp_extra_t ex[DSP_N_EXTRAS], double fs,
               int32_t w[DSP_C_IMAGE])
 {
     double gl, gr, bass, treble;

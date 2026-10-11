@@ -18,6 +18,7 @@ const snd_cfg_t snd_cfg_default = {
     .loud_db_max = 8.0f,
     .loud_db_at = -40.0f,
     .mix_db_step = 1.0f,
+    .chime_db = -6.0f,              // the chimes, as JLR-MOST-Reader plays them (DEFAULT_S3_DB)
 };
 
 void snd_init(snd_t *s)
@@ -72,6 +73,15 @@ static int set_annc(snd_t *s, float db)
         return 0;
     s->annc_have = 1;
     s->annc_db = db;
+    return 1;
+}
+
+static int set_park(snd_t *s, float db)
+{
+    if (s->park_have && s->park_db == db)
+        return 0;
+    s->park_have = 1;
+    s->park_db = db;
     return 1;
 }
 
@@ -155,6 +165,8 @@ int snd_tel(snd_t *s, const snd_cfg_t *cfg, const mm_tel_t *t)
         int ch = set_vol(s, SND_VOL_F0, snd_curve_db(d[2], cfg->vol_max[SND_VOL_F0]));
         if (t->len >= 9)                                            // byte 8 navigation and phone
             ch |= set_annc(s, snd_curve_db(d[8], cfg->vol_max[SND_VOL_F0]));
+        if (t->len >= 11)                                           // byte 10 the parking sensors
+            ch |= set_park(s, snd_curve_db(d[10], cfg->vol_max[SND_VOL_F0]));
         return ch;
     }
     return 0;
@@ -173,9 +185,12 @@ float snd_sink_db(const snd_t *s, const snd_cfg_t *cfg, int sink)
     if (sink < 1 || sink > SND_SINKS)
         return SND_SILENT;
     const uint8_t bit = (uint8_t)(1u << (sink - 1));
-    float db = sink >= 2 && (s->spk_have & bit) ? s->spk_db[sink - 1]
-             : sink >= 2 && s->annc_have        ? s->annc_db
-                                                : snd_volume_db(s);
+    // the chimes keep their own level whatever the volume does, in every car
+    float db = sink >= 2 && (s->spk_have & bit)       ? s->spk_db[sink - 1]
+             : sink == SND_JLR_CHIMES                 ? cfg->chime_db
+             : sink == SND_JLR_PDC && s->park_have    ? s->park_db
+             : sink >= 2 && s->annc_have              ? s->annc_db
+                                                      : snd_volume_db(s);
     if (db <= SND_SILENT)
         return SND_SILENT;
     if (s->mix_have & bit)

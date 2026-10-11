@@ -183,6 +183,8 @@ def sound_values(t: Tel) -> list:
         out = [("F0.409 entertainment volume (Jaguar XF)", d[2], f"volume {d[2]}")]
         if t.length >= 9:
             out.append(("F0.409 navigation and phone volume (Jaguar XF)", d[8], f"volume {d[8]}"))
+        if t.length >= 11:
+            out.append(("F0.409 parking sensors volume (Jaguar XF)", d[10], f"volume {d[10]}"))
         return out
     return []
 

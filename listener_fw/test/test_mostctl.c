@@ -222,7 +222,7 @@ static void test_model(void)
     CHECK(a.sink[0].muted == 0 && !am_main_muted(&a), "unmute sink 1");
 }
 
-// the amplifier's other sinks, as J3's streams 1 and 2 take them
+// the amplifier's other sinks, as J3's streams 1..3 take them
 static void connect(am_t *a, uint8_t inst, const uint8_t *d, int n)
 {
     mm_tel_t t = tel(HU, AMP, 0x22, 0x111, MM_OP_STARTRESULT, d, n);
@@ -236,7 +236,7 @@ static void connect(am_t *a, uint8_t inst, const uint8_t *d, int n)
 static void test_extras(void)
 {
     am_t a;
-    am_sink_t ex[2];
+    am_sink_t ex[2], ex3[3];
     printf("amp_model, other sinks:\n");
     am_init(&a);
     CHECK(am_extras(&a, ex, 2) == 0 && ex[0].pos.bits == 0 && ex[1].pos.bits == 0, "none connected");
@@ -251,10 +251,15 @@ static void test_extras(void)
     CHECK(ex[1].nr == 3 && !ex[1].mono && ex[1].pos.bits == 24 && ex[1].pos.l[0] == 21 && ex[1].pos.r[2] == 26,
           "stream 2: sink 3, 24-bit stereo at 21..26");
     connect(&a, 1, s4, 6);
+    CHECK(am_extras(&a, ex3, 3) == 3 && ex3[0].nr == 2 && ex3[1].nr == 3 && ex3[2].nr == 4 && !ex3[2].mono &&
+          ex3[2].pos.bits == 16 && ex3[2].pos.l[0] == 41 && ex3[2].pos.l[1] == 42 && ex3[2].pos.r[0] == 43 &&
+          ex3[2].pos.r[1] == 44, "three asked: sinks 2, 3, 4; stream 3 16-bit stereo at 41, 42 / 43, 44");
     const uint8_t s2b[] = {2, 0, 36, 37, 38};
     connect(&a, 2, s2b, 5);                          // another amplifier instance
     am_extras(&a, ex, 2);
     CHECK(ex[0].nr == 2 && ex[1].nr == 3 && ex[0].pos.l[0] == 31, "the lowest two SinkNr on sink 1's instance");
+    CHECK(am_extras(&a, ex3, 3) == 3 && ex3[0].nr == 2 && ex3[0].pos.l[0] == 31 && ex3[1].nr == 3 &&
+          ex3[2].nr == 4, "...and the lowest three");
     const uint8_t mute3[] = {3, 1};
     FEED(&a, HU, AMP, 0x22, 0x113, MM_OP_SETGET, mute3, 2);
     am_extras(&a, ex, 2);
@@ -263,6 +268,8 @@ static void test_extras(void)
     FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, dis2, 1);
     am_extras(&a, ex, 2);
     CHECK(ex[0].nr == 3 && ex[1].nr == 4 && ex[1].pos.bits == 16 && !ex[1].mono, "sink 2 disconnected: 3 and 4");
+    CHECK(am_extras(&a, ex3, 3) == 2 && ex3[0].nr == 3 && ex3[1].nr == 4 && ex3[2].pos.bits == 0 && !ex3[2].nr,
+          "three asked, two left: the third cleared");
     const uint8_t s2x[] = {2, 0, 30, 31, 32, 33, 34};
     connect(&a, 1, s2x, 7);                          // sink 2 back with five channels
     CHECK(am_extras(&a, ex, 2) == 2 && ex[0].nr == 3 && ex[1].nr == 4, "a list J3 cannot take is passed over");
@@ -276,6 +283,37 @@ static void test_extras(void)
     FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, (const uint8_t[]){3}, 1);
     CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 2 && ex[0].mono && ex[0].pos.bits == 24,
           "only the other instance's sink 2 left: 24-bit mono");
+
+    // Jaguar Land Rover's layout: 1 main, 2 navigation and phone, 3 parking sensors, 4 chimes
+    am_init(&a);
+    const uint8_t j1[] = {1, 0, 8, 9, 10, 11}, j2[] = {2, 0, 20, 21}, j3[] = {3, 0, 24, 25}, j4[] = {4, 0, 26, 27};
+    connect(&a, 1, j1, 6);
+    connect(&a, 1, j2, 4);
+    connect(&a, 1, j3, 4);
+    connect(&a, 1, j4, 4);
+    CHECK(am_extras(&a, ex3, 3) == 3 && ex3[0].nr == 2 && ex3[1].nr == 3 && ex3[2].nr == 4,
+          "JLR: sinks 2, 3, 4 on streams 1, 2, 3");
+    CHECK(ex3[0].mono && ex3[0].pos.bits == 16 && ex3[0].pos.l[0] == 21 && ex3[0].pos.l[1] == 22 &&
+          ex3[1].mono && ex3[1].pos.bits == 16 && ex3[1].pos.l[0] == 25 && ex3[1].pos.l[1] == 26 &&
+          ex3[2].mono && ex3[2].pos.bits == 16 && ex3[2].pos.l[0] == 27 && ex3[2].pos.l[1] == 28,
+          "JLR: each 16-bit mono, at 21, 22 / 25, 26 / 27, 28");
+    const uint8_t mute4[] = {4, 1}, unmute4[] = {4, 0};
+    FEED(&a, HU, AMP, 0x22, 0x113, MM_OP_SETGET, mute4, 2);
+    am_extras(&a, ex3, 3);
+    CHECK(!ex3[0].muted && !ex3[1].muted && ex3[2].muted && !am_main_muted(&a), "Mute to sink 4: the chimes alone");
+    FEED(&a, HU, AMP, 0x22, 0x113, MM_OP_SETGET, unmute4, 2);
+    const uint8_t mute0[] = {0, 1}, unmute0[] = {0, 0};
+    FEED(&a, HU, AMP, 0x22, 0x113, MM_OP_SETGET, mute0, 2);
+    am_extras(&a, ex3, 3);
+    CHECK(ex3[0].muted && ex3[1].muted && ex3[2].muted && am_main_muted(&a), "Mute to sink 0: all four");
+    FEED(&a, HU, AMP, 0x22, 0x113, MM_OP_SETGET, unmute0, 2);
+    am_extras(&a, ex3, 3);
+    CHECK(!ex3[0].muted && !ex3[1].muted && !ex3[2].muted && !am_main_muted(&a), "...and unmuted");
+    const uint8_t jdis2[] = {2};
+    FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, jdis2, 1);
+    CHECK(am_extras(&a, ex3, 3) == 2 && ex3[0].nr == 3 && ex3[0].pos.l[0] == 25 && ex3[1].nr == 4 &&
+          ex3[1].pos.l[0] == 27 && ex3[2].pos.bits == 0 && !ex3[2].nr,
+          "JLR, sink 2 disconnected: 3 and 4 move up to streams 1, 2 (their levels go by SinkNr)");
 }
 
 // the whole chain, blocks in, decisions out

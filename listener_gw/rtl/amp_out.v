@@ -1,7 +1,8 @@
 // amp_out.v - J3: what the factory amplifier would play, as stereo I2S.
 //
-// Three sources are picked out of the frame (stream 0 is the main one: what
-// the amplifier's sink 1 plays; 1 and 2 are for navigation and phone), run
+// Four sources are picked out of the frame (stream 0 is the main one: what
+// the amplifier's sink 1 plays; 1..3 its other sinks, lowest SinkNr first -
+// on JLR phone, navigation and voice, the parking sensors, the chimes), run
 // through dsp_core (tone on stream 0, then a mix into L and R with the head
 // unit's volume and balance as gains), and leave on J3 DOUT as standard I2S:
 // 64 BCLK per frame (BCLK = 64 Fs = clk_r / 16), 32-bit slots, LRCK low =
@@ -18,7 +19,7 @@
 //   A5 5A 01  P  L0 L1 L2  R0 R1 R2  X      where a stream is in the frame
 //     P[1:0]  0 = off (zeros in), 2 = 16 bit, 3 = 24 bit
 //     P[2]    mono: the left bytes only, fed to both sides
-//     P[5:4]  stream 0..2
+//     P[5:4]  stream 0..3
 //     P[7:6], P[3] zero; anything else is refused whole
 //     L0..R2  frame byte index 0..63 of each sample byte, MSB first (L2/R2
 //             ignored at 16 bit, R0..R2 when mono)
@@ -41,10 +42,10 @@
 // set again every 2 s. Without this a lost word left, at its address, the
 // value of the set before last - which is what the bank written next holds -
 // and went live mixed with the new. (A 6-bit count of the words in order: a
-// mask of all 47 addresses cost the clk_s domain 11 MHz of placement margin.)
-// A command packet takes 37 us on the UART, the switch at most one program
-// run (9 us) after the commit, so the next write never reaches the bank
-// still in use.
+// mask of all 47 addresses, as the set was then, cost the clk_s domain 11 MHz
+// of placement margin.) A command packet takes 37 us on the UART, the switch
+// at most one program run (479 clk_r: 9.7 us at 48 kHz, 10.6 at 44.1) after
+// the commit, so the next write never reaches the bank still in use.
 //
 // The sources are taken from the frame as it left the listener: where our
 // own audio replaced bytes on the ring (inject.v), the same bytes stand in
@@ -95,27 +96,27 @@ module amp_out (
     reg [55:0] p_q   /* synthesis syn_preserve = 1 */;
     always @(posedge clk_s) begin ok_q <= cmd_ok & ~rst_s; cmd_q <= cmd; p_q <= cmd_p; end
     wire [7:0] p0 = p_q[55:48];
-    wire       p0_ok = p0[7:6] == 2'd0 && !p0[3] && p0[5:4] != 2'd3 && p0[1:0] != 2'd1;
+    wire       p0_ok = p0[7:6] == 2'd0 && !p0[3] && p0[1:0] != 2'd1;
     // decoded once more: a strobe per stream and the fields, so the writes
     // below are plain enables (the 6s+k address arithmetic was a slow path)
-    reg  [2:0]  w01;                        // write stream 0 / 1 / 2
+    reg  [3:0]  w01;                        // write stream 0 / 1 / 2 / 3
     reg  [1:0]  w01_w;
     reg         w01_m;
     reg  [35:0] w01_p;
     always @(posedge clk_s) begin
-        for (s = 0; s < 3; s = s + 1) w01[s] <= ok_q && cmd_q == 8'h01 && p0_ok && p0[5:4] == s[1:0] && !rst_s;
+        for (s = 0; s < 4; s = s + 1) w01[s] <= ok_q && cmd_q == 8'h01 && p0_ok && p0[5:4] == s[1:0] && !rst_s;
         w01_w <= p0[1:0]; w01_m <= p0[2];
         for (k = 0; k < 6; k = k + 1) w01_p[6 * k +: 6] <= p_q[45 - 8 * k -: 6];
     end
-    reg  [5:0] pnew [0:17];                 // stream s: L0 L1 L2 R0 R1 R2 at 6s..6s+5
-    reg  [1:0] wnew [0:2];
-    reg        mnew [0:2];
+    reg  [5:0] pnew [0:23];                 // stream s: L0 L1 L2 R0 R1 R2 at 6s..6s+5
+    reg  [1:0] wnew [0:3];
+    reg        mnew [0:3];
     always @(posedge clk_s) begin
         if (rst_s) begin
-            for (s = 0; s < 3; s = s + 1) begin wnew[s] <= 2'd0; mnew[s] <= 1'b0; end
-            for (k = 0; k < 18; k = k + 1) pnew[k] <= 6'd0;
+            for (s = 0; s < 4; s = s + 1) begin wnew[s] <= 2'd0; mnew[s] <= 1'b0; end
+            for (k = 0; k < 24; k = k + 1) pnew[k] <= 6'd0;
         end else begin
-            for (s = 0; s < 3; s = s + 1)
+            for (s = 0; s < 4; s = s + 1)
                 if (w01[s]) begin
                     wnew[s] <= w01_w;
                     mnew[s] <= w01_m;
@@ -127,39 +128,39 @@ module amp_out (
     // --------------------------------------- pick the bytes of each frame
     // A command takes effect at the next frame boundary, so no frame is ever
     // put together from two different sets of positions.
-    // The byte stream is registered once more here: 18 address compares fed
-    // straight from rx_framer's registers, across the chip, were clk_s's
-    // slowest path. frame_done is delayed with it, so byte 63 lands before
-    // the copy into fin.
+    // The byte stream is registered once more here: the address compares (18
+    // then, 24 now) fed straight from rx_framer's registers, across the chip,
+    // were clk_s's slowest path. frame_done is delayed with it, so byte 63
+    // lands before the copy into fin.
     reg       we_q, fd_q;
     reg [5:0] ba_q;
     reg [7:0] bd_q;
     always @(posedge clk_s) begin
         we_q <= byte_we & ~rst_s; fd_q <= frame_done & ~rst_s; ba_q <= byte_addr; bd_q <= byte_data;
     end
-    reg [5:0] pos [0:17];                   // in effect for the frame being collected
-    reg [5:0] pfin [0:17];                  // ...and the positions fin was collected with
-    reg [7:0] cur [0:17];                   // being collected
-    reg [7:0] fin [0:17];                   // last complete frame, stable ~1 frame
-    reg [1:0] wid [0:2], wfin [0:2];        // width in effect / with fin
-    reg       mon [0:2], mfin [0:2];
+    reg [5:0] pos [0:23];                   // in effect for the frame being collected
+    reg [5:0] pfin [0:23];                  // ...and the positions fin was collected with
+    reg [7:0] cur [0:23];                   // being collected
+    reg [7:0] fin [0:23];                   // last complete frame, stable ~1 frame
+    reg [1:0] wid [0:3], wfin [0:3];        // width in effect / with fin
+    reg       mon [0:3], mfin [0:3];
     always @(posedge clk_s) begin
         if (rst_s) begin
-            for (s = 0; s < 3; s = s + 1) begin
+            for (s = 0; s < 4; s = s + 1) begin
                 wid[s] <= 2'd0; wfin[s] <= 2'd0; mon[s] <= 1'b0; mfin[s] <= 1'b0;
             end
-            for (k = 0; k < 18; k = k + 1) pos[k] <= 6'd0;
+            for (k = 0; k < 24; k = k + 1) pos[k] <= 6'd0;
         end else begin
             if (we_q)
-                for (k = 0; k < 18; k = k + 1)
+                for (k = 0; k < 24; k = k + 1)
                     if (ba_q == pos[k]) cur[k] <= bd_q;
             if (fd_q) begin
-                for (k = 0; k < 18; k = k + 1) begin
+                for (k = 0; k < 24; k = k + 1) begin
                     fin[k] <= cur[k];
                     pfin[k] <= pos[k];
                     pos[k] <= pnew[k];
                 end
-                for (s = 0; s < 3; s = s + 1) begin
+                for (s = 0; s < 4; s = s + 1) begin
                     wfin[s] <= wid[s]; wid[s] <= wnew[s];
                     mfin[s] <= mon[s]; mon[s] <= mnew[s];
                 end
@@ -173,13 +174,13 @@ module amp_out (
     // Registered in two clk_r stages (the substitution, then the assembly):
     // as one cone into the engine's input register they were clk_1024's slowest
     // path. fin, pfin and sub_* hold still for over 100 clk_r before phase_n 0.
-    reg [143:0] in_w;
+    reg [191:0] in_w;
     reg [23:0]  l24, r24;
-    reg [7:0]   fb [0:17];                  // fin, with the bytes we put on the ring in their place
-    reg [7:0]   fb_c [0:17];
+    reg [7:0]   fb [0:23];                  // fin, with the bytes we put on the ring in their place
+    reg [7:0]   fb_c [0:23];
     integer     q, m;                       // their own: the clocked blocks' loops run on k, s
     always @* begin
-        for (q = 0; q < 18; q = q + 1) begin
+        for (q = 0; q < 24; q = q + 1) begin
             fb_c[q] = fin[q];
             for (m = 0; m < 6; m = m + 1)
                 if (sub_on && (sub_w3 || (m != 2 && m != 5)) && sub_pos[6 * m +: 6] == pfin[q])
@@ -187,14 +188,14 @@ module amp_out (
         end
     end
     always @(posedge clk_r) begin
-        for (q = 0; q < 18; q = q + 1) fb[q] <= fb_c[q];
-        for (q = 0; q < 3; q = q + 1) begin
+        for (q = 0; q < 24; q = q + 1) fb[q] <= fb_c[q];
+        for (q = 0; q < 4; q = q + 1) begin
             l24 = (wfin[q] == 2'd3) ? {fb[6 * q], fb[6 * q + 1], fb[6 * q + 2]} :
                   (wfin[q] == 2'd2) ? {fb[6 * q], fb[6 * q + 1], 8'd0} : 24'd0;
             r24 = (wfin[q] == 2'd3) ? {fb[6 * q + 3], fb[6 * q + 4], fb[6 * q + 5]} :
                   (wfin[q] == 2'd2) ? {fb[6 * q + 3], fb[6 * q + 4], 8'd0} : 24'd0;
-            in_w[143 - 48 * q -: 24] <= l24;
-            in_w[119 - 48 * q -: 24] <= mfin[q] ? l24 : r24;
+            in_w[191 - 48 * q -: 24] <= l24;
+            in_w[167 - 48 * q -: 24] <= mfin[q] ? l24 : r24;
         end
     end
 
@@ -250,7 +251,7 @@ module amp_out (
                     .c_q(c_q), .out_w(out_w), .running(running), .overrun(overrun));
 
     // ------------------------------------------------- I2S out (clk_r)
-    // out_w is written during the program run (~450 clk_r after phase_n 0)
+    // out_w is written during the program run (~480 clk_r after phase_n 0)
     // and latched here at the next phase_n 0
     reg [63:0] w;
     wire [5:0] sl = phase_n[9:4];           // BCLK slot 0..63

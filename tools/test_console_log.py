@@ -7,7 +7,8 @@
             the status period) and the console's baud rate in sdkconfig.defaults, filled with known
             values: console_format must read every value back. A changed format in the firmware
             fails here, not in a car.
-  sound     every function sound.c takes a value from has a name and a value here
+  sound     every function sound.c takes a value from has a name and a value here; the Jaguar XF's
+            0xF0.0x409 gives bytes 2 and 8, and byte 10 (the parking sensors) once it is 11 bytes long
   port      the DevKitC's bridge picked by its USB ID: CP2102N, CH9102, the FPGA module's bridge
             beside it ignored, two bridges refused (a wrong guess records nothing), macOS's cu node
   keys      Latin, Caps Lock, the Ukrainian layout
@@ -124,7 +125,14 @@ def sound():
     check(v == [("22.46D SpeakerLevel, sink 1 (its loudest speaker, dB)", 2, "2 dB")], f"SpeakerLevel: {v}")
     v = CF.sound_values(CF.Tel(0, 0x100, 0x180, 0x22, 1, 0x202, "Set/Start", 1, bytes([0xFD]), False))
     check(v == [("22.202 Bass", -3, "-3")], f"Bass: {v}")
-    print(f"{'ok  ' if BAD == bad0 else '    '} sound: the {len(funcs)} functions sound.c reads, named and read")
+    # the XF's levels: bytes 2 and 8 in a 9-byte Status, byte 10 (the parking sensors) once it is 11 long
+    xf = bytes([1, 0, 30, 0, 0, 0, 0, 0, 20, 0, 12])
+    for n, want in ((9, [30, 20]), (11, [30, 20, 12])):
+        v = CF.sound_values(CF.Tel(0, 0x161, 0x16E, 0xF0, 1, 0x409, "Status/Result", n, xf[:n], False))
+        check([x for _, x, _ in v] == want, f"F0.409, {n} bytes: {v}")
+    check(v[2:] == [("F0.409 parking sensors volume (Jaguar XF)", 12, "volume 12")], f"F0.409 byte 10: {v[2:]}")
+    print(f"{'ok  ' if BAD == bad0 else '    '} sound: the {len(funcs)} functions sound.c reads, named and read; "
+          f"0xF0.0x409's bytes 2, 8 and 10")
 
 
 def port(dev, vid, pid, sn="0001"):

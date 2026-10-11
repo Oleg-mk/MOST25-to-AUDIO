@@ -128,8 +128,8 @@ control protocol in firmware — it is known, just not published.
 | Range Rover L322 | MY06–12 | MOST25 | not found | HK Logic7 amp (I) | – | – | F |
 | Discovery 3 / LR3 (L319) | 2005–09 | MOST25 | not found | yes, amp "connected via the MOST bus" (high-line only; low-line has no MOST) | – | – | **C**, LR3 workshop manual |
 | Discovery 4, RR Sport L320, Evoque, L405/L494, F-type | 2005–~16 | MOST25 | not found | yes (I from shared amp families) | – | – | C/F/vendor |
-| **Freelander 2 (L359)** | 2007–14 | MOST25 | **48 kHz** | yes; stereo 4 B, mono 2 B, surround 6 B per frame; base system has no fibre | 0x22: Connect 0x111, SpeakerLevel **0x46D used as volume**, MuteParameters 0x466 per sink | 0x22 FktIDs 0xE04/E05/E07/E08/E53; FBlock 0xF0, 0xF5 | C-code (usb2most firmware), F (drive2) |
-| **Jaguar XF X250** | 2008–15 | MOST25 | **48 kHz** | yes, 16-bit stereo | 0x22 inst 0x05 at node 0x186: Balance/Bass/Treble/Fader 0x200–0x204 signed, Subwoofer 0x402, MixerLevel 0x467 | "shadow" amp 0x22 inst **0xA1** at gateway 0x161; 0x22 FktIDs 0xE09 Source, 0xE20–0xE22 CustAudio; **FBlock 0xF0 FktID 0x409 volume** (byte2 audio, byte8 nav/phone, byte10 parking); source switch 0x405→0x408→0x406→0x407; steering-wheel track keys gateway → screen (0x16E), FktID **0xCA1**: next Data0 03 + Data1 01, previous Data0 04 + Data2 01 | C-code (JLR-HU, SocketMost, pymost-client dump) |
+| **Freelander 2 (L359)** | 2007–14 | MOST25 | **48 kHz** | yes; stereo 4 B, mono 2 B, surround 6 B per frame; base system has no fibre; amp sinks 1 main, 2 phone/nav/voice, 3 parking sensors, 4 chimes | 0x22: Connect 0x111, SpeakerLevel **0x46D used as volume**, MuteParameters 0x466 per sink | 0x22 FktIDs 0xE04/E05/E07/E08/E53; FBlock 0xF0, 0xF5 | C-code (usb2most firmware), F (drive2), C (mObridge MOST25 DA Series Guide pp. 18-19: the sinks) |
+| **Jaguar XF X250** | 2008–15 | MOST25 | **48 kHz** | yes, 16-bit stereo; amp sinks 1 main, 2 phone/nav/voice, 3 parking sensors, 4 chimes | 0x22 inst 0x05 at node 0x186: Balance/Bass/Treble/Fader 0x200–0x204 signed, Subwoofer 0x402, MixerLevel 0x467 | "shadow" amp 0x22 inst **0xA1** at gateway 0x161; 0x22 FktIDs 0xE09 Source, 0xE20–0xE22 CustAudio; **FBlock 0xF0 FktID 0x409 volume** (byte2 audio, byte8 nav/phone, byte10 parking); source switch 0x405→0x408→0x406→0x407; steering-wheel track keys gateway → screen (0x16E), FktID **0xCA1**: next Data0 03 + Data1 01, previous Data0 04 + Data2 01 | C-code (JLR-HU, SocketMost, pymost-client dump), C (mObridge MOST25 DA Series Guide pp. 18-19: the sinks) |
 | Jaguar XK X150, XJ X351 | 2006–19 | MOST25 | not found | yes (I) | – | – | F/vendor |
 | JLR Touch Pro / Duo, I-Pace | ~2017+ | not MOST (Ethernet/coax) | – | – | – | – | vendor, I |
 
@@ -220,7 +220,7 @@ SmartGauges (drive2, author of usb2most, Freelander 2):
    per-platform decoder table and per-platform scales: configuration.
 4. **There is more than one audio stream.** Nav prompts, phone, parking
    beeps, chimes travel on separate sinks/channels to the amp (Audi SSP 293,
-   BMW, JLR, mObridge sinks 1–3). A passive tap must decode ConnectionMaster
+   BMW, JLR, mObridge sinks 1–4). A passive tap must decode ConnectionMaster
    Allocate (0x101) results and Amp Connect (0x111) to learn which channel
    bytes are which, and must mix them itself.
 5. **No external amp, no audio.** In base-amp cars (Audi MMI basic, BMW HiFi,
@@ -257,8 +257,9 @@ SmartGauges (drive2, author of usb2most, Freelander 2):
   (workshop-manuals.com, sections 415-01 and 418-00).
 - Mercedes: MBUSA StarTuned "Fiber Optics: D2B and MOST Bus" (09/2021);
   w220.wiki (WIS copy); Dynavin MOAGW sheet; Audison bit DMI NTG4.x guide.
-- Aftermarket: HELIX SDMI25 manual, mObridge K2 / MOST25 DA manuals,
-  Audison bit DMI compatibility list, Trioma MOST-TosLink 3.0 manual.
+- Aftermarket: HELIX SDMI25 manual, mObridge K2 manual and MOST25 DA
+  Series Guide (pp. 18-19: the amplifier's sinks per maker), Audison bit DMI
+  compatibility list, Trioma MOST-TosLink 3.0 manual.
 - drive2.ru, SmartGauges: /c/540082586538475793 (usb2most intro),
   /l/548968564636255384 (amp comparison, EQ/delay data),
   /l/559134374268764551 (facelift ring on a bench), /b/601446880240501339

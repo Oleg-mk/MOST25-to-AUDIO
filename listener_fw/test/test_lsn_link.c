@@ -178,6 +178,13 @@ static void test_cmd(void)
     CHECK(c[3] == 0x23 && c[7] == 7 && c[8] == 8, "stream 2, 24-bit stereo: P = 23h");
     lsn_cmd_source(c, 2, 0, 0, NULL, NULL);
     CHECK(c[3] == 0x20 && c[4] == 0, "stream 2 off: P = 20h");
+    lsn_cmd_source(c, 3, 16, 1, l, r);
+    CHECK(c[2] == 0x01 && c[3] == 0x36 && c[4] == 5 && c[5] == 6 && c[7] == 0 && c[8] == 0,
+          "stream 3, 16-bit mono: P = 36h, the right bytes zero");
+    lsn_cmd_source(c, 3, 24, 0, l, r);
+    CHECK(c[3] == 0x33 && c[7] == 7 && c[8] == 8, "stream 3, 24-bit stereo: P = 33h");
+    lsn_cmd_source(c, 3, 0, 0, NULL, NULL);
+    CHECK(c[3] == 0x30 && c[4] == 0, "stream 3 off: P = 30h");
     lsn_cmd_word(c, 46, (int32_t)0xFF012345, 1, 0x7C);
     const uint8_t w46[LSN_CMD_LEN] = {0xA5, 0x5A, 0x03, 46, 0xFF, 0x01, 0x23, 0x45, 0x01, 0x7C,
                                       (uint8_t)(0xA5 ^ 0x5A ^ 0x03 ^ 46 ^ 0xFF ^ 0x01 ^ 0x23 ^ 0x45 ^ 0x01 ^ 0x7C)};

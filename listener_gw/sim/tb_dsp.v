@@ -6,7 +6,7 @@
 // core. Host commands (cmds.hex: delay in clk_s, then C P0..P6) are applied
 // as host_cmd's `ok` pulses, one after another.
 // Logged for run_dsp.py:
-//   F n  pos x18 wid x3 mon x3        frame n done, with the positions it was collected with
+//   F n  pos x24 wid x4 mon x4        frame n done, with the positions it was collected with
 //   S n  lastframe in_w               the engine started, on this frame's samples
 //   E n  out_w bank                   the program ended: outputs and the bank it used
 //   W n  bank addr value commit inuse tag  a coefficient word the design accepted (n = starts
@@ -60,9 +60,9 @@ module tb_dsp;
                     bwe <= 1'b0;
                     fdone <= 1'b1;
                     $fwrite(flog, "F %0d", nf);
-                    for (j = 0; j < 18; j = j + 1) $fwrite(flog, " %0d", dut.pos[j]);
-                    for (j = 0; j < 3; j = j + 1) $fwrite(flog, " %0d", dut.wid[j]);
-                    for (j = 0; j < 3; j = j + 1) $fwrite(flog, " %0d", dut.mon[j]);
+                    for (j = 0; j < 24; j = j + 1) $fwrite(flog, " %0d", dut.pos[j]);
+                    for (j = 0; j < 4; j = j + 1) $fwrite(flog, " %0d", dut.wid[j]);
+                    for (j = 0; j < 4; j = j + 1) $fwrite(flog, " %0d", dut.mon[j]);
                     $fwrite(flog, "\n");
                     @(posedge clk_s);
                     fdone <= 1'b0;
@@ -104,7 +104,7 @@ module tb_dsp;
     always @(posedge clk_r) begin
         if (dut.start) begin
             nstart = nstart + 1;
-            $fwrite(slog, "S %0d %0d %036h\n", nstart, nf - 1, dut.in_w);
+            $fwrite(slog, "S %0d %0d %048h\n", nstart, nf - 1, dut.in_w);
         end
         if (run_d && !dut.running) begin
             nend = nend + 1;

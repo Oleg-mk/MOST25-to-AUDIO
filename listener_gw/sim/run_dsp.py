@@ -2,22 +2,26 @@
 """run_dsp.py - amp_out / dsp_core against the bit-exact model in dsp_asm.py.
 
 RTL (tb_dsp.v), per corner (48 and 44.1 kHz):
-  * three sources in the frame: stream 0 stereo 24 bit, stream 1 mono 16 bit,
-    stream 2 stereo 16 bit; later stream 0 moves to other bytes at 16 bit;
+  * four sources in the frame: stream 0 stereo 24 bit, stream 1 mono 16 bit,
+    stream 2 stereo 16 bit, stream 3 mono 16 bit; later stream 0 moves to
+    other bytes at 16 bit, and streams 1 and 3 turn stereo (16 and 24 bit),
+    each side its own signal, so every one of the eight inputs is told apart;
   * four coefficient sets, each written word by word with its own tag and
     committed with its last word: straight through; tone (bass shelf +10 dB,
-    treble shelf -6 dB, a peak) with volume, balance and navigation mixed in,
-    gains gliding (k = 1/64); saturation everywhere (outputs clip, a biquad
-    chain overflows); back to straight through. Refused commands in between: a
-    word at address 70, a stream 3. Sets that must NOT go live: one with a word
-    lost on the way (committed all the same), and a set whose commit was lost
+    treble shelf -6 dB, a peak) with volume, balance, navigation and stream 3
+    mixed in, gains gliding (k = 1/64); saturation everywhere (outputs clip, a
+    biquad chain overflows); back to straight through. Refused commands in
+    between: a word at address 70, a position of width 1, positions with a
+    reserved bit set (P[3], P[6]). Sets that must NOT go live: one with a word
+    lost on the way (committed all the same), a set whose commit was lost
     followed by another set with a word lost - with tags left out, the first
-    set's word filled the second's gap and the mix went live. A stray word of
-    a tag never committed sits in between.
+    set's word filled the second's gap and the mix went live - and, last, an
+    old host's set of 47 words with the commit on word 46. A stray word of a
+    tag never committed sits in between.
   Checks:
   PICK   every engine run starts on exactly the bytes of the last frame, with
          the positions, widths and mono flags that frame was collected with;
-         the refused stream command never took effect
+         the refused position commands never took effect
   BANK   words land only in the bank not in use; a run uses one bank from
          start to end; each switch is in use from the next run on
   TXN    the banks switch exactly for the whole sets, and the bank switched to
@@ -79,8 +83,9 @@ def mag_db(bq, fs, f):
 # ------------------------------------------------------------- stimulus
 S0A = (9, 10, 11, 12, 13, 14)       # stream 0, 24 bit
 S0B = (40, 41, 42, 43)              # stream 0 later, 16 bit
-S1 = (20, 21)                       # stream 1, mono 16 bit
+S1 = (20, 21, 22, 23)               # stream 1, L R 16 bit (mono: L alone)
 S2 = (30, 31, 32, 33)               # stream 2, 16 bit
+S3 = (50, 51, 52, 53, 54, 55)       # stream 3, L R 24 bit (mono 16 bit: L0 L1 alone)
 
 
 def put(fr, pos, v, nbytes):
@@ -98,9 +103,12 @@ def frames(n, fs, rnd):
         put(fr, S0A[0:3], l, 3); put(fr, S0A[3:6], r, 3)
         put(fr, S0B[0:2], int(0.7 * 2 ** 15 * math.sin(2 * math.pi * 200 * i / fs)), 2)
         put(fr, S0B[2:4], int(-0.7 * 2 ** 15 * math.sin(2 * math.pi * 7000 * i / fs)), 2)
-        put(fr, S1, int(0.3 * 2 ** 15 * math.sin(2 * math.pi * 440 * i / fs)), 2)
+        put(fr, S1[0:2], int(0.3 * 2 ** 15 * math.sin(2 * math.pi * 440 * i / fs)), 2)
+        put(fr, S1[2:4], int(0.25 * 2 ** 15 * math.sin(2 * math.pi * 5100 * i / fs)), 2)
         put(fr, S2[0:2], rnd.randrange(-2 ** 14, 2 ** 14), 2)
         put(fr, S2[2:4], rnd.randrange(-2 ** 14, 2 ** 14), 2)
+        put(fr, S3[0:3], int(0.5 * 2 ** 23 * math.sin(2 * math.pi * 1800 * i / fs)), 3)
+        put(fr, S3[3:6], int(-0.4 * 2 ** 23 * math.sin(2 * math.pi * 2700 * i / fs)), 3)
         out.append(fr)
     return out
 
@@ -123,23 +131,30 @@ def image_cmds(c, tag, lose=()):
 
 def schedule(fs):
     """(delay in clk_s, command) and the list of sets in commit order."""
-    straight = da.image(gains={(0, 0): 1.0, (0, 1): 1.0, (1, 0): 0.25, (2, 1): 0.125}, k=1.0)
+    straight = da.image(gains={(0, 0): 1.0, (0, 1): 1.0, (1, 0): 0.25, (2, 1): 0.125, (3, 0): 0.2, (3, 1): 0.3},
+                        k=1.0)
     vol = 10 ** (-12 / 20)
     tone = da.image(bq=[rbj("low", fs, 100, 10.0), rbj("high", fs, 8000, -6.0),
                         rbj("peak", fs, 2500, 4.0, 1.4)],
-                    gains={(0, 0): vol, (0, 1): vol * 0.7, (1, 0): 0.4, (1, 1): 0.4}, k=1 / 64)
+                    gains={(0, 0): vol, (0, 1): vol * 0.7, (1, 0): 0.4, (1, 1): 0.4, (3, 0): 0.5, (3, 1): 0.5},
+                    k=1 / 64)
     boost = (7.9, 0.0, 0.0, 0.0, 0.0)
-    clip = da.image(bq=[boost, boost], gains={(0, 0): 6.0, (0, 1): -6.0, (2, 0): 7.9}, k=1.0)
+    clip = da.image(bq=[boost, boost], gains={(0, 0): 6.0, (0, 1): -6.0, (2, 0): 7.9, (3, 1): -7.9}, k=1.0)
     sets = [straight, tone, clip, straight]
     seq = [(5000, cmd01(0, 24, False, S0A[0:3], S0A[3:6])),
-           (GAP, cmd01(1, 16, True, S1)),
+           (GAP, cmd01(1, 16, True, S1[0:2])),
            (GAP, cmd01(2, 16, False, S2[0:2], S2[2:4])),
-           (GAP, [1, 0x31] + [1] * 6)]                              # stream 3: refused
+           (GAP, cmd01(3, 16, True, S3[0:2])),
+           (GAP, [1, 0x31] + [1] * 6),                              # width 1: refused
+           (GAP, [1, 0x0A] + [1] * 6),                              # P[3] set: refused
+           (GAP, [1, 0x42] + [1] * 6)]                              # P[6] set: refused
     seq += [(GAP, c) for c in image_cmds(sets[0], 1)]
     seq.append((150000, cmd03(70, 0x10000000)))                     # address 70: refused
     seq += [(GAP, c) for c in image_cmds(sets[1], 2)]
     seq.append((GAP, cmd03(5, 0x10000000, p6=9)))                   # a stray word, tag 9: never committed
     seq.append((150000, cmd01(0, 16, False, S0B[0:2], S0B[2:4])))
+    seq.append((GAP, cmd01(1, 16, False, S1[0:2], S1[2:4])))       # streams 1 and 3 turn stereo
+    seq.append((GAP, cmd01(3, 24, False, S3[0:3], S3[3:6])))
     seq += [(GAP, c) for c in image_cmds(sets[2], 3, lose=(7,))]    # a word lost: must not go live
     seq += [(60000, c) for c in image_cmds(sets[2], 4)[:1]]
     seq += [(GAP, c) for c in image_cmds(sets[2], 4)[1:]]           # the whole set: live
@@ -147,6 +162,9 @@ def schedule(fs):
     seq += [(GAP, c) for c in image_cmds(sets[1], 6, lose=(12,))]   # ...then a set with a gap: not live
     seq += [(60000, c) for c in image_cmds(sets[3], 7)[:1]]
     seq += [(GAP, c) for c in image_cmds(sets[3], 7)[1:]]
+    # an old host's set, as it was before stream 3: 47 words, the commit on word 46 - not live
+    old = [cmd03(a, sets[1][a], commit=(a == 46), p6=8) for a in range(47)]
+    seq += [(60000, old[0])] + [(GAP, c) for c in old[1:]]
     # the commits that must switch, by tag, and the set each one puts in use
     live = {1: sets[0], 2: sets[1], 4: sets[2], 7: sets[3]}
     return seq, sets, live
@@ -159,7 +177,7 @@ def s24(v):
 
 def expect_in(fr, pos, wid, mon):
     out = []
-    for s in range(3):
+    for s in range(4):
         p = pos[6 * s:6 * s + 6]
         w = wid[s]
         if w == 3:
@@ -190,7 +208,7 @@ def run_corner(name, fs, work):
     for l in (d / "out_frames.txt").read_text().split("\n"):
         if l.startswith("F "):
             v = list(map(int, l.split()[1:]))
-            flog[v[0]] = (v[1:19], v[19:22], v[22:25])
+            flog[v[0]] = (v[1:25], v[25:29], v[29:33])
     S, E, W, K, ev, errs = {}, {}, [], [], [], []
     for l in (d / "out_engine.txt").read_text().split("\n"):
         t = l.split()
@@ -198,7 +216,7 @@ def run_corner(name, fs, work):
             continue
         if t[0] == "S":
             h = int(t[3], 16)
-            S[int(t[1])] = (int(t[2]), [s24((h >> (24 * (5 - k))) & 0xFFFFFF) for k in range(6)])
+            S[int(t[1])] = (int(t[2]), [s24((h >> (24 * (7 - k))) & 0xFFFFFF) for k in range(8)])
         elif t[0] == "E":
             h = int(t[2], 16)
             E[int(t[1])] = ([s24((h >> (24 * (1 - k))) & 0xFFFFFF) for k in range(2)], int(t[3]))
@@ -218,15 +236,21 @@ def run_corner(name, fs, work):
         if lf >= 0 and ins != expect_in(frs[lf], *flog[lf]):
             bad += 1
     # every frame was collected with a configuration that was sent (or none yet)
+    mono1, st1 = (S1[0:2] + (0,) * 4, 2, 1), (S1[0:2] + (0,) + S1[2:4] + (0,), 2, 0)
+    mono3, st3 = (S3[0:2] + (0,) * 4, 2, 1), (S3, 3, 0)
     valid = [{((0,) * 6, 0, 0), (S0A, 3, 0), (S0B[0:2] + (0,) + S0B[2:4] + (0,), 2, 0)},
-             {((0,) * 6, 0, 0), (S1 + (0, 0, 0, 0), 2, 1)},
-             {((0,) * 6, 0, 0), (S2[0:2] + (0,) + S2[2:4] + (0,), 2, 0)}]
-    stray = sum(1 for pos, wid, mon in flog.values() for s in range(3)
+             {((0,) * 6, 0, 0), mono1, st1},
+             {((0,) * 6, 0, 0), (S2[0:2] + (0,) + S2[2:4] + (0,), 2, 0)},
+             {((0,) * 6, 0, 0), mono3, st3}]
+    stray = sum(1 for pos, wid, mon in flog.values() for s in range(4)
                 if (tuple(pos[6 * s:6 * s + 6]), wid[s], mon[s]) not in valid[s])
     seen = {(tuple(pos[0:6]), wid[0]) for pos, wid, _ in flog.values()}
-    ok = bad == 0 and stray == 0 and len(S) > nfr - 5 and (S0B[0:2] + (0,) + S0B[2:4] + (0,), 2) in seen
-    print(f"  PICK : {'PASS' if ok else 'FAIL'}  {len(S)} runs, {bad} on wrong samples; "
-          f"{stray} stream settings never sent (the refused stream 3 among them)")
+    seen1 = {(tuple(pos[6:12]), wid[1], mon[1]) for pos, wid, mon in flog.values()}
+    seen3 = {(tuple(pos[18:24]), wid[3], mon[3]) for pos, wid, mon in flog.values()}
+    ok = (bad == 0 and stray == 0 and len(S) > nfr - 5 and (S0B[0:2] + (0,) + S0B[2:4] + (0,), 2) in seen
+          and {mono1, st1} <= seen1 and {mono3, st3} <= seen3)
+    print(f"  PICK : {'PASS' if ok else 'FAIL'}  {len(S)} runs, {bad} on wrong samples; streams 1 and 3 "
+          f"seen mono and stereo; {stray} stream settings never sent (the refused positions among them)")
     ok_all &= ok
 
     # BANK: every accepted word, where it went; which bank each run used
@@ -263,8 +287,8 @@ def run_corner(name, fs, work):
                 wrong += 1
     ok = switched == sorted(live) and wrong == 0
     print(f"  TXN  : {'PASS' if ok else 'FAIL'}  switched for tags {switched} (whole sets {sorted(live)}); "
-          f"{wrong} switched to a bank that was not the set; the set with a lost word and the gap after "
-          f"a lost commit stayed out")
+          f"{wrong} switched to a bank that was not the set; the set with a lost word, the gap after "
+          f"a lost commit and the old host's 47 words stayed out")
     ok_all &= ok
 
     # MODEL
@@ -346,7 +370,7 @@ def model_resp(fs):
         ys = []
         for i in range(n):
             x = int(round(amp * math.sin(2 * math.pi * f * i / fs)))
-            ys.append(eng.run(c, [x, x, 0, 0, 0, 0])[0])
+            ys.append(eng.run(c, [x, x] + [0] * (2 * da.N_STREAMS - 2))[0])
         # least-squares sine at f over the second half (settled)
         sss = scc = ssc = ys_ = yc_ = 0.0
         for i in range(n // 2, n):
@@ -393,7 +417,7 @@ def model_noise(fs):
                 for side in (0, 1):
                     for bb in range(da.N_BQ):
                         eng.d[da.d_rem(side, bb)] = 0
-            eng.run(c, [x, x, 0, 0, 0, 0])
+            eng.run(c, [x, x] + [0] * (2 * da.N_STREAMS - 2))
             y = da.s32(eng.d[da.d_node(0, da.N_BQ, 1)]) / da.ONE      # moved to d1 at the end of the run
             if i > fs // 4:
                 e2 += (y - r[i]) ** 2

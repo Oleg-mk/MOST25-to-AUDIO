@@ -4,10 +4,10 @@
 
 #define DSP_FRAC       28
 #define DSP_N_BQ       8      // biquads per side, stream 0
-#define DSP_N_STREAMS  3
+#define DSP_N_STREAMS  4
 #define DSP_N_OUT      2      // L R
 #define DSP_C_WORDS    64
 #define DSP_C_BQ(b, i) (0 + 5 * (b) + (i))
 #define DSP_C_KT(s, o) (40 + 2 * (s) + (o))    // k x target gain, stream s -> output o
-#define DSP_C_1MK      46     // 1 - k
-#define DSP_C_IMAGE    47     // the words the host sends, 0 .. DSP_C_1MK
+#define DSP_C_1MK      48     // 1 - k
+#define DSP_C_IMAGE    49     // the words the host sends, 0 .. DSP_C_1MK

@@ -269,6 +269,8 @@ module tb_core;
             $fwrite(fcfg, "%0d %0d %0d %0d %0d %0d %0d %0d %0d %0d\n", $time, c, bad, w, l0, l1, l2, r0, r1, r2);
         end
     endtask
+    // J3's coefficient map as amp_out has it (DSP_C_IMAGE: the words of a set)
+`include "dsp_map.vh"
     // one coefficient word for amp_out (command 03) of the set tagged t; commit with the last one
     integer wi;
     task send_word(input [7:0] a, input [31:0] v, input commit, input [7:0] t);
@@ -305,15 +307,15 @@ module tb_core;
         end
         @(posedge lock);                                            // the loop has locked
         repeat (2000) @(posedge clk_s);
-        // J3's coefficients (map: sim/dsp_asm.py), the whole set of 47 words under
-        // one tag, as amp_out switches only on a whole set: every biquad straight
-        // through (b0 = 1.0 at 0, 5, .. 35, the rest 0), stream 0 to L x 1 and
-        // R x 0.5, the other streams off, gains at once (1 - k = 0 at 46, with
-        // the commit)
-        for (wi = 0; wi < 46; wi = wi + 1)                                         // not i: it feeds samp
+        // J3's coefficients (map: sim/dsp_asm.py), the whole set of DSP_C_IMAGE
+        // (49) words under one tag, as amp_out switches only on a whole set:
+        // every biquad straight through (b0 = 1.0 at 0, 5, .. 35, the rest 0),
+        // stream 0 to L x 1 and R x 0.5, the other streams off, gains at once
+        // (1 - k = 0 in the last word, with the commit)
+        for (wi = 0; wi < DSP_C_IMAGE - 1; wi = wi + 1)                            // not i: it feeds samp
             send_word(wi, (wi < 40 && wi % 5 == 0) || wi == 40 ? 32'h1000_0000 :
                           wi == 41 ? 32'h0800_0000 : 32'h0000_0000, 1'b0, 8'd1);
-        send_word(8'd46, 32'h0000_0000, 1'b1, 8'd1);
+        send_word(DSP_C_IMAGE - 1, 32'h0000_0000, 1'b1, 8'd1);
         send_cmd(8'h01, 8'd3, 8'd4, 8'd1, 8'd3, 8'd2, 8'd4, 8'd1, 1'b1);   // wrong XOR: must be ignored
         send_cmd(8'h01, 8'd3, 8'd3, 8'd4, 8'd1, 8'd2, 8'd1, 8'd4, 1'b0);   // A: 24 bit, scrambled
         repeat (50000) @(posedge clk_s);

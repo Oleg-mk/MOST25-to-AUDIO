@@ -1,7 +1,7 @@
 // dsp_core.v - a small multiply-accumulate engine: one fixed program per ring frame.
 //
 // It does to our output what the factory amplifier does to its speakers:
-// tone on the main source, then three sources mixed into L and R with gains
+// tone on the main source, then four sources mixed into L and R with gains
 // that move smoothly. The program, the memory map and a bit-exact model are
 // in sim/dsp_asm.py; dsp_prog.vh is generated from it. The host computes the
 // coefficients and gains; this engine only multiplies and adds.
@@ -14,7 +14,7 @@
 //      a store, a move, an output; the next instruction is fetched
 //   C  the product is formed (registered); STR writes its remainder
 // So a store or an output sees every product before it, and a read sees
-// every write before it. The program takes 449 of the 1024 clocks of a frame
+// every write before it. The program takes 479 of the 1024 clocks of a frame
 // (dsp_asm.py asserts < 1000); `overrun` is set if a frame starts before it
 // has finished.
 //
@@ -26,7 +26,7 @@ module dsp_core (
     input  wire         clk,                // clk_r
     input  wire         rst,
     input  wire         start,              // one clock per frame: latch in_w, run
-    input  wire [143:0] in_w,               // s0L s0R s1L s1R s2L s2R, 24 bit each, s0L on top
+    input  wire [191:0] in_w,               // s0L s0R s1L s1R s2L s2R s3L s3R, 24 bit each, s0L on top
     output wire [5:0]   c_addr,             // coefficient read address...
     input  wire [31:0]  c_q,                // ...and its word, one clock later
     output reg  [47:0]  out_w,              // L R, 24 bit each, L on top
@@ -66,8 +66,22 @@ module dsp_core (
     end
 
     // ------------------------------------------------------ inputs, datapath
-    reg  [143:0] in_r;
-    wire [23:0]  in24 = in_r[143 - 24 * ia[2:0] -: 24];
+    reg  [191:0] in_r;
+    // the sample IN's a picks (0..7: s0L .. s3R, dsp_asm.py), as a plain mux
+    // on constant slices: no index arithmetic for synthesis to build
+    reg  [23:0]  in24;
+    always @* begin
+        case (ia[2:0])
+            3'd0:    in24 = in_r[191:168];
+            3'd1:    in24 = in_r[167:144];
+            3'd2:    in24 = in_r[143:120];
+            3'd3:    in24 = in_r[119:96];
+            3'd4:    in24 = in_r[95:72];
+            3'd5:    in24 = in_r[71:48];
+            3'd6:    in24 = in_r[47:24];
+            default: in24 = in_r[23:0];
+        endcase
+    end
     wire [31:0]  in32 = {{3{in24[23]}}, in24, 5'd0};
 
     reg  [71:0] acc;
