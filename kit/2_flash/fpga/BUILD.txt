@@ -1,10 +1,10 @@
 listener.fs: the listener's FPGA bitstream, for the Tang Nano 20K's flash (../README.md)
 device     GW2AR-LV18QN88C8/I7
-commit     a7607d8d09a65f14fdc7bafbb55211943d12d734
-usercode   0x0000FB78  (over JTAG: Gowin Programmer, Read User Code)
+commit     86f064ebe352ab699e18e4e82d51c449b74bf42f
+usercode   0x0000FC3C  (over JTAG: Gowin Programmer, Read User Code)
 loading    25.000MHz from the flash
-built      2026-10-04 11:41
-sha256     d62b8adee34e00a5624a2bf35032e56dce0d4a8f86fde2dac2f05da836afbe6d
-timing     ok    clk_1024   needs   50.000 MHz, reaches   66.429 MHz, margin   32.9 % (min 10 %)
-           ok    clk_s      needs   99.000 MHz, reaches  114.350 MHz, margin   15.5 % (min 10 %)
+built      2026-10-11 18:24
+sha256     55321f40476e4cde6251869ea74394f5b4f5ea72e143f03662a515045d560935
+timing     ok    clk_1024   needs   50.000 MHz, reaches   68.944 MHz, margin   37.9 % (min 10 %)
+           ok    clk_s      needs   99.000 MHz, reaches  124.856 MHz, margin   26.1 % (min 10 %)
            TIMING: PASS
