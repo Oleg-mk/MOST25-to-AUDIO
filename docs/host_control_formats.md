@@ -22,7 +22,7 @@ Paths are inside the MOST specification archive (not in this repository) unless 
 | AUX | FBlock AuxIn Rev 3.5.2, 02/2013 | same library > `FBlock_AuxIn_3V5-2.zip` > `MOST_FBlock_AuxIn_3V5-2.pdf` / `.xml` | printed = PDF |
 | AMP | FunctionBlock AudioAmplifier Rev 2.4.3, 07/2011 | `extracted/FBlock_AudioAmplifier_2V4-3/` | printed = PDF |
 | CM25 / NM25 / NB25 | ConnectionMaster / NetworkMaster / NetBlock, Speed Grade MOST25, Rev 2.5.1 | library > `1_System_FBlocks/FBlock_{ConnectionMaster,NetworkMaster,NetBlock}_oPhy25_2V5-1.zip` | printed = PDF |
-| OS | Oasis OS8104 Final Product Data Sheet DS8104FP4, Jan 2003 | `C:\Users\geniy\Downloads\OS8104.pdf` (outside the spec mirror: the NIC maker's datasheet) | printed = PDF |
+| OS | Oasis OS8104 Final Product Data Sheet DS8104FP4, Jan 2003 | not in the spec mirror: the NIC maker's data sheet | printed = PDF |
 
 `pdftotext -layout` scrambles the columns of CORE Tables 2-1, 2-4, 3-1, 3-6 and 3-7, of the TelID table
 on p.179 and of Table 3-19. I checked every value from those tables against a rendered image of the page.

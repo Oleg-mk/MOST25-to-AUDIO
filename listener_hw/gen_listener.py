@@ -62,13 +62,16 @@ Run:  python gen_listener.py      (writes most_listener.kicad_sch next to it)
 from __future__ import annotations
 
 import math
+import os
 import re
 import uuid as _uuid
 from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-KLIB = Path(r"C:\Users\geniy\AppData\Local\Programs\KiCad\10.0\share\kicad\symbols")
+# KiCad 10's own symbol libraries: KiCad's KICAD10_SYMBOL_DIR, else where its Windows installer puts them
+KLIB = Path(os.environ.get("KICAD10_SYMBOL_DIR") or
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "KiCad" / "10.0" / "share" / "kicad" / "symbols")
 PROJECT = "most_listener"
 LIB = "most_listener"
 NS = _uuid.UUID("3b1c7a52-9d0e-4f61-a2b3-5c4d6e7f8091")
