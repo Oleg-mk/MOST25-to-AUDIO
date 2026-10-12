@@ -34,7 +34,7 @@ again after any change to the board: `check_all.py` fails while this folder does
 
 - U7, Si514: any 3.3 V CMOS variant off the shelf (format C, M or N), in the 3.2 x 5 (B) or
   2.5 x 3.2 (C) package, with any start-up frequency and I2C address - the FPGA finds the
-  address and sets the frequency. Example: 514CBA000110BAGR.
+  address and sets the frequency. Example: 514CBB000112BAG, which DigiKey sells singly and JLCPCB can pre-order (C1670489).
 - C61, C62, C69..C72 (the line out's filter): C0G/NP0.
 - X1: any 24.576 MHz 3.3 V CMOS oscillator in the 4-pin 3.2 x 2.5 mm package (1 OE, 2 GND,
   3 output, 4 VDD), as the Abracon ASE the footprint was drawn for.

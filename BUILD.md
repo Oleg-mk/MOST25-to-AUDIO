@@ -145,7 +145,7 @@ connected: J5 has no supply, and J8 and J9 no signal. In mid, J5 is likewise not
    - Any 3.3 V CMOS variant fits (format C, M or N), in the 3.2 x 5 (B) or 2.5 x 3.2 (C) package,
      with any start-up frequency and I2C address. The FPGA finds the address and sets the frequency
      itself.
-   - Example: 514CBA000110BAGR.
+   - Example: 514CBB000112BAG, which DigiKey sells singly and JLCPCB can pre-order (C1670489).
 5. **The placement preview, before paying**, on both sides. Check:
    - pin 1 of every IC and of X1;
    - the polarity of D1, D2, D3, C44, C45, C63, C78 and C81 (those in the chosen assembly).
