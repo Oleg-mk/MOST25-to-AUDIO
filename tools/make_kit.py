@@ -7,8 +7,9 @@
                                         into kit/2_flash
     python tools/make_kit.py --check    change nothing; fail when kit/ differs from its sources
 
-kit/1_boards   the board order: listener_hw/fab's files for JLCPCB, the full BOM, the schematic and
-               the assembly drawing, copied
+kit/1_boards   the board order, v2.0: listener_hw2/fab's files for JLCPCB (the three assemblies' BOM
+               and CPL), the full BOM, the schematic and the assembly drawings of both sides; with
+               the tube's end caps from listener_hw2/caps (STL, STEP, the drawing), copied
 kit/2_flash    fpga/listener.fs, the bitstream, and esp32/*.bin, the host's firmware, each with a
                BUILD.txt: the commit its sources are, the build's own numbers, the files' sha256.
                --flash takes them only from builds of committed sources (git shows no change there,
@@ -17,7 +18,8 @@ kit/2_flash    fpga/listener.fs, the bitstream, and esp32/*.bin, the host's firm
                that commit's, so the kit never holds a build older than its sources
 kit/3_laptop   the laptop's programs: tools/console_log.py, console_format.py, trace_decode.py and
                capture_analyse.py, copied byte for byte (line ends aside)
-The READMEs and the launchers in kit/ are written by hand; this script only checks they are there.
+The READMEs and the launchers in kit/ are written by hand; this script only checks they are there,
+and that kit/ holds nothing else (a file left from an earlier kit fails the check).
 """
 from __future__ import annotations
 
@@ -37,12 +39,15 @@ BOARD = ROOT / "listener_gw" / "board"
 FW = ROOT / "listener_fw"
 
 COPIES = {
-    "1_boards/most_listener-gerbers.zip": "listener_hw/fab/most_listener-gerbers.zip",
-    "1_boards/most_listener-bom-jlcpcb.csv": "listener_hw/fab/most_listener-bom-jlcpcb.csv",
-    "1_boards/most_listener-cpl-jlcpcb.csv": "listener_hw/fab/most_listener-cpl-jlcpcb.csv",
-    "1_boards/most_listener-bom.csv": "listener_hw/fab/most_listener-bom.csv",
-    "1_boards/most_listener-schematic.pdf": "listener_hw/fab/most_listener-schematic.pdf",
-    "1_boards/most_listener-assembly.pdf": "listener_hw/fab/most_listener-assembly.pdf",
+    "1_boards/most_listener_v2-gerbers.zip": "listener_hw2/fab/most_listener_v2-gerbers.zip",
+    **{f"1_boards/most_listener_v2-{kind}-jlcpcb-{a}.csv": f"listener_hw2/fab/most_listener_v2-{kind}-jlcpcb-{a}.csv"
+       for a in ("min", "mid", "max") for kind in ("bom", "cpl")},
+    "1_boards/most_listener_v2-bom.csv": "listener_hw2/fab/most_listener_v2-bom.csv",
+    "1_boards/most_listener_v2-schematic.pdf": "listener_hw2/fab/most_listener_v2-schematic.pdf",
+    "1_boards/most_listener_v2-assembly-top.pdf": "listener_hw2/fab/most_listener_v2-assembly-top.pdf",
+    "1_boards/most_listener_v2-assembly-bottom.pdf": "listener_hw2/fab/most_listener_v2-assembly-bottom.pdf",
+    **{f"1_boards/caps/{f}": f"listener_hw2/caps/{f}"
+       for f in ("in_cap.stl", "in_cap.step", "out_cap.stl", "out_cap.step", "caps.svg")},
     "3_laptop/console_log.py": "tools/console_log.py",
     "3_laptop/console_format.py": "tools/console_format.py",
     "3_laptop/trace_decode.py": "tools/trace_decode.py",
@@ -56,7 +61,7 @@ BY_HAND = [
     "3_laptop/record.bat", "3_laptop/decode.bat",
     "3_laptop/record.command", "3_laptop/decode.command",
 ]
-TEXT = (".py", ".csv", ".md", ".txt")
+TEXT = (".py", ".csv", ".md", ".txt", ".svg", ".step")
 # what each build is made from: a difference here from the build's commit makes it stale
 GATEWARE = ["listener_gw/rtl", "listener_gw/board/top_tangnano20k.v", "listener_gw/board/tangnano20k.cst",
             "listener_gw/board/tangnano20k.sdc", "listener_gw/board/build.tcl"]
@@ -68,6 +73,7 @@ ESP = KIT / "2_flash" / "esp32"
 ESP_INFO = ESP / "BUILD.txt"
 ESP_FILES = {"bootloader.bin": "bootloader/bootloader.bin", "partition-table.bin": "partition_table/partition-table.bin",
              "listener_fw.bin": "listener_fw.bin"}
+BUILDS = [FS, FS_INFO, ESP_INFO] + [ESP / f for f in ESP_FILES]
 
 
 def git(*args) -> subprocess.CompletedProcess:
@@ -250,6 +256,10 @@ def main() -> int:
         take_esp32()
     probs += check_fpga() + check_esp32()
     probs += [f"kit/{p}: missing (written by hand)" for p in BY_HAND if not (KIT / p).exists()]
+    known = set(COPIES) | set(BY_HAND) | {b.relative_to(KIT).as_posix() for b in BUILDS}
+    probs += [f"kit/{p}: not a copy, a build or a file written by hand (left from an earlier kit?)"
+              for p in sorted(f.relative_to(KIT).as_posix() for f in KIT.rglob("*") if f.is_file())
+              if p not in known]
     # the macOS launchers are committed executable (git add --chmod=+x), or a clone cannot run them
     for p in ("3_laptop/record.command", "3_laptop/decode.command"):
         mode = git("ls-files", "-s", "--", f"kit/{p}").stdout.split()[:1]
