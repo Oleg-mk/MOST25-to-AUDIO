@@ -180,7 +180,7 @@ def patch(gen, here: Path):
     return gen
 
 
-# the critical review of 2026-10-11 (the user's "1-5 ... робимо"): what v2.0 adds to v1.6's circuit
+# the critical review of 2026-10-11 (the user's "1-5 ... do it"): what v2.0 adds to v1.6's circuit
 V2_SERIES = {"R47": ("5V_SW", "5V_A"), "R48": ("VNEG_P", "VNEG_A"), "R49": ("I2S_BCLK_F", "I2S_BCLK_D"),
              "R50": ("I2S_LRCK_F", "I2S_LRCK_D"), "R51": ("I2S_DOUT_F", "I2S_DOUT_D"), "R52": ("RX_IN_U3", "RX_IN"),
              "R53": ("U1-Y", "RX_BUF")}
@@ -264,7 +264,7 @@ def review_fixes(gen):
 
 
 def review_block(gen, sh):
-    sh.frame(411.48, 158.75, 580.34, 284.48, "12. v2.0: ФІЛЬТРИ ЖИВЛЕННЯ U17, УЗГОДЖЕННЯ I2S ДО ЦАП І RX_IN")
+    sh.frame(411.48, 158.75, 580.34, 284.48, "12. v2.0: U17'S SUPPLY FILTERS, I2S TERMINATION TO THE DAC, RX_IN")
     smd, c0805 = gen.SMD, "Capacitor_SMD:C_0805_2012Metric"
     # the op-amp's rails: rail -> R -> node with 10u -> filtered rail
     for k, (rref, cref, src, dst) in enumerate((("R47", "C84", "5V_SW", "5V_A"), ("R48", "C85", "VNEG_P", "VNEG_A"))):
@@ -300,11 +300,11 @@ def review_block(gen, sh):
         sh.label(dst, (round(r.p("2")[0] + 7.62, 3), y), "R"); sh.wire(r.p("2"), (round(r.p("2")[0] + 7.62, 3), y))
     yt = 236.22
     for line in (
-        "U17 (OPA1678) більше не живиться прямо від шин: V+ = 5V_A (5V_SW через R47 10 Ом, C84 10 мкФ; від 5V_A живиться й U16, LDO ЦАП), V- = VNEG_A (VNEG_P насоса U18 через R48 10 Ом, C85 10 мкФ).",
-        "RC 10 Ом / 10 мкФ: зріз 1.6 кГц, на 250 кГц (насос) і на частоті перетворювача близько 45 дБ; спад на R47 до 0.2 В (U17 + U16 з ЦАП), на R48 близько 50 мВ. Бусина з 10 мкФ дала б резонанс на десятках кГц.",
-        "R49-R51: 33 Ом біля FPGA на гілці I2S до ЦАП і ESP32 (BCLK, LRCK, DOUT: 35-45 мм, кілька навантажень; PCM5102A бере такт з BCLK). J3 має свої R39-R41.",
-        "R52: 33 Ом на виході U3 (RX_IN до FPGA, близько 60 мм).",
-        "R53: 33 Ом на виході U1 (RX_BUF до U2, U3, U4; через U2 і R2 - TX кільця), як R43 у рідері v2.0; стоїть у блоці 3.",
+        "U17 (OPA1678) no longer runs straight off the rails: V+ = 5V_A (5V_SW via R47 10 ohm, C84 10 uF; it feeds U16, the DAC's LDO, too), V- = VNEG_A (U18's VNEG_P via R48 10 ohm, C85 10 uF).",
+        "RC 10 ohm / 10 uF: corner 1.6 kHz, ~45 dB at 250 kHz (the pump) and the buck's frequency; R47 drops up to 0.2 V (U17 + U16 with the DAC), R48 ~50 mV. A bead with 10 uF would ring at tens of kHz.",
+        "R49-R51: 33 ohm at the FPGA on the I2S branch to the DAC and ESP32 (BCLK, LRCK, DOUT: 35-45 mm, many loads; the DAC clocks off BCLK). J3: R39-R41.",
+        "R52: 33 ohm at U3's output (RX_IN to the FPGA, about 60 mm).",
+        "R53: 33 ohm at U1's output (RX_BUF to U2, U3, U4; through U2 and R2 the ring's TX), as R43 in the reader v2.0; drawn in block 3.",
     ):
         sh.text(line, 414.02, yt, 1.27)
         yt += 3.81

@@ -1129,7 +1129,7 @@ def si514_footprint():
 
 # ----------------------------------------------------------------- drawing
 def power_block(sh):
-    sh.frame(12.7, 12.7, 203.2, 101.6, "1. ЖИВЛЕННЯ   J4 акумулятор -> 3V3_AON (завжди) і 5V_SW (за WAKE) -> 5V_HOST (M2)")
+    sh.frame(12.7, 12.7, 203.2, 101.6, "1. POWER   J4 battery -> 3V3_AON (always) and 5V_SW (on WAKE) -> 5V_HOST (M2)")
     # input: J4 -> F1 -> D1 -> VBAT_P
     j4 = sh.add("CONN2", "J4", "VBAT_IN", 25.4, 45.72,
                 fp="Connector_Molex:Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal")
@@ -1170,10 +1170,10 @@ def power_block(sh):
     c2 = sh.at_pin("C", "C2", "100n 100V", "1", (99.06, y + 5.08), fp=SMD["C"])
     sh.wire((86.36, y), c1.p("1")); sh.wire((99.06, y), c2.p("1"))
     sh.gnd(c1.p("2")); sh.gnd(c2.p("2"))
-    sh.text("J4 Molex Micro-Fit 3.0 кутовий 43650-0200 на лівому краю під J1 (відповідна частина 43645-0200, контакти 43030), із защіпкою, 5 А. Захист: F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В.", 17.78, 87.63, 1.27)
-    sh.text("3V3_AON (U5) завжди: FOT, U1, U2, U4, U11. На стоянці (кільце спить) разом до ~60 мкА: FOT у сні <= 25, логіка, LDO 2.7.", 17.78, 91.44, 1.27)
-    sh.text("5V_SW (U6 LMR38020, 80 В, 400 кГц) вмикає WAKE: модуль FPGA і U14 (3V3_DA, блок 9). VOUT 5.31 В. C44/C45 + L2 22 мкГн: дзвін джгута і 400 кГц не в джгут.", 17.78, 95.25, 1.27)
-    sh.text("5V_HOST (U10): живлення M2 (ESP32), межа ~1 А (R22 24k9): радіо модуля бере піки понад 0.5 А; 5 В з USB модуля назад у 5V_SW не проходять.", 17.78, 99.06, 1.27)
+    sh.text("J4 Molex Micro-Fit 3.0 right-angle 43650-0200 on the left edge under J1 (mating 43645-0200, contacts 43030), latched, 5 A. Protection: F1 2 A slow-blow; D2 SMBJ36A before D1: silent at 35 V (ISO 16750-2 B), clamps ISO 7637-2 pulses to ~50 V.", 17.78, 87.63, 1.27)
+    sh.text("3V3_AON (U5) always: FOT, U1, U2, U4, U11. Parked (the ring asleep) up to ~60 uA in all: the FOT asleep <= 25, logic, LDO 2.7.", 17.78, 91.44, 1.27)
+    sh.text("5V_SW (U6 LMR38020, 80 V, 400 kHz) on WAKE: the FPGA module, U14 (3V3_DA, block 9). VOUT 5.31 V. C44/C45 + L2 22 uH: harness ringing damped, 400 kHz kept out.", 17.78, 95.25, 1.27)
+    sh.text("5V_HOST (U10): M2's supply (ESP32), limit ~1 A (R22 24k9): the module's radio draws peaks over 0.5 A; 5 V from the module's USB does not flow back into 5V_SW.", 17.78, 99.06, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
     u5 = sh.add("LDO", "U5", "TPS7B8133DRV", 116.84, 31.75,
@@ -1319,7 +1319,7 @@ def one_shot(sh, ref, y, rref, rval, cref, cval, dref, out):
 
 
 def wake_block(sh):
-    sh.frame(208.28, 12.7, 330.2, 101.6, "2. ПРОБУДЖЕННЯ (U4) І СТОРОЖ ОБХОДУ (U11)")
+    sh.frame(208.28, 12.7, 330.2, 101.6, "2. WAKE-UP (U4) AND THE BYPASS WATCHDOG (U11)")
     # U4: every RX edge restarts ~0.1 s; the ring asleep -> WAKE = 0 -> no power
     u4 = one_shot(sh, "U4", 43.18, "R6", "100k", "C9", "1u", "C8", "WAKE")
     clr, bb, aa = u4.p("3"), u4.p("2"), u4.p("1")
@@ -1341,23 +1341,23 @@ def wake_block(sh):
     sh.lbl("TX_REGEN", bb, 5.08, "L")
     sh.wire(aa, (241.3, aa[1])); sh.gnd((241.3, aa[1]), 5.08)
     for i, line in enumerate((
-            "U4: кожен фронт RX", "перезапускає ~0.1 с", "(R6 x C9). Кільце спить",
-            "-> WAKE = 0 -> U6 вимк.,", "FPGA без живлення.", "Полярність STATUS",
-            "знати не треба.", "",
-            "U11: TX_SEL = 1, лише", "поки LOCK = 1 і фронти", "TX_REGEN є (R23 x C25",
-            "~10 мкс; TX без фронтів", "довше - не MOST).",
-            "TX став (такт, U9, FPGA)", "-> TX_SEL = 0: обхід.",
-            "R8: FPGA не завантажена", "-> LOCK = 0 -> обхід.")):
+            "U4: every RX edge", "restarts ~0.1 s", "(R6 x C9). The ring asleep",
+            "-> WAKE = 0 -> U6 off,", "the FPGA unpowered.", "STATUS's polarity",
+            "need not be known.", "",
+            "U11: TX_SEL = 1 only", "while LOCK = 1 and edges", "on TX_REGEN (R23 x C25",
+            "~10 us; TX without edges", "longer is not MOST).",
+            "TX stuck (clock, U9, FPGA)", "-> TX_SEL = 0: bypass.",
+            "R8: FPGA not configured", "-> LOCK = 0 -> bypass.")):
         if line:
             sh.text(line, 298.45, 21.59 + 3.81 * i, 1.27)
 
 
 def optics_block(sh):
-    sh.frame(12.7, 106.68, 203.2, 198.12, "3. КІЛЬЦЕ   J1 = вхід і вихід MOST (обидва волокна); ретрансляція, завжди живлено")
+    sh.frame(12.7, 106.68, 203.2, 198.12, "3. THE RING   J1 = MOST in and out (both fibres); regeneration, always powered")
     j1 = sh.add("J_FOT", "J1", "1-1394640-1", 45.72, 151.13, fp=f"{LIB}:{FP_FOT}",
                 ref_at=(33.02, 138.43), val_at=(31.75, 151.13), fjust=("left bottom", "right"))
-    sh.text("волокно ВІД попереднього вузла -> RX", 17.78, 176.53, 1.27)
-    sh.text("волокно ДО наступного вузла  <- TX", 17.78, 180.34, 1.27)
+    sh.text("fibre FROM the previous node -> RX", 17.78, 176.53, 1.27)
+    sh.text("fibre TO the next node  <- TX", 17.78, 180.34, 1.27)
     # supplies (AN 5344): RX and TX each through its own ferrite, 100n + 10u
     # on the FOT side; Rext from RGAIN to the TX supply sets the LED current
     rx, tx, rg = j1.p("5"), j1.p("3"), j1.p("4")
@@ -1441,15 +1441,15 @@ def optics_block(sh):
     lo = 184.15
     sh.wire(r2.p("2"), (r2.p("2")[0] + 5.08, yy[1]), (r2.p("2")[0] + 5.08, lo),
             (txd[0] + 7.62, lo), (txd[0] + 7.62, txd[1]), txd)
-    sh.text("S = TX_SEL = 0: FPGA вимкнена, без захоплення або TX став -> прямий прохід RX -> TX.", 76.2, 190.5, 1.27)
-    sh.text("S = 1 (LOCK і фронти TX, U11): TX = перегенерований сигнал з FPGA. Мережа нас не бачить.", 76.2, 194.31, 1.27)
+    sh.text("S = TX_SEL = 0: FPGA off, not locked, or TX stuck -> straight through RX -> TX.", 76.2, 190.5, 1.27)
+    sh.text("S = 1 (LOCK and TX edges, U11): TX = the regenerated signal from the FPGA. The network does not see us.", 76.2, 194.31, 1.27)
     sh.text("R3 || R42 = 2 x 27k = 13k5: RGAIN -> TXVCC (AN 5344: 13.5..33k).", 17.78, 184.15, 1.27)
-    sh.text("FB1/FB2 + 100n + 10u: RX і TX окремо.", 17.78, 187.96, 1.27)
-    sh.text("R7: RXD у 0, коли приймач спить.", 17.78, 191.77, 1.27)
+    sh.text("FB1/FB2 + 100n + 10u: RX and TX separately.", 17.78, 187.96, 1.27)
+    sh.text("R7: RXD held at 0 while the receiver sleeps.", 17.78, 191.77, 1.27)
 
 
 def isolation_block(sh):
-    sh.frame(208.28, 106.68, 269.24, 198.12, "4. РОЗВ'ЯЗКА FPGA, ТРИГЕР TX")
+    sh.frame(208.28, 106.68, 269.24, 198.12, "4. FPGA ISOLATION, TX FLIP-FLOP")
     u3 = sh.add("BUF125", "U3", "74LVC1G125", 238.76, 134.62,
                 fp="Package_TO_SOT_SMD:SOT-353_SC-70-5")
     sh.lbl("RX_BUF", u3.p("2"), 15.24, "L")
@@ -1476,10 +1476,10 @@ def isolation_block(sh):
                     fjust=("left", "left"))
     sh.wire(nq, r16.p("1"))
     sh.lbl("TX_FB", r16.p("2"), 5.08, "R")
-    sh.text("U3, U9 від 3V3_SW: коли FPGA", 210.82, 184.15, 1.27)
-    sh.text("вимкнена, вони (Ioff) не вантажать лінії.", 210.82, 187.96, 1.27)
-    sh.text("U9: фронти TX на такті Si514 (RT_CLK).", 210.82, 191.77, 1.27)
-    sh.text("Q -> U2 (TX_REGEN) і в FPGA (TX_FB).", 210.82, 195.58, 1.27)
+    sh.text("U3, U9 on 3V3_SW: when the FPGA", 210.82, 184.15, 1.27)
+    sh.text("is off, they (Ioff) do not load the lines.", 210.82, 187.96, 1.27)
+    sh.text("U9: the TX edges on the Si514's clock (RT_CLK).", 210.82, 191.77, 1.27)
+    sh.text("Q -> U2 (TX_REGEN) and into the FPGA (TX_FB).", 210.82, 195.58, 1.27)
 
 
 def fpga_block(sh):
@@ -1552,16 +1552,16 @@ def fpga_block(sh):
             sh.wire(p, (p[0] + 5.08, p[1])); sh.gnd((p[0] + 5.08, p[1]))
         else:
             sh.nc(p)
-    sh.text("Контакти 1..20 / 21..40 згори вниз, від USB-C; назва = вивід GW2AR + що на ньому на платі (datasheet v1.3).", 279.4, 184.15, 1.27)
-    sh.text("Кільце і Si514 - лише на виводах LCD (порожній роз'єм): LOCK на 31, S/PDIF на 42. HSPI, 54..56 (входи підсилювача модуля; PA_EN = 51 тримає його вимкненим), EDID 52/53: UART, MCLK, I2S, SD1, DIN2.", 279.4, 187.96, 1.27)
-    sh.text("CLK_1024 (Si514) -> 77 (GCLKT_1). TX_FB -> 25 через IDES8 (1.26 нс); він займає пару, тому 26 не підключено.", 279.4, 191.77, 1.27)
-    sh.text("D3: USB і 5V_SW разом не з'єднуються; U6 дає 5.3 В, на модулі ~5.0 В.", 279.4, 195.58, 1.27)
-    sh.text("v1.2: лінії праворуч - з правого ряду в порядку J2, J3, ЦАП, хост; U13 (SRC_BCLK, SRC_LRCK, DIN2) - з лівого ряду понад модулем.", 279.4, 110.49, 1.27)
+    sh.text("Pins 1..20 / 21..40 top to bottom, from the USB-C; name = the GW2AR pin + what the module has on it (data sheet v1.3).", 279.4, 184.15, 1.27)
+    sh.text("The ring and the Si514 on the LCD pins only (an empty connector): LOCK on 31, S/PDIF on 42. HSPI, 54..56 (the module amplifier's inputs; PA_EN = 51 keeps it off), EDID 52/53: UART, MCLK, I2S, SD1, DIN2.", 279.4, 187.96, 1.27)
+    sh.text("CLK_1024 (Si514) -> 77 (GCLKT_1). TX_FB -> 25 through IDES8 (1.26 ns); it takes the pair, so 26 is not connected.", 279.4, 191.77, 1.27)
+    sh.text("D3: the USB and 5V_SW are never joined; U6 gives 5.3 V, the module gets ~5.0 V.", 279.4, 195.58, 1.27)
+    sh.text("v1.2: lines to the right leave the right row as J2, J3, DAC, host; U13's (SRC_BCLK, SRC_LRCK, DIN2) the left row, over M1.", 279.4, 110.49, 1.27)
 
 
 def clock_block(sh):
     sh.frame(12.7, 203.2, 203.2, 284.48,
-             "6. ТАКТ ПЕРЕГЕНЕРАЦІЇ   Si514 = 1024 x FS кільця (45.16 / 49.15 МГц), крутить FPGA")
+             "6. THE REGENERATION CLOCK   Si514 = 1024 x the ring's FS (45.16 / 49.15 MHz), steered by the FPGA")
     # U8: a quiet 3.3 V of the clock's own, from 5V_SW (on with the FPGA)
     u8 = sh.add("LDO_CLK", "U8", "LP5907MFX-3.3", 48.26, 218.44,
                 fp="Package_TO_SOT_SMD:SOT-23-5")
@@ -1626,17 +1626,17 @@ def clock_block(sh):
     sh.lbl("RT_CLK", nm, 5.08, "R")
     y = 265.43
     for line in (
-        "U7 Si514: будь-який з полиці з 3.3 В CMOS - у номері після 514 літера C, M або N; корпус 3.2x5 або 2.5x3.2 (літера перед AG: B або C), обидва сідають на одне посадкове місце.",
-        "CLK+ -> FPGA (clk_r = 1024 Fs) і через R15 на U9: фронти TX стоять на такті Si514, а не на виході FPGA. CLK- не потрібен.",
-        "FPGA сама знаходить I2C адресу Si514 (перебирає 0x08..0x77) і крутить M (dpll.v): затримка TX_FB відносно RX_IN до 1.26 нс, крок 0.026 ppb.",
-        "На старті центрування (FCAL, до 10 мс): вихід Si514 тоді у високому імпедансі, R14 і R17 тримають лінії в 0. U8: окремий LDO з 5V_SW.",
+        "U7 Si514: any off-the-shelf 3.3 V CMOS one - after 514 in the part number the letter C, M or N; package 3.2x5 or 2.5x3.2 (the letter before AG: B or C), both fit one land pattern.",
+        "CLK+ -> FPGA (clk_r = 1024 Fs) and through R15 to U9: the TX edges sit on the Si514's clock, not on the FPGA's output. CLK- is not needed.",
+        "The FPGA finds the Si514's I2C address itself (it tries 0x08..0x77) and steers M (dpll.v): TX_FB's delay against RX_IN within 1.26 ns, steps of 0.026 ppb.",
+        "At start-up, centring (FCAL, up to 10 ms): the Si514's output is high-impedance then, R14 and R17 hold the lines at 0. U8: its own LDO from 5V_SW.",
     ):
         sh.text(line, 17.78, y, 1.27)
         y += 3.81
 
 
 def output_block(sh):
-    sh.frame(208.28, 203.2, 406.4, 284.48, "7. ВИХОДИ   J2: аналізатор (MCLK, 2 x TDM8, UART_TX);   J3: стерео I2S для ЦАП / DSP")
+    sh.frame(208.28, 203.2, 406.4, 284.48, "7. OUTPUTS   J2: analyser (MCLK, 2 x TDM8, UART_TX);   J3: stereo I2S for a DAC / DSP")
 
     def series(j, lines):
         """lines: (src label, connector pin, ref) top to bottom, each through its own 33R. The
@@ -1681,20 +1681,20 @@ def output_block(sh):
 
     y = 252.73
     for line in (
-        "J2 SD0/SD1: байти кадру 0..31 / 32..63, кадр TDM = кадр MOST.",
-        "J2 UART_TX: сирі керувальні блоки (ті самі, що читає M2).",
-        "J3: I2S, BCLK 64 Fs, слоти 32 біт, 24 біт з регулюваннями ГУ; те саме S/PDIF - J6, J7 (блок 9).",
-        "Входів на J2 і J3 немає: хост один - M2 (блок 8).",
-        "R18..R21, R34..R41 (33 Ом): кожен біля свого виводу FPGA (узгодження джерела); R38..R41 - під M2.",
-        "MCLK на J2 і J3 - з окремих виводів FPGA, без відгалуження.",
-        "v1.2: порядок контактів J2 і J3 - як їхні виводи на правому ряду M1, доріжки без перехрещень.",
+        "J2 SD0/SD1: the frame's bytes 0..31 / 32..63, a TDM frame = a MOST frame.",
+        "J2 UART_TX: the raw control blocks (the same M2 reads).",
+        "J3: I2S, BCLK 64 Fs, 32-bit slots, 24 bits with the head unit's controls applied; the same on S/PDIF, J6, J7 (block 9).",
+        "J2 and J3 take no input: the one host is M2 (block 8).",
+        "R18..R21, R34..R41 (33 ohm): each by its FPGA pin (source termination); R38..R41 under M2.",
+        "MCLK on J2 and J3 from separate FPGA pins, no branch.",
+        "v1.2: J2's and J3's pin order follows their pins on M1's right row; the tracks do not cross.",
     ):
         sh.text(line, 213.36, y, 1.27)
         y += 3.81
 
 
 def host_block(sh):
-    sh.frame(335.28, 12.7, 406.4, 101.6, "8. ХОСТ   M2 = ESP32-DevKitC-VIE")
+    sh.frame(335.28, 12.7, 406.4, 101.6, "8. HOST   M2 = ESP32-DevKitC-VIE")
     m2 = sh.add("DEVKITC", "M2", "ESP32-DevKitC-VIE", 370.84, 50.8, fp=f"{LIB}:{FP_ESP}")
     # v1.2: everything the FPGA meets on the header row that faces M1 (pads
     # 20..38), each opposite its FPGA pin: the ring-locked I2S clocks and the raw
@@ -1724,14 +1724,14 @@ def host_block(sh):
             sh.nc(m2.p(n))
     y = 81.28
     for line in (
-        "M2: ESP32-DevKitC-VIE (WROVER-IE): 8 МБ PSRAM,",
-        "антена IPEX (виносна, 2.4 ГГц), -40...85 °C.",
-        "Гнізда 2 x 1x19, крок 2.54, між рядами 25.40 мм.",
-        "5V_HOST -> 5V; USB модуля - через його діод.",
-        "UART 3 Мбод: IO4 <- UART_TX, IO15 -> R20 -> UART_RX.",
+        "M2: ESP32-DevKitC-VIE (WROVER-IE): 8 MB PSRAM,",
+        "an IPEX antenna (external, 2.4 GHz), -40...85 °C.",
+        "Pins 2 x 1x19, 2.54 pitch, the rows 25.40 mm apart.",
+        "5V_HOST -> 5V; the module's USB through its own diode.",
+        "UART 3 Mbaud: IO4 <- UART_TX, IO15 -> R20 -> UART_RX.",
         "I2S slave: IO22/23 <- BCLK/LRCK, IO21 -> R21 -> DIN.",
-        "IO13 <- OPT_ERR, IO27 <- OPT_NPCM (U12, блок 9; v1.3).",
-        "v1.2: зв'язки з FPGA - на ряду, що дивиться на M1.",
+        "IO13 <- OPT_ERR, IO27 <- OPT_NPCM (U12, block 9; v1.3).",
+        "v1.2: the links to the FPGA on the row facing M1.",
     ):
         sh.text(line, 337.82, y, 1.27)
         y += 2.54
@@ -1740,7 +1740,7 @@ def host_block(sh):
 
 def digital_audio_block(sh):
     sh.frame(12.7, 289.56, 406.4, 394.97,
-             "9. ЦИФРОВЕ АУДІО   J5 TOSLINK IN -> U12 DIR9001 -> U13 SRC4192 -> I2S_DIN2_F;   SPDIF_F -> J6 TOSLINK OUT і J7 коаксіал")
+             "9. DIGITAL AUDIO   J5 TOSLINK IN -> U12 DIR9001 -> U13 SRC4192 -> I2S_DIN2_F;   SPDIF_F -> J6 TOSLINK OUT and J7 coax")
     # ---- TOSLINK in: J5 -> R25 (damping, DIR9001 data sheet 8.3.1) -> U12.RXIN
     u12 = sh.add("DIR9001", "U12", "DIR9001", 109.22, 340.36, fp="Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm",
                  ref_at=(88.9, 317.5), val_at=(86.36, 360.68), fjust=("left bottom", "right bottom"))
@@ -1826,8 +1826,8 @@ def digital_audio_block(sh):
     mute = u13.p("14")
     xr = round(rdy[0] + 2.54, 3)
     sh.wire(rdy, (xr, rdy[1]), (xr, mute[1]), mute)
-    sh.text("v1.3: RDY -> MUTE - тиша, поки SRC4192", round(rdy[0] + 2.54, 3), round(u13.y + 11.43, 3), 1.27)
-    sh.text("не визначив співвідношення частот.", round(rdy[0] + 2.54, 3), round(u13.y + 13.97, 3), 1.27)
+    sh.text("v1.3: RDY -> MUTE - silent until the SRC4192", round(rdy[0] + 2.54, 3), round(u13.y + 11.43, 3), 1.27)
+    sh.text("has found the rate ratio.", round(rdy[0] + 2.54, 3), round(u13.y + 13.97, 3), 1.27)
     sh.nc(nc3)
     sh.lbl("RST_AIN", rst13, 10.16, "R")
 
@@ -1880,7 +1880,7 @@ def digital_audio_block(sh):
     sh.wire(vo, nda); sh.up("3V3_DA", nda, 2.54)
     c49 = sh.at_pin("C", "C49", "1u", "1", (nda[0] + 5.08, vo[1]), fp=SMD["C"])
     sh.wire(nda, c49.p("1")); sh.gnd(c49.p("2"))
-    sh.text("U14 LP5907: 3V3_DA (250 мА) для блоку 9 від 5V_SW, не з LDO модуля. J7 пад 3 (тонкий штир поза віссю): функції в кресленні BKL нема, зміряти на зразку.", 17.78, 392.43, 1.27)
+    sh.text("U14 LP5907: 3V3_DA (250 mA) for block 9 from 5V_SW, not from the module's LDO. J7 pad 3 (the thin pin off the axis): BKL's drawing gives it no function; measure on a sample.", 17.78, 392.43, 1.27)
 
     # ---- the shared reset: 10 ms after 3V3_DA, when X1 already runs (the SRC4192 has no
     # power-on reset and wants RCKI alive during RST); and the decoupling, drawn as a row
@@ -1901,22 +1901,22 @@ def digital_audio_block(sh):
     sh.wire((xs[0], ys), (xs[-1], ys))
     sh.up("3V3_DA", (xs[4], ys), 2.54)
     sh.text("C31 J6; C32/C33 U12 VDD; C34/C35 U12 VCC;", 325.12, 381.0, 1.27)
-    sh.text("C36/C37 U13 VDD; C38 U13 VIO; C39 X1: біля виводів.", 325.12, 384.81, 1.27)
+    sh.text("C36/C37 U13 VDD; C38 U13 VIO; C39 X1: by the pins.", 325.12, 384.81, 1.27)
 
     y = 373.38
     for line in (
-        "J5 TOSLINK IN -> R25 -> U12 DIR9001: PLL відновлює такт із сигналу, вихід I2S 24 біт (FMT1 FMT0 = HH), CKSEL = L. XTI на землю: кварц не потрібен.",
-        "U13 SRC4192: обидва порти slave (MODE = 000); вхід I2S 24 біт (IFMT = 001) від U12; вихід I2S 24 біт (OFMT = 01, OWL = 00) на тактах FPGA (власні копії BCLK, LRCK: SRC_BCLK_F, SRC_LRCK_F) -> I2S_DIN2_F.",
-        "X1 24.576 МГц: опорний такт оцінювача швидкості SRC4192 (RCKI), асинхронний до обох портів. RST_AIN: R30/C40 = 10 мс, коли X1 уже іде (SRC4192 без POR).",
-        "OPT_ERR (U12 ERROR) -> M2 IO13: 1 = TOSLINK без сигналу або помилка парності; OPT_NPCM (U12 AUDIO) -> M2 IO27: 1 = не PCM (AC-3/DTS DIR9001 не глушить); хост тоді не інжектує. Джерело: команда 02, біт M[2].",
-        "S/PDIF OUT: SPDIF_F (FPGA 42) -> R28 -> J6 FCR684205T; R26/R27: 0.5 В на 75 Ом, вихідний опір 75 Ом; C29 без постійної -> J7 RCA. Той самий потік, що й на J3.",
+        "J5 TOSLINK IN -> R25 -> U12 DIR9001: its PLL recovers the clock from the signal, output I2S 24 bit (FMT1 FMT0 = HH), CKSEL = L. XTI to ground: no crystal needed.",
+        "U13 SRC4192: both ports slave (MODE = 000); input I2S 24 bit (IFMT = 001) from U12; output I2S 24 bit (OFMT = 01, OWL = 00) on the FPGA's clocks (their own copies of BCLK, LRCK: SRC_BCLK_F, SRC_LRCK_F) -> I2S_DIN2_F.",
+        "X1 24.576 MHz: the reference clock of the SRC4192's rate estimator (RCKI), asynchronous to both ports. RST_AIN: R30/C40 = 10 ms, once X1 runs (the SRC4192 has no POR).",
+        "OPT_ERR (U12 ERROR) -> M2 IO13: 1 = no TOSLINK signal or a parity error; OPT_NPCM (U12 AUDIO) -> M2 IO27: 1 = not PCM (the DIR9001 does not mute AC-3/DTS); the host then does not inject. Source: command 02, bit M[2].",
+        "S/PDIF OUT: SPDIF_F (FPGA 42) -> R28 -> J6 FCR684205T; R26/R27: 0.5 V into 75 ohm, 75 ohm out; C29 blocks DC -> J7 RCA. The same stream as on J3.",
     ):
         sh.text(line, 17.78, y, 1.27)
         y += 3.81
 
 
 def testpoint_block(sh):
-    sh.frame(411.48, 289.56, 523.24, 360.68, "10. ТЕСТОВІ ТОЧКИ (стенд)")
+    sh.frame(411.48, 289.56, 523.24, 360.68, "10. TEST POINTS (bench)")
     x = 467.36
     # no probe points on the ring's own lines: TX_REGEN (U9's output into the ring) and RT_CLK
     # (the Si514's clock into U9), whose stubs would load the edges the regenerator's jitter
@@ -1936,13 +1936,13 @@ def testpoint_block(sh):
                        ref_at=(xx + 2.54, y - 1.27), val_at=(xx + 2.54, y + 1.27), fjust=("left", "left"))
         q = (xx - 5.08, y)
         sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
-    sh.text("Під щуп на стенді: шини 3V3_AON і 5V_SW, земля. Лінії кільця без точок: відвід на їхніх фронтах", 414.02, 353.06, 1.27)
-    sh.text("зайвий. RX_BUF - на виводі 4 U1, TX_SEL - на виводі 6 U2, TX_REGEN і RT_CLK - на U9 і на M1 (TX_FB).", 414.02, 356.87, 1.27)
+    sh.text("Bench probe points: the 3V3_AON and 5V_SW rails, ground. None on the ring's lines: a stub on their edges", 414.02, 353.06, 1.27)
+    sh.text("would hurt. RX_BUF at U1 pin 4, TX_SEL at U2 pin 6, TX_REGEN and RT_CLK at U9 and at M1 (TX_FB).", 414.02, 356.87, 1.27)
 
 
 def line_out_block(sh):
     sh.frame(411.48, 12.7, 580.34, 153.67,
-             "11. ЛІНІЙНИЙ ВИХІД   стерео J3 -> U15 PCM5102A -> J8 L, J9 R (RCA, 2.1 Вrms)")
+             "11. LINE OUT   J3's stereo -> U15 PCM5102A -> J8 L, J9 R (RCA, 2.1 Vrms)")
     # ---- U16: the DAC's own 3.3 V from 5V_SW, like U14 for block 9
     u16 = sh.add("LDO_CLK", "U16", "LP5907MFX-3.3", 441.96, 30.48, fp="Package_TO_SOT_SMD:SOT-23-5")
     vin, en = u16.p("1"), u16.p("3")
@@ -2093,12 +2093,12 @@ def line_out_block(sh):
 
     y = 134.62
     for line in (
-        "U15 PCM5102A, апаратний режим: FMT = 0 (I2S), FLT = 0 (звичайна затримка), DEMP = 0. SCK на землі: PLL бере такт з BCK (3 проводи, BCK = 64 Fs).",
-        "Вхід - те саме стерео, що на J3. XSMT = LOCK: без захоплення кільця і до конфігурації FPGA (R8) ЦАП приглушений; спад і підйом за 104 відліки.",
-        "Вихід 2.1 Вrms відносно землі, без розділових конденсаторів. U17: повторювач з ФНЧ Саллена-Кі 2-го порядку (Баттерворт, 60 кГц), C0G; далі 100 Ом + 2.2 нФ і D5, D6 (ESD) на RCA.",
-        "U17 живиться від +5V_SW і VNEG_A (-5.2 В, U18 TPS60403): вихід до шин, вхід до V-, тож +-3 В сигналу проходять з запасом. J8, J9 пад 3: як у J7, зміряти на зразку.",
-        "U16 LP5907: 3V3_DAC від 5V_SW. Ємність на його виході - до 10 мкФ, тому AVDD 4.7 мкФ і CPVDD 2.2 мкФ замість 10 мкФ з рис. 33.",
-        "На платі кожен конденсатор ряду стоїть біля свого виводу: C52, C53 - CPVDD; C54, C55 - AVDD; C56 - DVDD.",
+        "U15 PCM5102A, hardware mode: FMT = 0 (I2S), FLT = 0 (normal latency), DEMP = 0. SCK to ground: the PLL takes its clock from BCK (3 wires, BCK = 64 Fs).",
+        "Its input is the same stereo as J3's. XSMT = LOCK: the DAC is muted while the ring is not locked and before the FPGA is configured (R8); it ramps over 104 samples.",
+        "Output 2.1 Vrms ground-referenced, no coupling caps. U17: buffer with a 2nd-order Sallen-Key low-pass (Butterworth, 60 kHz), C0G; then 100 ohm + 2.2 nF, D5, D6 (ESD) at the RCA.",
+        "U17 on +5V_SW and VNEG_A (-5.2 V, U18 TPS60403): output to the rails, input to V-, so +-3 V of signal fits with margin. J8, J9 pad 3: as J7's, measure a sample.",
+        "U16 LP5907: 3V3_DAC from 5V_SW. Its output takes at most 10 uF, so AVDD 4.7 uF and CPVDD 2.2 uF instead of fig. 33's 10 uF.",
+        "On the board each capacitor of the row stands by its pin: C52, C53 CPVDD; C54, C55 AVDD; C56 DVDD.",
     ):
         sh.text(line, 414.02, y, 1.27)
         y += 3.81
