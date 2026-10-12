@@ -205,14 +205,27 @@ static void test_model(void)
     FEED(&a, AUX, HU, 0x24, 0x101, MM_OP_RESULT, bad2, 6);
     CHECK(a.src[0].ch.n == 0, "unordered or out-of-range channel lists are refused");
 
-    // 24 bit: 6 channels
+    // 24 bit: 6 channels, once an Info names them (from Allocate and Connect alone they could as
+    // well be three 16-bit channels)
     am_init(&a);
-    const uint8_t a24[] = {1, 0, 20, 21, 22, 23, 24, 25}, c24[] = {1, 0, 20, 21, 22, 23, 24, 25};
+    const uint8_t a24[] = {1, 0, 20, 21, 22, 23, 24, 25}, c24[] = {1, 0, 20, 21, 22, 23, 24, 25},
+                  i24[] = {1, 0x00, 3, 2, 0, 20, 21, 22, 23, 24, 25};
     FEED(&a, AUX, HU, 0x24, 0x101, MM_OP_RESULT, a24, 8);
     FEED(&a, HU, AMP, 0x22, 0x111, MM_OP_STARTRESULT, c24, 8);
     FEED(&a, AMP, HU, 0x22, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_aux_playing(&a).bits == 0 && am_main(&a).bits == 0, "6 channels from Allocate and Connect alone: off");
+    t = tel(AMP, HU, 0x22, 0x110, MM_OP_STATUS, i24, 11);
+    CHECK(am_tel(&a, &t) == 1, "a SinkInfo naming them 24-bit stereo is a change");
     p = am_aux_playing(&a);
     CHECK(p.bits == 24 && p.l[0] == 21 && p.l[2] == 23 && p.r[0] == 24 && p.r[2] == 26, "24 bit");
+    CHECK(am_main(&a).bits == 24, "the main zone 24 bit");
+    // ...or AUX's SourceInfo names them: the sink on the same channels counts as named too
+    am_init(&a);
+    FEED(&a, HU, AMP, 0x22, 0x111, MM_OP_STARTRESULT, c24, 8);
+    FEED(&a, AMP, HU, 0x22, 0x111, MM_OP_RESULT, sink1, 1);
+    t = tel(AUX, HU, 0x24, 0x100, MM_OP_STATUS, i24, 11);
+    CHECK(am_tel(&a, &t) == 1 && am_aux_playing(&a).bits == 24 && am_main(&a).bits == 24,
+          "SourceInfo names AUX's channels 24-bit stereo: injection and the main zone on them");
 
     // Mute: SinkNr 0 means all sinks
     const uint8_t mute_all[] = {0, 1}, unmute1[] = {1, 0};
@@ -233,6 +246,13 @@ static void connect(am_t *a, uint8_t inst, const uint8_t *d, int n)
     am_tel(a, &t);
 }
 
+static void sinkinfo(am_t *a, uint8_t inst, const uint8_t *d, int n)
+{
+    mm_tel_t t = tel(AMP, HU, 0x22, 0x110, MM_OP_STATUS, d, n);
+    t.inst = inst;
+    am_tel(a, &t);
+}
+
 static void test_extras(void)
 {
     am_t a;
@@ -245,6 +265,9 @@ static void test_extras(void)
     connect(&a, 1, s1, 6);
     connect(&a, 1, s3, 8);
     connect(&a, 1, s2, 4);
+    CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 2, "sink 3's six channels from a Connect alone: passed over");
+    const uint8_t k3[] = {3, 0x00, 3, 2, 0, 20, 21, 22, 23, 24, 25};
+    sinkinfo(&a, 1, k3, 11);                         // its SinkInfo names them 24-bit stereo
     CHECK(am_extras(&a, ex, 2) == 2, "two found");
     CHECK(ex[0].nr == 2 && ex[0].mono && ex[0].pos.bits == 16 && ex[0].pos.l[0] == 31 && ex[0].pos.l[1] == 32,
           "stream 1: sink 2, 16-bit mono at bytes 31, 32");
@@ -281,8 +304,11 @@ static void test_extras(void)
     FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, dis1, 1);
     CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 3, "no main sink: the lowest instance that has one");
     FEED(&a, HU, AMP, 0x22, 0x112, MM_OP_STARTRESULT, (const uint8_t[]){3}, 1);
+    CHECK(am_extras(&a, ex, 2) == 0, "only the other instance's sink 2 left, three channels from a Connect: none");
+    const uint8_t k2b[] = {2, 0x00, 3, 1, 0, 36, 37, 38};
+    sinkinfo(&a, 2, k2b, 8);
     CHECK(am_extras(&a, ex, 2) == 1 && ex[0].nr == 2 && ex[0].mono && ex[0].pos.bits == 24,
-          "only the other instance's sink 2 left: 24-bit mono");
+          "...its SinkInfo names them: 24-bit mono");
 
     // Jaguar Land Rover's layout: 1 main, 2 navigation and phone, 3 parking sensors, 4 chimes
     am_init(&a);
@@ -529,6 +555,31 @@ static void test_audit(void)
     mm_tel_t t = tel(AUX, HU, 0x24, 0x100, MM_OP_STATUS, pcm8x4, 9);
     am_tel(&a, &t);
     CHECK(a.src[0].ch.n == 0, "SourceInfo PCM 8 bit x 4 channels: no channels taken for AUX");
+
+    // R09 as the reader has it: a Connect carries the list alone, so 3 or 6 channels (24 bit, or
+    // three 16-bit channels?) wait for an Info to name their format
+    am_init(&a);
+    const uint8_t c6[] = {1, 0, 20, 21, 22, 23, 24, 25}, k6[] = {1, 0x00, 3, 2, 0, 20, 21, 22, 23, 24, 25},
+                  c6b[] = {1, 0, 30, 31, 32, 33, 34, 35};
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, c6, 8);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 0, "Connect with 6 channels: not played until named");
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, k6, 11);
+    CHECK(am_main(&a).bits == 24, "SinkInfo names them 24-bit stereo: played");
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, c6, 8);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 24, "the same channels connected again: still named");
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, c6b, 8);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 0, "6 other channels: not named, off");
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, conn, 6);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(pos_is(am_main(&a), 16, 9, 10, 11, 12), "4 channels: 16-bit stereo from the Connect alone");
+    FEED_I(&a, AMP, HU, 1, 0x110, MM_OP_STATUS, k6, 11);
+    FEED_I(&a, HU, AMP, 1, 0x112, MM_OP_STARTRESULT, sink1, 1);
+    FEED_I(&a, HU, AMP, 1, 0x111, MM_OP_STARTRESULT, c6, 8);
+    FEED_I(&a, AMP, HU, 1, 0x111, MM_OP_RESULT, sink1, 1);
+    CHECK(am_main(&a).bits == 0, "after a DisConnect the same 6 channels wait for a name again");
 }
 
 int main(void)

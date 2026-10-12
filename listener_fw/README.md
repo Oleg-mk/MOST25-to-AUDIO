@@ -134,6 +134,11 @@ critical audit of 2026-10-03:
 - SourceInfo / SinkInfo are taken only for PCM at 2 or 3 bytes a sample, 1 or
   2 channels, with a list exactly that long; any other format voids what was
   known instead of being read as stereo by its length;
+- Allocate and Connect give the channel list alone: 4 channels are taken as
+  16-bit stereo and 2 as 16-bit mono, the formats JLR is on record with; a
+  list of 3 or 6, which could be 24 bit or three 16-bit channels, is neither
+  played on J3 nor injected into until a SourceInfo or SinkInfo has named
+  the format of those very channels (the reader's rule, its audit R09);
 - Mute to SinkNr 0 is kept per instance and given to sinks seen later.
 
 **Decisions**, sent when they change, at start-up and every 2 s (the FPGA's
@@ -163,8 +168,9 @@ SourceInfo. J3 keeps its map through a gap.
   bytes and the amplifier plays them; and on streams 1..3 three more of its
   connected sinks (`am_extras(..., 3)`: SinkNr 2 and up on sink 1's
   amplifier instance, lowest first; 2 or 3 channels are 16/24-bit mono, fed
-  to both sides, 4 or 6 stereo). When a lower sink goes, the ones above it
-  move down a stream and keep their levels, which go by SinkNr.
+  to both sides, 4 or 6 stereo, 3 and 6 once named). When a lower sink goes,
+  the ones above it move down a stream and keep their levels, which go by
+  SinkNr.
 - 03: J3's coefficient set (section below), sent first so that a source is
   never heard at full scale before its gains; while the settings change, at
   most one set every 20 ms, and at once when a sink comes or goes.
@@ -342,9 +348,10 @@ make -C test
    The model: the head unit puts AUX on the amplifier and takes it off in
    every order; the amplifier moves to another source; Ack forms; the state
    rebuilt from SourceInfo / SinkInfo alone; 0xFF lists; lists that make no
-   sense; 24 bit; Mute. The other sinks for J3: 16-bit mono and 24-bit
-   stereo, the lowest two and the lowest three SinkNr on sink 1's instance, a
-   second instance passed over, Mute, DisConnect, a list J3 cannot take
+   sense; 24 bit only once SinkInfo or AUX's SourceInfo names it; Mute. The
+   other sinks for J3: 16-bit mono and 24-bit stereo (passed over until its
+   SinkInfo), the lowest two and the lowest three SinkNr on sink 1's instance,
+   a second instance passed over, Mute, DisConnect, a list J3 cannot take
    passed over, no main sink; JLR's layout, sinks 2, 3 and 4 in mono, a Mute
    to sink 4 the chimes' alone and one to sink 0 all four's, sink 2
    disconnected with 3 and 4 moving down a stream. And the chain, raw blocks
@@ -392,8 +399,8 @@ make -C test
 | Ring clocks stop 3 s | one backlog dropped, back to 194 ms, no click |
 | UART link: 6 packets after noise, one with a flipped bit, one short of a byte, A5 5A inside each | the 4 intact ones, byte by byte and in one call; the packet right after the short one survives |
 | Telegram decoding, 23 blocks (see test 5) | 6 telegrams out, 5 blocks refused; the gapped and the stale transfer dropped |
-| Model: AUX on and off in every order, Ack forms, Info recovery, 24 bit | each decision as expected |
-| Model, the orders the critical audit (2026-10-03) found it getting wrong: Mute to all sinks before any sink is known (before SinkInfo, before Connect); a Connect to InstID 0 answered from instance 1, and to 0xFF once the instance is known; a Mute to InstID 0; a Result after DisConnect, a DisConnect while the Connect is open, a Result after an Error; SinkInfo / SourceInfo as PCM 8 bit x 4 channels on 4 bytes, 24-bit stereo on 4 bytes, MPEG2 | each as the amplifier itself sees it; the same 13 checks against the model as it stood at 7ff5d2f: all 13 fail |
+| Model: AUX on and off in every order, Ack forms, Info recovery, 24 bit once an Info names it | each decision as expected |
+| Model, the orders the critical audit (2026-10-03) found it getting wrong: Mute to all sinks before any sink is known (before SinkInfo, before Connect); a Connect to InstID 0 answered from instance 1, and to 0xFF once the instance is known; a Mute to InstID 0; a Result after DisConnect, a DisConnect while the Connect is open, a Result after an Error; SinkInfo / SourceInfo as PCM 8 bit x 4 channels on 4 bytes, 24-bit stereo on 4 bytes, MPEG2; 6 channels from a Connect alone, then named, connected again, moved, and after a DisConnect | each as the amplifier itself sees it; the same 13 checks against the model as it stood at 7ff5d2f: all 13 fail |
 | The internal-RAM fallback, 8192 frames | 200 ms refused at 44.1 and 48 kHz (the audit's finding); `rm_target_ms` gives 136 / 125 ms, which rm_init takes; the PSRAM buffer keeps its 200 ms |
 | UART link: a coefficient word with its set's tag | the tag in the byte after F, the XOR over it |
 | The source: phone and TOSLINK input, lock, settle, blips, not PCM, loss | each pick as expected; seven broken variants of `ain.c` each caught |

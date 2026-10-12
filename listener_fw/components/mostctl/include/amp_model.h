@@ -29,6 +29,11 @@
 // Formats. SourceInfo and SinkInfo are taken only for PCM at 16 or 24 bit
 // (Resolution 2 or 3 bytes), 1 or 2 channels, with a channel list exactly
 // Resolution x AudioChannels long; anything else there voids what was known.
+// Allocate and Connect give the channel list alone: 4 channels are taken as
+// 16-bit stereo and 2 as 16-bit mono, the formats JLR is on record with; a
+// list of 3 or 6, which could be 24 bit or three 16-bit channels, counts only
+// once a SourceInfo or SinkInfo has named the format of those very channels
+// (the reader's rule, its audit R09). A name holds while its list does.
 // Mute to SinkNr 0 is kept per instance and given to sinks seen later too.
 #pragma once
 
@@ -49,8 +54,9 @@ typedef struct {
 } am_list_t;
 
 typedef struct {
-    struct { uint8_t used, inst, nr; uint16_t dev; am_list_t ch; } src[AM_SOURCES];         // AuxIn
-    struct { uint8_t used, inst, nr, connected, muted, pend_ok; uint16_t dev; am_list_t ch, pend; }
+    // named: ch came from a SourceInfo / SinkInfo, which named its format
+    struct { uint8_t used, inst, nr, named; uint16_t dev; am_list_t ch; } src[AM_SOURCES];  // AuxIn
+    struct { uint8_t used, inst, nr, connected, muted, pend_ok, named; uint16_t dev; am_list_t ch, pend; }
         sink[AM_SINKS];                                                                    // amp
     struct { uint8_t used, fb, inst; uint16_t dev; } where[AM_DEVS];    // a device's instance of an FBlock
     struct { uint8_t used, inst, muted; uint16_t dev; } mute0[AM_SINKS];  // Mute to SinkNr 0, per instance
@@ -67,7 +73,8 @@ void am_init(am_t *a);
 // Feed a telegram. Returns 1 if the model changed.
 int am_tel(am_t *a, const mm_tel_t *t);
 
-// The AUX source's frame bytes, if an amplifier sink is connected to them.
+// The AUX source's frame bytes, if an amplifier sink is connected to them:
+// 4 channels, or 6 once named (Formats, above).
 am_pos_t am_aux_playing(const am_t *a);
 
 // What the amplifier's sink 1 plays (the main zone), for the stereo output.
@@ -87,7 +94,8 @@ typedef struct {
 // Everything the amplifier plays besides sink 1 - navigation, phone, chimes,
 // whichever sink numbers a car gives them: up to n connected sinks with
 // SinkNr >= 2 on the main sink's instance (without a main sink, on the lowest
-// instance that has one J3 can take), lowest SinkNr first. A channel list 2,
-// 3, 4 or 6 long is 16/24-bit mono or stereo; other lengths are left out.
+// instance that has one J3 can take), lowest SinkNr first. A channel list of
+// 2 or 4 is 16-bit mono or stereo, one of 3 or 6 24-bit mono or stereo once
+// named (Formats, above); other lists are left out.
 // Returns how many were found; the rest of out[] is cleared.
 int am_extras(const am_t *a, am_sink_t *out, int n);

@@ -170,6 +170,7 @@ static void settle(am_t *a, uint16_t dev, uint8_t fb, uint8_t inst)
             continue;
         }
         a->src[j].ch = a->src[i].ch;            // the request came later than what was known
+        a->src[j].named = a->src[i].named;
         a->src[i].used = 0;
     }
 }
@@ -218,13 +219,16 @@ static int fmt_list(const uint8_t *p, int n, am_list_t *l)
 static int auxin(am_t *a, const mm_tel_t *t, uint16_t dev, uint8_t inst, const uint8_t *p, int n)
 {
     am_list_t l;
-    int s;
+    int s, ch;
     switch (t->fkt) {
     case F_ALLOCATE:        // Result: SourceNr, SrcDelay, ChannelList
         if ((t->op != MM_OP_RESULT && t->op != MM_OP_RESULTACK) || n < 3 || parse_list(&p[2], n - 2, &l))
             return 0;
         s = src_slot(a, dev, inst, p[0]);
-        return s >= 0 ? set_list(&a->src[s].ch, &l) : 0;
+        if (s < 0)
+            return 0;
+        a->src[s].named &= same(&a->src[s].ch, &l);     // other channels: their format not named
+        return set_list(&a->src[s].ch, &l);
     case F_SOURCEINFO:      // Status: SourceNr, DataType, Resolution, AudioChannels, SrcDelay, ChannelList
         if (t->op != MM_OP_STATUS || n < 1)
             return 0;
@@ -233,14 +237,19 @@ static int auxin(am_t *a, const mm_tel_t *t, uint16_t dev, uint8_t inst, const u
             return 0;
         if (fmt_list(p, n, &l))
             l.n = 0;                                    // not a format we take: nothing known any more
-        return set_list(&a->src[s].ch, &l);
+        ch = a->src[s].named != (l.n > 0);
+        a->src[s].named = l.n > 0;                      // its format named
+        return set_list(&a->src[s].ch, &l) | ch;
     case F_DEALLOCATE:      // as soon as it is asked for, the channels are not AUX's to use
         if (n < 1 || !(t->op == MM_OP_STARTRESULT || t->op == MM_OP_STARTRESULTACK ||
                        t->op == MM_OP_RESULT || t->op == MM_OP_RESULTACK))
             return 0;
         s = src_slot(a, dev, inst, p[0]);
+        if (s < 0)
+            return 0;
         l.n = 0;
-        return s >= 0 ? set_list(&a->src[s].ch, &l) : 0;
+        a->src[s].named = 0;
+        return set_list(&a->src[s].ch, &l);
     default:
         return 0;
     }
@@ -272,6 +281,7 @@ static int amp(am_t *a, const mm_tel_t *t, uint16_t dev, uint8_t inst, const uin
             a->sink[s].pend_ok = 0;
             ch |= !a->sink[s].connected;
             a->sink[s].connected = 1;
+            a->sink[s].named &= same(&a->sink[s].ch, &a->sink[s].pend);    // other channels: not named
             ch |= set_list(&a->sink[s].ch, &a->sink[s].pend);
             return ch;
         }
@@ -290,8 +300,9 @@ static int amp(am_t *a, const mm_tel_t *t, uint16_t dev, uint8_t inst, const uin
             return 0;
         if (fmt_list(p, n, &l))
             l.n = 0;                            // not a format we take: nothing known any more
-        ch |= (a->sink[s].connected != (l.n > 0));
+        ch |= (a->sink[s].connected != (l.n > 0)) | (a->sink[s].named != (l.n > 0));
         a->sink[s].connected = l.n > 0;
+        a->sink[s].named = l.n > 0;             // its format named
         ch |= set_list(&a->sink[s].ch, &l);
         return ch;
     case F_DISCONNECT:
@@ -304,6 +315,7 @@ static int amp(am_t *a, const mm_tel_t *t, uint16_t dev, uint8_t inst, const uin
         ch |= a->sink[s].connected;
         a->sink[s].connected = 0;
         a->sink[s].pend_ok = 0;                 // a Connect still open is void too
+        a->sink[s].named = 0;
         l.n = 0;
         ch |= set_list(&a->sink[s].ch, &l);
         return ch;
@@ -352,6 +364,26 @@ int am_tel(am_t *a, const mm_tel_t *t)
     return amp(a, t, dev, inst, p, n);
 }
 
+// Whether a SourceInfo or SinkInfo has named the format of these very channels.
+static int named(const am_t *a, const am_list_t *l)
+{
+    for (int i = 0; i < AM_SOURCES; i++)
+        if (a->src[i].used && a->src[i].named && same(&a->src[i].ch, l))
+            return 1;
+    for (int k = 0; k < AM_SINKS; k++)
+        if (a->sink[k].used && a->sink[k].named && same(&a->sink[k].ch, l))
+            return 1;
+    return 0;
+}
+
+// A list's format: 2 channels are 16-bit mono and 4 16-bit stereo, the formats
+// JLR is on record with; 3 (24-bit mono) and 6 (24-bit stereo) only once named -
+// from Allocate or Connect alone, 6 could as well be three 16-bit channels.
+static int known(const am_t *a, const am_list_t *l)
+{
+    return l->n == 2 || l->n == 4 || ((l->n == 3 || l->n == 6) && named(a, l));
+}
+
 static am_pos_t pos_of(const am_list_t *l)
 {
     am_pos_t p = {0};
@@ -372,7 +404,7 @@ static am_pos_t pos_of(const am_list_t *l)
 am_pos_t am_aux_playing(const am_t *a)
 {
     for (int i = 0; i < AM_SOURCES; i++) {
-        if (!a->src[i].used || (a->src[i].ch.n != 4 && a->src[i].ch.n != 6))
+        if (!a->src[i].used || (a->src[i].ch.n != 4 && a->src[i].ch.n != 6) || !known(a, &a->src[i].ch))
             continue;
         for (int k = 0; k < AM_SINKS; k++)
             if (a->sink[k].used && a->sink[k].connected && same(&a->sink[k].ch, &a->src[i].ch))
@@ -395,7 +427,7 @@ static int main_sink(const am_t *a)
 am_pos_t am_main(const am_t *a)
 {
     const int best = main_sink(a);
-    if (best >= 0)
+    if (best >= 0 && known(a, &a->sink[best].ch))
         return pos_of(&a->sink[best].ch);
     am_pos_t none = {0};
     return none;
@@ -407,9 +439,11 @@ int am_main_muted(const am_t *a)
     return best >= 0 && a->sink[best].muted;
 }
 
-// a channel list as J3 takes it: 2 / 3 channels mono, 4 / 6 stereo, 16 / 24 bit
-static int sink_pos(const am_list_t *l, am_sink_t *s)
+// a channel list as J3 takes it: 2 / 3 channels mono, 4 / 6 stereo, 16 / 24 bit; 3 and 6 once named
+static int sink_pos(const am_t *a, const am_list_t *l, am_sink_t *s)
 {
+    if (!known(a, l))
+        return 0;
     if (l->n == 4 || l->n == 6) {
         s->pos = pos_of(l);
         s->mono = 0;
@@ -436,7 +470,7 @@ int am_extras(const am_t *a, am_sink_t *out, int n)
     if (inst < 0)
         for (int k = 0; k < AM_SINKS; k++)
             if (a->sink[k].used && a->sink[k].connected && a->sink[k].nr >= 2 &&
-                sink_pos(&a->sink[k].ch, &probe) && (inst < 0 || a->sink[k].inst < inst)) {
+                sink_pos(a, &a->sink[k].ch, &probe) && (inst < 0 || a->sink[k].inst < inst)) {
                 inst = a->sink[k].inst;
                 dev = a->sink[k].dev;
             }
@@ -451,7 +485,7 @@ int am_extras(const am_t *a, am_sink_t *out, int n)
             break;
         last = a->sink[best].nr;
         am_sink_t s = {0};
-        if (!sink_pos(&a->sink[best].ch, &s))
+        if (!sink_pos(a, &a->sink[best].ch, &s))
             continue;                           // a list J3 cannot take: skipped, the next one tried
         s.nr = a->sink[best].nr;
         s.muted = a->sink[best].muted;
