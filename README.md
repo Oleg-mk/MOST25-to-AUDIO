@@ -334,3 +334,26 @@ records it with a mark at each end of a control's travel, and
 This repository starts from the earlier `most-bus` project (commit 08ea5fb,
 2026-09-26), where the listener grew next to a shelved STM32 + ADAU1466
 design; only the listener came along.
+
+## Licence
+
+Copyright 2026 Oleg-mk.
+
+- **Hardware, under CERN-OHL-S-2.0** ([LICENSE](LICENSE)):
+  - `listener_hw/` and `listener_hw2/`: the KiCad designs and the scripts that generate them,
+    the footprints and 3D models, the fabrication files, the tube's end caps, the pictures;
+  - the gateware in `listener_gw/rtl/` and `listener_gw/board/`;
+  - `kit/1_boards/` and `kit/2_flash/fpga/`.
+- **Software, under GPL-3.0-or-later** ([COPYING](COPYING)): `listener_fw/` (the host's
+  firmware), `virtual_most_source/`, `tools/`, `listener_gw/sim/`, `kit/2_flash/esp32/`,
+  `kit/3_laptop/` and `check_all.py`.
+- **Documentation:** each README and drawing is under the licence of the directory it sits in;
+  `docs/` is under GPL-3.0-or-later.
+
+The host's firmware is built with Espressif's ESP-IDF, some of whose libraries come only as
+binaries (the Bluetooth controller among them), and with Espressif's `esp_audio_codec` component
+(the AAC and SBC decoders), which is under the Espressif Modified MIT License. As an additional
+permission under section 7 of the GPL, you may link the firmware with those Espressif libraries
+and convey the combined binary, provided that the firmware's own code is conveyed under the GPL.
+
+If you build or change the hardware and share it, share your sources under the same licence.
