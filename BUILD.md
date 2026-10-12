@@ -133,7 +133,7 @@ connected: J5 has no supply, and J8 and J9 no signal. In mid, J5 is likewise not
 1. **Board.** Upload `most_listener_v2-gerbers.zip`. Choose 4 layers, 1.6 mm, the stack-up
    JLC04161H-7628, 1 oz copper outside and 0.5 oz inside, ENIG, green mask, white silkscreen, and
    5 boards or more.
-2. **Assembly.** Both sides, Standard PCBA (because one part is your own), with "Confirm parts
+2. **Assembly.** Both sides, Standard PCBA (Economic assembles one side only), with "Confirm parts
    placement" on.
 3. **BOM and CPL.** Upload the pair of files of the assembly you want:
    `most_listener_v2-bom-jlcpcb-<assembly>.csv` and `most_listener_v2-cpl-jlcpcb-<assembly>.csv`.
@@ -187,7 +187,8 @@ J2 and J3 are for the bench: the tube leaves 14.75 mm above the board, and a 2.5
     (2 A) protects only what is behind it, not the wire.
 - **A loop-in cable for the MOST ring.** A cable that opens the ring at one of the nodes and brings
   it to J1. The repository has no part number for it. Kufatec, Dension and Trioma make such cables;
-  pick one for your node.
+  pick one for your node. For the phone into the car, that node is the amplifier: the listener has
+  to sit on the fibre into it.
 - **An antenna for M2**, with its pigtail, as in [The tube and the caps](#the-tube-and-the-caps).
   The VIE module has no antenna on its board; without an external one there is no Bluetooth.
 - **The tube, the caps and the small parts**, as in [The tube and the caps](#the-tube-and-the-caps):
@@ -544,6 +545,9 @@ The laptop doesn't sleep while the recording runs. But on Windows, for a closed 
 3. **The steering wheel's buttons.** Press a button, then at once a mark and a note ("next track"
    and so on).
 4. **Sources.** Switch the sources, to AUX among them, each with a mark.
+5. **Reverse gear and a chime.** Put the car in reverse, and set off a chime (a door, the key, the
+   belt), each with a mark: they show whether the parking sensors and the chimes travel the ring as
+   audio.
 
 ### Decoding at home
 

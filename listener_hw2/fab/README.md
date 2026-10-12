@@ -75,7 +75,7 @@ FPGA), U7 (Si514), M2 (the host, Bluetooth in), J3 (I2S) and J2 (the analyser).
 1. **PCB.** Upload `most_listener_v2-gerbers.zip`. Choose 4 layers, 1.6 mm, the stack-up JLC04161H-7628,
    1 oz outer and 0.5 oz inner copper, ENIG, green mask with white silkscreen, and 5 boards or
    more.
-2. **Assembly.** Both sides, Standard PCBA (consigned parts need it), and "Confirm parts
+2. **Assembly.** Both sides, Standard PCBA (Economic assembles one side only), and "Confirm parts
    placement" on.
 3. **BOM and CPL.** Upload the pair of the assembly you want, `most_listener_v2-bom-jlcpcb-<assembly>.csv`
    and `most_listener_v2-cpl-jlcpcb-<assembly>.csv`. The two files leave out the same parts, and nothing

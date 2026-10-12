@@ -69,7 +69,7 @@ are the only OEM AudioAmplifier FktIDs found anywhere so far.
 
 | Brand | Known | Conf. | Source |
 |---|---|---|---|
-| Jaguar / Land Rover | AUD3 amp 0x22 inst 0x0A, volume via `46D` Set (byte0 param, byte1 sink, 7 signed-dB bytes), 61 steps −99…0 dB; LR2 amp inst 0x02, 35 steps −82…0 dB; 200/202/203/204 tone; mute via 466; amp sinks 1 main, 2 phone/navigation/voice, 3 parking sensors, 4 chimes; XF: the gateway's `F0.409` Status, byte 2 the volume, byte 8 navigation/phone, byte 10 parking sensors | C | usb2most decompile; mObridge MOST25 DA Series Guide pp. 18-19 (the sinks); JLR-HU / SocketMost (`F0.409`) |
+| Jaguar / Land Rover | AUD3 amp 0x22 inst 0x0A, volume via `46D` Set (byte0 param, byte1 sink, 7 signed-dB bytes), 61 steps −99…0 dB; LR2 amp inst 0x02, 35 steps −82…0 dB; 200/202/203/204 tone; mute via 466; amp sinks 1 main, 2 phone/navigation/voice, 3 parking sensors, 4 chimes; XF: the gateway's `F0.409` Status, byte 2 the volume, byte 8 navigation/phone, byte 10 parking sensors (the positions from one parser) | C | usb2most decompile; mObridge MOST25 DA Series Guide pp. 18-19 (the sinks); JLR-HU / SocketMost (`F0.409`) |
 | BMW | AudioMaster `20.00.0200` VolumeActual, 0–63; 0220–0223 balance/fader/bass/treble; CIC sinks all on 0x22 | C | SGBD (CIC, NBT) |
 | Mercedes (BMW4?) | 0x22: 110/111/112/113, 201, 46B, 469, 400; OEM D10 (phone volume), D11 | C code / I brand | Dension, section 3 |
 | Audi | J523 order: connect channels → sound settings → unmute; no IDs | C order | SSP286 |
@@ -84,7 +84,7 @@ Standard FktID names are from the local catalogue
 
 | Gap | Closed by |
 |---|---|
-| value → dB scale for every brand except JLR | a ring recording while stepping volume, read against the head unit's display |
+| value → dB scale for every brand except JLR's SpeakerLevel (dB on the wire); the Jaguar XF's 0xF0.0x409 bytes too | a ring recording while stepping volume, read against the head unit's display |
 | D10/D11 brand, meaning of D11's bytes | a Mercedes recording with a phone call |
 | Audi, Porsche, Volvo OEM IDs | a recording per brand: volume, tone, source change, call |
 

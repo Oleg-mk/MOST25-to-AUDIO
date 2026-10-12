@@ -9,7 +9,8 @@ carries into audio and data the owner can use:
   same stream, as S/PDIF on TOSLINK and coax: the main source with the head
   unit's volume, mute, balance, bass, treble and loudness applied, and up to
   three more of the amplifier's sinks - navigation and phone, the parking
-  sensors, the chimes - mixed in at their own levels, so speakers moved to an
+  sensors, the chimes, where the car sends them as audio - mixed in at their
+  own levels, so speakers moved to an
   amplifier or DSP of the owner's choice keep the car's controls and its
   voices;
 - **J2: everything, raw**: every frame byte on two TDM8 lines, the control
@@ -56,9 +57,13 @@ Ukrainian: [README.uk.md](README.uk.md).
   amplifier's 0x22.0x46D SpeakerLevel) and BMW (AudioMaster 0x20.0x200);
   Mercedes, VAG and Volvo are not public. Every scale is a placeholder until
   that car's ring is recorded, and the listener's own console trace is the
-  tool for it (`listener_fw/README.md`, Recording).
+  tool for it (`listener_fw/README.md`, Recording). Until it has heard one of
+  the volume messages it knows, J3 stays silent (the chimes excepted).
 - **The phone into the car** needs the car's AUX to be a MOST source: where AUX
-  is mixed inside the head unit there are no AUX bytes to replace.
+  is mixed inside the head unit there are no AUX bytes to replace. It also needs
+  the listener on the fibre into the amplifier: the phone goes into the frames
+  as they leave the listener, so only the nodes after it hear it. For listening,
+  any place in the ring will do.
 
 [docs/vehicle_survey.md](docs/vehicle_survey.md) lists each car with its
 sources and how sure each fact is.
@@ -74,6 +79,10 @@ sources and how sure each fact is.
   stop; a watchdog (U11) does that last even if the FPGA's clocks die. So a
   failure of the FPGA, its clocks or the regeneration leaves the ring passing
   straight through.
+- **The switch:** when the listener locks and moves the ring from the plain
+  path to its regenerated one, the ring sees a short phase step, as it does when
+  any MOST node leaves its bypass at start-up. The next node relocks within a few
+  frames, and the amplifier may mute for that moment.
 - **When the ring opens:** the bypass is an electrical path, not an optical
   one. If its supply is lost (a blown fuse, KL30 disconnected) or a fibre part
   fails, the ring opens, as with every factory MOST node. Fit your own fuse
@@ -88,7 +97,7 @@ sources and how sure each fact is.
 
 ## Status: what is proved and what is not
 
-**Verified in models** (run `python check_all.py`; all 43 steps pass on the
+**Verified in models** (run `python check_all.py`; all 44 steps pass on the
 author's machine, and `--sweep` adds 32 random rings):
 
 - The gateware, in Icarus Verilog against Python models:
@@ -118,6 +127,13 @@ author's machine, and `--sweep` adds 32 random rings):
   settles them on the first ring.
 - **The per-car scales:** volume, tone and the mixer levels stay placeholders
   until a recording of the car's controls.
+- **The car's own messages:** whether a stock head unit sends 0x22.0x111
+  Connect at all (J3 and the phone into the car take their channels from it);
+  which of 0xF0.0x409 and SpeakerLevel a Jaguar XF's amplifier gets, and 0x409's
+  byte positions (from one parser); whether JLR mutes with 0x113 or with 0x466
+  MuteParameters; whether the parking sensors and the chimes travel the ring as
+  audio, as mObridge's guide says for JLR. The capture and the recording settle
+  these too.
 - **Real hardware:** no board has been powered, the regeneration has never run
   in a real ring, and no real S/PDIF receiver has taken the output.
 
@@ -411,8 +427,8 @@ left overlapping a pad or another reference.
   Jaguar XF's navigation and parking-sensor levels (0xF0.0x409 bytes 8 and
   10) - are placeholders until a real ring is recorded.
 - **Sink 4 is the chimes in every car**, as Jaguar Land Rover numbers the
-  amplifier's sinks: with no SpeakerLevel of its own it plays at a fixed
-  -6 dB, never at the volume, so a chime is heard with the volume down. A car
+  amplifier's sinks: with no SpeakerLevel of its own it plays at -6 dB (its
+  MixerLevel on top), never at the volume, so a chime is heard with the volume down. A car
   that puts something else on sink 4 gets that at -6 dB too.
 - **What an amplifier does on its own** is not on the bus: if it turns the
   music down while a prompt plays, J3 does not; it follows what the head unit
