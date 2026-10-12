@@ -18,6 +18,7 @@ Tools (environment variables override the defaults):
   OSS_CAD    ~/toolchains/oss-cad-suite       iverilog, vvp (simulations)
   MINGW      ~/toolchains/mingw64             gcc, make (the firmware's host tests)
   KICAD_CLI  %LOCALAPPDATA%/Programs/KiCad/10.0/bin/kicad-cli.exe
+  KICAD_PY   KiCad's python, with pcbnew (v2.0's tube and caps), default beside kicad-cli
   Gowin EDA: listener_gw/board/build.py; ESP-IDF: listener_fw/idf.ps1 (each finds its own)
 """
 import argparse
@@ -35,6 +36,7 @@ OSS = Path(os.environ.get("OSS_CAD", HOME / "toolchains" / "oss-cad-suite"))
 MINGW = Path(os.environ.get("MINGW", HOME / "toolchains" / "mingw64"))
 KICAD = Path(os.environ.get("KICAD_CLI", Path(os.environ.get("LOCALAPPDATA", "")) /
                             "Programs" / "KiCad" / "10.0" / "bin" / "kicad-cli.exe"))
+KIPY = Path(os.environ.get("KICAD_PY", KICAD.with_name("python.exe")))
 
 results = []
 
@@ -97,40 +99,69 @@ def main():
         step("firmware build (ESP-IDF)", ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                                           str(ROOT / "listener_fw" / "idf.ps1"), "build"], ROOT / "listener_fw")
     step("FPGA build and timing (Gowin)", [py, "build.py"], ROOT / "listener_gw" / "board")
-    hw = ROOT / "listener_hw"
-    step("schematic: generate", [py, "gen_listener.py"], hw)
-    step("schematic: ERC", [str(KICAD), "sch", "erc", "--exit-code-violations", "--output", "erc.rpt",
-                            "most_listener.kicad_sch"], hw, need=KICAD)
-    # the board (laid out once by gen_listener_pcb.py, then placed by hand and routed) is the
-    # master, so only its DRC runs here: no error, nothing unconnected, no difference from the
-    # sheet; the verdict is read from the JSON report
+    hw, hw2 = ROOT / "listener_hw", ROOT / "listener_hw2"
+    # each board (laid out once by its script, then placed by hand and routed) is the master, so
+    # only its DRC runs here: no error, nothing unconnected, no difference from the sheet; the
+    # verdict is read from the JSON report
+    drc_ok = [py, "-c", "import json, sys; d = json.load(open('work/drc.json', encoding='utf-8')); "
+                        "p = d.get('schematic_parity', []); "
+                        "print(len(d['violations']), 'errors,', len(p), 'differences from the sheet,', "
+                        "len(d['unconnected_items']), 'unconnected'); "
+                        "sys.exit(1 if d['violations'] or p or d['unconnected_items'] else 0)"]
+
+    def drc(pcb):
+        return [str(KICAD), "pcb", "drc", "--severity-error", "--schematic-parity", "--format", "json",
+                "--output", "work/drc.json", pcb]
+
+    def committed(path, what):
+        """Fails while git shows a change under path (relative to the step's folder)."""
+        return [py, "-c", "import subprocess, sys; "
+                          f"o = subprocess.run(['git', 'status', '--porcelain', '--', '{path}'], capture_output=True, "
+                          f"text=True).stdout; print(o or '{what}'); sys.exit(1 if o.strip() else 0)"]
+
+    step("v1.6 schematic: generate", [py, "gen_listener.py"], hw)
+    step("v1.6 schematic: ERC", [str(KICAD), "sch", "erc", "--exit-code-violations", "--output", "erc.rpt",
+                                 "most_listener.kicad_sch"], hw, need=KICAD)
     (hw / "work").mkdir(exist_ok=True)
     (hw / "work" / "drc.json").unlink(missing_ok=True)      # this run's report or none
-    step("board: DRC", [str(KICAD), "pcb", "drc", "--severity-error", "--schematic-parity", "--format", "json",
-                        "--output", "work/drc.json", "most_listener.kicad_pcb"], hw, need=KICAD)
-    step("board: DRC reports no error, nothing unconnected, and the board matches the sheet",
-         [py, "-c", "import json, sys; d = json.load(open('work/drc.json', encoding='utf-8')); "
-                    "p = d.get('schematic_parity', []); "
-                    "print(len(d['violations']), 'errors,', len(p), 'differences from the sheet,', "
-                    "len(d['unconnected_items']), 'unconnected'); "
-                    "sys.exit(1 if d['violations'] or p or d['unconnected_items'] else 0)"], hw,
+    step("v1.6 board: DRC", drc("most_listener.kicad_pcb"), hw, need=KICAD)
+    step("v1.6 board: DRC reports no error, nothing unconnected, and the board matches the sheet", drc_ok, hw,
          need=hw / "work" / "drc.json")
+    # v2.0: v1.6's circuit on a board for an 80 x 30 x 2 tube, with its end caps (listener_hw2)
+    step("v2.0 schematic: generate (gen_listener2.py)", [py, "gen_listener2.py"], hw2)
+    step("v2.0 schematic: v1.6's circuit, part for part and net for net (tools/check_v2_circuit.py)",
+         [py, str(ROOT / "tools" / "check_v2_circuit.py")], ROOT, need=KICAD)
+    (hw2 / "work").mkdir(exist_ok=True)
+    step("v2.0 schematic: ERC", [str(KICAD), "sch", "erc", "--exit-code-violations", "--output", "work/erc.rpt",
+                                 "most_listener_v2.kicad_sch"], hw2, need=KICAD)
+    (hw2 / "work" / "drc.json").unlink(missing_ok=True)
+    step("v2.0 board: DRC", drc("most_listener_v2.kicad_pcb"), hw2, need=KICAD)
+    step("v2.0 board: DRC reports no error, nothing unconnected, and the board matches the sheet", drc_ok, hw2,
+         need=hw2 / "work" / "drc.json")
+    step("v2.0 tube: the board in the tube, its leads, the caps' cut-outs (check_fit.py)",
+         [str(KIPY), "check_fit.py"], hw2, need=KIPY)
+    step("v2.0 caps: the tube's end caps from check_fit's model (gen_caps.py)", [str(KIPY), "gen_caps.py"], hw2,
+         need=KIPY)
     if not (shutil.which("git") and (ROOT / ".git").exists()):
-        print("\n=== the generator's and fab/'s checks against the commit: SKIPPED (no git, or no .git)", flush=True)
-        results.append(("schematic and fab against the commit", "SKIPPED", 0.0))
+        print("\n=== the generators', fab/'s, caps/' and kit's checks against the commit: SKIPPED (no git, or no .git)",
+              flush=True)
+        results.append(("schematics, fab, caps and kit against the commit", "SKIPPED", 0.0))
     else:
-        # everything the schematic generator writes, not the sheet alone
-        step("schematic: the generator reproduces the committed files",
-             ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", "most_listener.kicad_sym",
-              "most_listener.pretty", "most_listener.3dshapes", "fp-lib-table", "sym-lib-table"], hw)
-        # the manufacturing package is written from the board and the sheet; what goes to the
-        # board house must be the committed package of this very board
-        step("fab: the manufacturing package (make_fab.py)", [py, "make_fab.py"], hw, need=KICAD)
-        step("fab: the package matches the commit",
-             [py, "-c", "import subprocess, sys; "
-                        "o = subprocess.run(['git', 'status', '--porcelain', '--', 'fab'], capture_output=True, "
-                        "text=True).stdout; print(o or 'fab/ is the committed package'); sys.exit(1 if o.strip() else 0)"],
-             hw)
+        # everything a schematic generator writes, not the sheet alone
+        lib = ["most_listener.kicad_sym", "most_listener.pretty", "most_listener.3dshapes", "fp-lib-table",
+               "sym-lib-table"]
+        step("v1.6 schematic: the generator reproduces the committed files",
+             ["git", "diff", "--exit-code", "--stat", "--", "most_listener.kicad_sch", *lib], hw)
+        step("v2.0 schematic: the generator reproduces the committed files",
+             ["git", "diff", "--exit-code", "--stat", "--", "most_listener_v2.kicad_sch", *lib], hw2)
+        # each manufacturing package is written from its board and sheet; what goes to the board
+        # house must be the committed package of this very board, and the caps those of this board
+        step("v1.6 fab: the manufacturing package (make_fab.py)", [py, "make_fab.py"], hw, need=KICAD)
+        step("v1.6 fab: the package matches the commit", committed("fab", "fab/ is the committed package"), hw)
+        step("v2.0 fab: the manufacturing package, three assemblies (make_fab2.py)", [py, "make_fab2.py"], hw2,
+             need=KICAD)
+        step("v2.0 fab: the package matches the commit", committed("fab", "fab/ is the committed package"), hw2)
+        step("v2.0 caps: the caps match the commit", committed("caps", "caps/ is the committed set"), hw2)
         # kit/ hands over copies of fab/, of the builds and of the laptop's programs: each equal to its
         # source, and no build older than its committed sources
         step("kit: the copies and the builds match their sources (tools/make_kit.py --check)",
