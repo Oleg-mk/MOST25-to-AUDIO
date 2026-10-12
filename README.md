@@ -22,16 +22,174 @@ carries into audio and data the owner can use:
   of the car's own AUX source while the amplifier plays them, so it is heard
   through the factory system with the factory controls.
 
-If the FPGA's part fails, the ring passes straight through: a multiplexer on
-the board falls back to the fibre's own signal, and a watchdog does so even if
-the FPGA's clocks die. That path - the fibre receiver and transmitter and the
-multiplexer - runs on the always-on 3.3 V (3V3_AON): it covers the FPGA, its
-clocks and the regeneration, not a loss of that supply or a failed fibre part,
-and it is an electrical path, not an optical bypass.
+**Status, 2026-10-12: designed and verified in simulation, host tests and
+builds, but never built and never tried in a car.** Every file needed to
+order, flash and assemble one is in this repository.
+
+**This is a research project.** Every finding, recording, correction or bit
+of help is welcome: open an issue or a pull request, or write in the forum
+thread.
+
+Its offspring, [JLR-MOST-Reader](https://github.com/Oleg-mk/JLR-MOST-Reader),
+is the same receiver, DSP engine, S/PDIF coder and optical front end cut down
+to one job on Jaguar and Land Rover: the amplifier's stereo out on TOSLINK.
 
 ![Board v2.0 in its 80 x 30 mm aluminium tube, cut open: M1 on top, the RCA jacks at the output end, the printed caps with their saddles](listener_hw2/views/listener_v2_in_tube.png)
 
-## Parts
+Ukrainian: [README.uk.md](README.uk.md).
+
+## Which cars
+
+- **What the car must have:** a MOST25 ring that carries the entertainment
+  audio to a separate amplifier as plain PCM. Cars without that external
+  amplifier keep the audio inside the head unit, and the ring carries little
+  or none of it; a copy-protected stream (DTCP) gives nothing to play either.
+  Having MOST25 does not make a car one of them - only a recording of that
+  car says.
+- **Both ring rates:** 48 kHz (Jaguar and Land Rover) and 44.1 kHz (Audi MMI
+  2G/3G/3G+, BMW E65/F01). The receiver learns the bit time from the line, and
+  the regenerator's clock is centred on the measured rate.
+- **The controls:** every source agrees that the PCM on the ring is the same at
+  any volume, and that the amplifier applies the volume, balance, tone and
+  mixer levels. So the listener reads the control channel and applies them
+  itself. Known: Jaguar and Land Rover (the gateway's 0xF0.0x409 levels and the
+  amplifier's 0x22.0x46D SpeakerLevel) and BMW (AudioMaster 0x20.0x200);
+  Mercedes, VAG and Volvo are not public. Every scale is a placeholder until
+  that car's ring is recorded, and the listener's own console trace is the
+  tool for it (`listener_fw/README.md`, Recording).
+- **The phone into the car** needs the car's AUX to be a MOST source: where AUX
+  is mixed inside the head unit there are no AUX bytes to replace.
+
+[docs/vehicle_survey.md](docs/vehicle_survey.md) lists each car with its
+sources and how sure each fact is.
+
+## Is it safe for the car's ring?
+
+- **The ring's path:** the fibre receiver, a buffer, a multiplexer (U2) and the
+  fibre transmitter. U2 passes either the fibre's own signal or the FPGA's
+  regenerated one. That path runs on the always-on 3.3 V (3V3_AON, U5), fed
+  from KL30 and drawing tens of microamps with the car parked.
+- **The bypass:** U2 falls back to the fibre's own signal whenever the FPGA is
+  off or not configured, has not locked to the ring, or its transmit edges
+  stop; a watchdog (U11) does that last even if the FPGA's clocks die. So a
+  failure of the FPGA, its clocks or the regeneration leaves the ring passing
+  straight through.
+- **When the ring opens:** the bypass is an electrical path, not an optical
+  one. If its supply is lost (a blown fuse, KL30 disconnected) or a fibre part
+  fails, the ring opens, as with every factory MOST node. Fit your own fuse
+  where you tap KL30.
+- **Nothing new on the network:** no address, never a word on the control
+  channel. Until injection is allowed, the frames leave as they came.
+- **Injection is off until you allow it** ('i' on the host's console, kept in
+  flash; a new module has it off). Then it replaces only the bytes of the car's
+  own AUX source while the amplifier plays them, and the FPGA drops it 2 s after
+  the host's last command, so a host that hangs takes the phone out.
+- **Fully reversible:** unplug the loop-in cable and the car is back to stock.
+
+## Status: what is proved and what is not
+
+**Verified in models** (run `python check_all.py`; all 43 steps pass on the
+author's machine, and `--sweep` adds 32 random rings):
+
+- The gateware, in Icarus Verilog against Python models:
+  - the receiver, and the J3 engine at 48 and 44.1 kHz, word for word against
+    its model;
+  - the S/PDIF output, decoded back;
+  - the whole core from the optical line, in 14 corners: both rates, preamble
+    variants, injection, gaps in the control blocks, a dead transmit feedback, a
+    stopped clock, bit errors, the Si514's start and its loss, the capture,
+    fades, the injection's lease, and a deliberate fault the checks must catch;
+  - the regenerator's clock loop, and 32 random rings.
+- The host's firmware: its tests on the PC and the ESP-IDF build with no
+  warnings. JLR-MOST-Reader's checks compile its decoder and gain tables and
+  compare them with their own.
+- The Gowin build meets timing with at least 10 % margin; the bitstream and
+  the firmware in `kit/2_flash` were built from the committed sources.
+- The boards: ERC and DRC clean, with parity between sheet and board, for v1.6
+  and v2.0; v2.0's sheet held to v1.6's part for part and net for net; the
+  board's fit in the tube and its caps from one model; the fab packages and
+  the kit reproduced from the commit.
+- The laptop's recorder and decoder, against the host's own formats.
+
+**Unknown until a bench or a car:**
+
+- **The line:** the preamble's full pattern, which variant marks a block start,
+  the parity rule. The simulations assume them; the capture (command 04)
+  settles them on the first ring.
+- **The per-car scales:** volume, tone and the mixer levels stay placeholders
+  until a recording of the car's controls.
+- **Real hardware:** no board has been powered, the regeneration has never run
+  in a real ring, and no real S/PDIF receiver has taken the output.
+
+Bring-up goes in three steps, each with a recording (Bring-up, in this order,
+below).
+
+## Build one
+
+The full guide is [BUILD.md](BUILD.md); `kit/` holds the same in Ukrainian with
+every file to order, flash and fit. There are two boards with the same
+circuit. **v2.0** (`listener_hw2/`) is the one to build: 98 x 60 mm, four
+layers, inside an 80 x 30 x 2 mm aluminium tube with two 3D-printed end caps.
+v1.6 (`listener_hw/`) is the first, flat board, 123.55 x 78.9 mm on two layers.
+
+![The closed tube from the input end: J1's housing, J5 and J4 in one opening, M2's micro-USB below, the antenna's SMA jack](listener_hw2/views/listener_v2_input_end.png)
+
+![The closed tube from the output end: the RCA jacks and J6, the saddles with their ears under the tube](listener_hw2/views/listener_v2_output_end.png)
+
+1. **Order the boards** from JLCPCB, with the SMD parts assembled on both
+   sides. Everything is in `listener_hw2/fab/`, copied into `kit/1_boards/`.
+   One board gives three assemblies:
+
+   | Assembly | What works | Parts JLCPCB places |
+   |---|---|---|
+   | min | the core and the S/PDIF outputs: J6 (TOSLINK) and J7 (coax) | 103 |
+   | mid | min and the line out, J8 and J9 | 143 |
+   | max | mid and the TOSLINK input, J5 | 163 |
+
+   U7, the Si514, is not in JLCPCB's stock: send your own, or have JLCPCB pre-order it.
+   Any 3.3 V CMOS variant in the 3.2 x 5 or 2.5 x 3.2 package fits, for example
+   514CBB000112BAG, which DigiKey sells singly and JLCPCB can pre-order (C1670489).
+2. **Buy the hand-soldered parts:** J1 (TE 1-1394640-1, the MOST FOT header:
+   marketplaces only, look early), J4 (Molex 43650-0200), J5 and J6 (Cliff
+   FCR684208R and FCR684208T), J7..J9 (BKL Electronic 0101153), J2 and J3 (pin
+   headers), M1 (Sipeed Tang Nano 20K), M2 (Espressif ESP32-DevKitC-VIE) and the
+   modules' pin headers.
+3. **The enclosure:** the tube, cut to the soldered board's length; the two
+   caps, printed from `listener_hw2/caps/` in PETG or ASA; a 150 mm U.FL-to-SMA
+   pigtail and a 2.4 GHz antenna; screws.
+4. **Flash both modules before soldering them** (`kit/2_flash/`): once M1 is in,
+   the RCA jacks cover its USB-C.
+5. **Assemble, power up on the bench, then fit the tube**, as BUILD.md says.
+6. **In the car**, one step at a time, each with a recording (`kit/3_laptop/`):
+   the bypass and listening first, then the regeneration, then the injection.
+
+Also needed: a 12 V feed from KL30 with a fuse of your own, and a loop-in cable
+that opens the ring at one node and brings it to J1 (Kufatec, Dension and
+Trioma make them).
+
+![The underside of board v2.0: M2 with its WROVER-IE, and the SMD parts the board house places on this side](listener_hw2/views/listener_v2_underside.png)
+
+## Rough cost
+
+| Item | Approx. USD | Basis (seen 2026-10-12) |
+|---|---|---|
+| JLCPCB: 5 boards, 2 of them assembled on both sides | min 200-230, mid 225-255, max 275-310, plus shipping and tax | JLCPCB's quote and assembly price page: 5 bare boards (4 layers, ENIG) $25; SMD on both sides needs Standard PCBA, $51 setup and $16 stencil for both sides plus $1.53 per part line; the parts for two boards $25 (min) to $75 (max), most of max's being U13 (SRC4192, about $17.56); two Si514s pre-ordered, $17-24 |
+| Sipeed Tang Nano 20K | 26-32 | $25 at launch; Spotpear $31.90 |
+| Espressif ESP32-DevKitC-VIE | 11-14 | DigiKey $11.00 |
+| TE 1-1394640-1 (J1) | about 22, plus shipping | one eBay listing; no distributor stocks it |
+| Cliff FCR684208R and FCR684208T (J5, J6) | 13 | DigiKey $7.83 + $5.22 |
+| 3 x BKL Electronic 0101153 (J7..J9) | 28-33 | Bürklin, €8.35-9.94 each |
+| J4 with its plug, the pin headers | 3-6 | DigiKey |
+| The tube, the printed caps, screws | 3-12 | the tube about 335 UAH a metre; 23 g of PETG |
+| U.FL-to-SMA pigtail and a 2.4 GHz antenna | 4-11 | Adafruit 851 $3.95; a TE Linx antenna $7.13 |
+| MOST loop-in adapter, TOSLINK cable | 25-50, plus shipping | a MOST25 splitter on Tindie $20, a Dension set about €40, depending on the node you tap; TOSLINK $5-7 |
+
+The first listener comes to roughly $335-425 for min, $360-450 for mid and $410-505 for max,
+plus shipping and tax. The second board from the same order is already assembled and paid for:
+its modules, hand parts, enclosure and cables add about $135-195. Most of the order is JLCPCB's
+fixed fees for assembling both sides, so more boards from one order cost less each.
+
+## Repository map
 
 | Folder | What | Built with |
 |---|---|---|
@@ -41,7 +199,9 @@ and it is an electrical path, not an optical bypass.
 | [listener_fw](listener_fw) | ESP32 host (M2, ESP32-DevKitC-VIE): Bluetooth A2DP in (AAC, SBC), the phone's rate onto the ring's, MOST telegram decoding, the amplifier model, J3's coefficients, the steering wheel's track keys to the phone (AVRCP) | ESP-IDF v6.1; host tests: gcc |
 | [virtual_most_source](virtual_most_source) | MOST25 frames and Biphase Mark line coding - the simulations' stimulus | Python + numpy |
 | [tools](tools) | `console_log.py`: a recording of the host's console on a laptop on M2's USB port, kept whole, with marks and alarms (the port lost, the ESP32 started anew, a loss counter rising, silence); `trace_decode.py`: that recording at home - every telegram, the sound values a car's scales are fixed from, the telegrams beside each mark, the starts, losses and silences, and each dump through `capture_analyse.py`: what a recording of a real line says (UI and rate, preamble patterns, block marker, parity rule, frame control); each with its test (the console's formats against host.c's own, a made-up recording, known frames) | Python; pyserial for the recorder |
-| [kit](kit) | what the project hands over, without the rest of the repository: `1_boards` v2.0's order (JLCPCB's files for the three assemblies, the BOM, the schematic and assembly PDFs, the parts by hand, the tube's printed caps, the first power-up, the assembly into the tube), `2_flash` the FPGA's bitstream and the host's firmware with how to write each from Windows or macOS, `3_laptop` the recorder and the decoder with their launchers; written by `tools/make_kit.py`, the builds only from committed sources, checked by `check_all.py` | Ukrainian READMEs |
+| [kit](kit) | what the project hands over, without the rest of the repository: `1_boards` v2.0's order (JLCPCB's files for the three assemblies, the BOM, the schematic and assembly PDFs, the parts by hand, the tube's printed caps, the first power-up, the assembly into the tube), `2_flash` the FPGA's bitstream and the host's firmware with how to write each from Windows or macOS, `3_laptop` the recorder and the decoder with their launchers; written by `tools/make_kit.py`, the builds only from committed sources, checked by `check_all.py` | Ukrainian READMEs; the same in English is [BUILD.md](BUILD.md) |
+| [BUILD.md](BUILD.md) | the build guide in English: the order, the parts, flashing, the assembly, the tube, the first power-up, the laptop's recorder | - |
+| [SOURCES.md](SOURCES.md) | where the knowledge of MOST25, of the cars' messages and of the parts comes from | - |
 | [docs](docs) | the MOST control formats the host decodes, which cars carry audio and how they send volume, the research behind the regenerator's clock | - |
 
 Each part's README says how it works, what is verified and how.
@@ -65,8 +225,6 @@ OSS CAD Suite in `~/toolchains/oss-cad-suite`, Gowin EDA in
 KiCad 10.
 
 ## The board, v2.0
-
-![The closed tube from the input end: J1's housing, J5 and J4 in one opening, M2's micro-USB below, the antenna's SMA jack](listener_hw2/views/listener_v2_input_end.png)
 
 v2.0 (`listener_hw2/`; `most_listener_v2.kicad_pro` opens it in KiCad 10) is the board to order:
 v1.6's circuit on a board of 98 x 60 mm with four layers, made to slide into an aluminium tube
@@ -106,10 +264,6 @@ down, its micro-USB at the input end. In1 and In2 are solid ground under both si
   for the bench: a crimp housing on them would stand 16.4 mm high, and the tube leaves 14.75.
 - **The pictures** here are rendered by `make_views.py` from the same models. KiCad has no body for
   the modules and four of the parts, and plain boxes stand in for them.
-
-![The closed tube from the output end: the RCA jacks and J6, the saddles with their ears under the tube](listener_hw2/views/listener_v2_output_end.png)
-
-![The underside of board v2.0: M2 with its WROVER-IE, and the SMD parts the board house places on this side](listener_hw2/views/listener_v2_underside.png)
 
 `check_all.py` regenerates v2.0's sheet and holds it to v1.6's, runs ERC and DRC, runs
 `check_fit.py` and `gen_caps.py`, and fails while `fab/` or `caps/` differ from what their scripts
@@ -318,23 +472,6 @@ first D2, an SMBJ26CA behind the diode, would have burnt in a 35 V load dump
 that the buck itself survives, and a negative pulse would have broken the
 diode before the TVS clamped it.
 
-## Status
-
-Everything above is verified in simulation, host tests and builds; nothing
-has run on hardware yet. Both PCBs are placed, routed and pass DRC; no board
-has been ordered and no cap printed. The board to order is v2.0: its manufacturing package is in
-`listener_hw2/fab` (three assemblies), its tube's caps in `listener_hw2/caps`, and `kit/` hands both
-over; v1.6's package stays in `listener_hw/fab`. The per-car
-pieces - the volume, tone and mixer-level scales - wait for a recording of a
-real ring; the listener's own trace is the tool that makes it: `console_log.py`
-records it with a mark at each end of a control's travel, and
-`trace_decode.py`'s `sound.txt` lists every value between the marks
-(listener_fw/README.md, Recording).
-
-This repository starts from the earlier `most-bus` project (commit 08ea5fb,
-2026-09-26), where the listener grew next to a shelved STM32 + ADAU1466
-design; only the listener came along.
-
 ## Licence
 
 Copyright 2026 Oleg-mk.
@@ -357,3 +494,14 @@ permission under section 7 of the GPL, you may link the firmware with those Espr
 and convey the combined binary, provided that the firmware's own code is conveyed under the GPL.
 
 If you build or change the hardware and share it, share your sources under the same licence.
+
+## How it was made
+
+The author made the decisions and placed the parts. Claude (Anthropic's AI
+model, in Claude Code) wrote the gateware, the host's firmware, the models and
+simulations, the board generators and copper, and the checks, as a co-author.
+The commit history shows both.
+
+The listener began in the author's earlier `most-bus` project (commit 08ea5fb,
+2026-09-26), where it grew next to a shelved STM32 + ADAU1466 design; only the
+listener came along.
