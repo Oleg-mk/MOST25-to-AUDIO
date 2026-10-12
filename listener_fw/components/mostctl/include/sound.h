@@ -13,8 +13,7 @@
 //                                                     Freelander 2): the loudest is the volume
 //   SND_VOL_BMW     0x20.0x200 VolumeActual           0..63 (BMW AudioMaster)
 //   SND_VOL_F0      0xF0.0x409 byte 2                 raw, entertainment (Jaguar XF X250)
-//   SND_VOL_STD     0x22.0x400 Volume                 raw (the catalogue; Mercedes per the
-//                                                     Dension firmware)
+//   SND_VOL_STD     0x22.0x400 Volume                 raw (the catalogue)
 //
 // If a car sends more than one, the first in this list wins. Tone: 0x22
 // 0x200/0x202/0x203/0x201, or BMW's AudioMaster 0x20 0x220/0x222/0x223.

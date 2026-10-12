@@ -1,6 +1,6 @@
 # Which cars carry audio on MOST25, and how they control it
 
-Desk research, 2026-09-23. Nothing here has been measured on a car.
+Desk research. Nothing here has been measured on a car.
 Every row carries a confidence label:
 
 - **C** — primary source: OEM training/service manual, OEM diagnostic data,
@@ -13,7 +13,7 @@ Gaps are left as gaps. "not found" means searched and not found, not "absent".
 
 ## 1 The standard layer (MOST Specification 2V5, §2.3.2)
 
-Read from `MOST-specifications/.../Specification_2V5-0` (core spec, 10/2006),
+Read from `Specification_2V5-0` (core spec, 10/2006),
 Tables 2-1, 2-2, 2-3. **C**.
 
 **FBlockID ranges**
@@ -95,7 +95,7 @@ ring carries little or none of it.
 | Audi A4/A5/Q5 B8 without MMI | 2008–16 | none (CAN amp) | – | no | – | – | F, conflicting |
 | VW Phaeton, Bentley Continental Gen1 | 2002–11 | **no MOST ring** (CAN + analog) | – | no | – | – | C, SSP 274 |
 | VW Touareg 7L / 7P | 2003–10 / 2011–18 | 7L: probably none; 7P: MOST (RNS 850, OS81050) | – | 7P: yes (Dynaudio J525) | – | – | F/I |
-| Porsche PCM 2.0/2.1/3.0/3.1, CDR-23/24/30/31 (996, 997, 987, 955/957/958, 970, 991.1, 981) | 2003–16 | MOST25 | not stated | yes with Bose/Burmester; **2-channel stereo**, sub and fade derived in the amp | `AudioAmplifier` object in PCM 3.1 firmware | some years also a CAN plug to the amp; **DTCP** code present | F (vendors), C (firmware strings) |
+| Porsche PCM 2.0/2.1/3.0/3.1, CDR-23/24/30/31 (996, 997, 987, 955/957/958, 970, 991.1, 981) | 2003–16 | MOST25 | not stated | yes with Bose/Burmester; **2-channel stereo**, sub and fade derived in the amp | – | some years also a CAN plug to the amp | F (vendors) |
 | Porsche PCM 4/5 | 2016+ | MOST150 | – | – | – | – | vendor |
 | Lamborghini Aventador | 2011+ | MOST25 | – | yes | – | – | vendor |
 
@@ -227,22 +227,17 @@ SmartGauges (drive2, author of usb2most, Freelander 2):
    Mercedes without HK, W221/AGW tuner-in-amp) the entertainment audio may
    never be on the ring. The target car's exact amp option decides whether
    a listener can work at all.
-6. **DTCP.** Porsche PCM 3.1 carries DTCP code; some sources (probably DVD)
-   may be encrypted on the ring. Not verified for any MOST25 car.
+6. **DTCP.** Some sources (probably DVD) may be encrypted on the ring. Not
+   verified for any MOST25 car.
 
 ## 4 Open, in order of cheapest to close
 
 1. Photos of the engineering-menu FBlock pages: Mercedes NTG4.x "MOST FBLOCK
    Information", Audi MMI 3G "Central Registry". Gives real FBlock/InstID lists
    without any hardware.
-2. Firmware of a Chinese RCA→MOST Mercedes box (STM32 + OS8104 class):
-   strings/tables give the Mercedes amp protocol, as usb2most did for JLR.
-3. Blocked sources, to read through a real browser: drive2 (SmartGauges
-   usb2most threads, Mercedes MOST threads), mbworld "COMAND 2.5 reverse
-   engineering", rangerovers.net, disco3, jaguarforums, diymobileaudio.
-4. L322 2007–10 workshop manual (fuddymuckers, 75.8 MB PDF) — ring master and
+2. L322 2007–10 workshop manual — ring master and
    node list for the Range Rover.
-5. A capture on the target car: PCM amplitude vs. volume step (proves 3.2),
+3. A capture on the target car: PCM amplitude vs. volume step (proves 3.2),
    and the actual volume telegram.
 
 ## 5 Sources worth keeping
@@ -263,4 +258,4 @@ SmartGauges (drive2, author of usb2most, Freelander 2):
 - drive2.ru, SmartGauges: /c/540082586538475793 (usb2most intro),
   /l/548968564636255384 (amp comparison, EQ/delay data),
   /l/559134374268764551 (facelift ring on a bench), /b/601446880240501339
-  (usb2most firmware changelog). drive2 reads fine in a normal browser.
+  (usb2most firmware changelog).

@@ -139,8 +139,7 @@ connected: J5 has no supply, and J8 and J9 no signal. In mid, J5 is likewise not
    `most_listener_v2-bom-jlcpcb-<assembly>.csv` and `most_listener_v2-cpl-jlcpcb-<assembly>.csv`.
    - JLCPCB shows the stock at once. Buy any part that is missing from LCSC on the same page (F1,
      C2925010).
-   - In max, U13 (SRC4192) makes up most of the difference in price: on 7 October LCSC had 8 of
-     them. For more boards, supply the rest as your own parts.
+   - In max, if LCSC is short of U13 (SRC4192), supply the missing ones as your own parts.
 4. **Your own part: U7, Si514.** Send it to JLCPCB, or add it through their global sourcing.
    - Any 3.3 V CMOS variant fits (format C, M or N), in the 3.2 x 5 (B) or 2.5 x 3.2 (C) package,
      with any start-up frequency and I2C address. The FPGA finds the address and sets the frequency

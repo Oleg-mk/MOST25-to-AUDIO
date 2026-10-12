@@ -11,9 +11,6 @@ Biphase Mark line, then distorts and samples it.
 | `frame_builder.py` | complete 64-byte frames: preamble nibble, boundary descriptor, 60 data bytes, control bytes, frame control, parity |
 | `bmc.py` | Biphase Mark encoding into runs of 1, 2 or 3 UI with the preamble's coding violation, and the decoder back |
 
-These are four modules of a larger desktop MOST source written earlier;
-only what the stimulus needs came along.
-
 Tests (no simulator needed):
 
 ```text

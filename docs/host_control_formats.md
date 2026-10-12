@@ -1,12 +1,12 @@
 # MOST25 control channel: host decode reference (primary sources only)
 
-Compiled 2026-09-25 for the ESP32 host (passive listener: receives the raw 32-byte
+Compiled for the ESP32 host (passive listener: receives the raw 32-byte
 control blocks, decodes telegrams, tracks the AuxIn 0x24 channels and whether the
 AudioAmplifier 0x22 is connected to them).
 
-Every fact cites file + page. **(inferred)** means that I combined two or more stated
-facts and no single sentence in a source says it. **NOT FOUND** means that I searched
-all the sources below and none of them has it.
+Every fact cites file + page. **(inferred)** means that two or more stated facts are
+combined and no single sentence in a source says it. **NOT FOUND** means that all the
+sources below were searched and none of them has it.
 
 ## 0 Sources
 
@@ -25,7 +25,8 @@ Paths are inside the MOST specification archive (not in this repository) unless 
 | OS | Oasis OS8104 Final Product Data Sheet DS8104FP4, Jan 2003 | not in the spec mirror: the NIC maker's data sheet | printed = PDF |
 
 `pdftotext -layout` scrambles the columns of CORE Tables 2-1, 2-4, 3-1, 3-6 and 3-7, of the TelID table
-on p.179 and of Table 3-19. I checked every value from those tables against a rendered image of the page.
+on p.179 and of Table 3-19. Every value from those tables was checked against a rendered image of the
+page.
 
 ## 1 MOST25 frame: 64 bytes = 512 bits
 
@@ -95,8 +96,8 @@ each having two Control data bytes." (CORE p.108). A block = 16 frames (CORE 3.1
   0x70 = free and 0x00..0x3B = the Connection Label (= the first channel of that allocation); in the
   TimingMaster the MSB = "in use" (OS T14-2/14-3 p.132). No source says that the wire carries these
   same values.
-- **CRC:** the polynomial, initial value, byte coverage and bit order are NOT FOUND. I searched CORE,
-  CORE30, BOOK, OS and all 192 PDFs of the 2V5/3V0/3V1/4V0 bundles. The only polynomial is the
+- **CRC:** the polynomial, initial value, byte coverage and bit order are NOT FOUND. CORE, CORE30,
+  BOOK, OS and all 192 PDFs of the 2V5/3V0/3V1/4V0 bundles were searched. The only polynomial is the
   EnhancedTestability DSI CRC-32 0x04C11DB7 (ET 2V6-2, 2.1.16, p.31). That one is an application
   checksum over MHP data, not the control-channel CRC.
 - **Transmission status:** the receiver writes one of "Message successfully received / Cache blocked /
@@ -145,7 +146,7 @@ each having two Control data bytes." (CORE p.108). A block = 16 frames (CORE 3.1
 | 14..25 | 5..16 | Data 0 .. Data 11 |
 
 The CORE diagram gives the field order and the widths (8, 8, 12, 4, 4, 4 bits, then 12 bytes).
-MSB-first nibble packing is my reading of that diagram. The DeviceID (16 bit) is the RxTxAdr, i.e.
+MSB-first nibble packing is inferred from that diagram. The DeviceID (16 bit) is the RxTxAdr, i.e.
 the block's target/source field, and is not in the data area (CORE 2.3.2.1 p.28; p.179).
 
 - **TelLen:** 0..12. "it is mandatory that the TelLen is the exact length of the valid data"
@@ -416,9 +417,6 @@ A second sink on the same source only needs Connect.
 - Fig 17.6 p.286 (phone gateway): BuildSyncConnection -> SourceConnect -> Connect ->
   BuildSyncConnection.ResultAck.
 
-**Project cross-check (not a spec):** the Dension G51A firmware sends 0x22.0x111 Connect with
-`[SinkNr, 0x00, ch..ch+3]` (memory note most-adapter-firmware-findings).
-
 **Host tracking rule** (inferred from all of the above):
 - AUX channels = the ChannelList in 0x24.0x101 Result (OPType 0xC). Alternatively, the ChannelList in
   0x24.0x100 SourceInfo.Status.
@@ -430,7 +428,7 @@ A second sink on the same source only needs Connect.
 
 ## 7 NOT FOUND and contradictions (summary)
 
-**NOT FOUND in any local source:**
+**NOT FOUND in any listed source:**
 - the control CRC (polynomial, initial value, coverage, bit order)
 - the wire encoding of the transmission status in bytes 28-29
 - the contents of arbitration bytes 0-3

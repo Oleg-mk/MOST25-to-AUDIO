@@ -97,8 +97,8 @@ sources and how sure each fact is.
 
 ## Status: what is proved and what is not
 
-**Verified in models** (run `python check_all.py`; all 44 steps pass on the
-author's machine, and `--sweep` adds 32 random rings):
+**Verified in models** (run `python check_all.py`; every step passes, and
+`--sweep` adds 32 random rings):
 
 - The gateware, in Icarus Verilog against Python models:
   - the receiver, and the J3 engine at 48 and 44.1 kHz, word for word against
@@ -185,26 +185,6 @@ Trioma make them).
 
 ![The underside of board v2.0: M2 with its WROVER-IE, and the SMD parts the board house places on this side](listener_hw2/views/listener_v2_underside.png)
 
-## Rough cost
-
-| Item | Approx. USD | Basis (seen 2026-10-12) |
-|---|---|---|
-| JLCPCB: 5 boards, 2 of them assembled on both sides | min 200-230, mid 225-255, max 275-310, plus shipping and tax | JLCPCB's quote and assembly price page: 5 bare boards (4 layers, ENIG) $25; SMD on both sides needs Standard PCBA, $51 setup and $16 stencil for both sides plus $1.53 per part line; the parts for two boards $25 (min) to $75 (max), most of max's being U13 (SRC4192, about $17.56); two Si514s pre-ordered, $17-24 |
-| Sipeed Tang Nano 20K | 26-32 | $25 at launch; Spotpear $31.90 |
-| Espressif ESP32-DevKitC-VIE | 11-14 | DigiKey $11.00 |
-| TE 1-1394640-1 (J1) | about 22, plus shipping | one eBay listing; no distributor stocks it |
-| Cliff FCR684208R and FCR684208T (J5, J6) | 13 | DigiKey $7.83 + $5.22 |
-| 3 x BKL Electronic 0101153 (J7..J9) | 28-33 | Bürklin, €8.35-9.94 each |
-| J4 with its plug, the pin headers | 3-6 | DigiKey |
-| The tube, the printed caps, screws | 3-12 | the tube about 335 UAH a metre; 23 g of PETG |
-| U.FL-to-SMA pigtail and a 2.4 GHz antenna | 4-11 | Adafruit 851 $3.95; a TE Linx antenna $7.13 |
-| MOST loop-in adapter, TOSLINK cable | 25-50, plus shipping | a MOST25 splitter on Tindie $20, a Dension set about €40, depending on the node you tap; TOSLINK $5-7 |
-
-The first listener comes to roughly $335-425 for min, $360-450 for mid and $410-505 for max,
-plus shipping and tax. The second board from the same order is already assembled and paid for:
-its modules, hand parts, enclosure and cables add about $135-195. Most of the order is JLCPCB's
-fixed fees for assembling both sides, so more boards from one order cost less each.
-
 ## Repository map
 
 | Folder | What | Built with |
@@ -232,9 +212,8 @@ python check_all.py --sweep    plus the whole core over 32 random rings (~1 h mo
 
 It runs the steps strictly one after another and stops at nothing: each
 prints PASS or FAIL, and the summary lists them. The simulation scripts
-themselves run one simulation at a time too (several at once have frozen
-this machine). Tools it expects
-(override with environment variables, see the script's header):
+themselves run one simulation at a time too. Tools it expects (override with
+environment variables, see the script's header):
 OSS CAD Suite in `~/toolchains/oss-cad-suite`, Gowin EDA in
 `C:\Gowin\Gowin_V1.9.12.03_x64`, ESP-IDF v6.1 in `~/toolchains/esp-idf`
 (tools in `~/toolchains/espressif`), MinGW gcc in `~/toolchains/mingw64`,
@@ -251,8 +230,8 @@ down, its micro-USB at the input end. In1 and In2 are solid ground under both si
 
 - **The sheet** is not drawn twice. `gen_listener2.py` loads v1.6's `gen_listener.py` and writes its
   blocks with v2.0's title and UUIDs, J5 and J6 as Cliff ORJ-8/OTJ-8 (10 mm high, no screw ear), the
-  modules' footprints with holes only for the pins in use and the corner pins, and the parts the
-  review of 2026-10-11 added: R47 10R + C84 10u and R48 10R + C85 10u filter the line out's rails,
+  modules' footprints with holes only for the pins in use and the corner pins, and the parts
+  v2.0 adds: R47 10R + C84 10u and R48 10R + C85 10u filter the line out's rails,
   R49..R51 (33R) sit in I2S's BCLK, LRCK and DOUT, R52 (33R) in RX_IN at U3, R53 (33R) at U1's
   output. `tools/check_v2_circuit.py` holds the sheet to v1.6's part for part and net for net, these
   parts taken out, so the gateware, the firmware and `kit/2_flash` hold for both boards.
@@ -314,75 +293,6 @@ edge; the host's switch U10 sits at M2's 5 V pin with 10 uF at its input (the
 radio's pulses come out of it, not over the trunk); 100 uF + 100 nF (C63, C64)
 sit by D3 at the module's end of the trunk, 100 uF + 100 nF (C81, C80) at its
 other end by U10 and U14, four more 100 nF (C65-C68) along it.
-v1.2 put every line bound for the right half of the board on M1's right row, in
-the order it meets J2, J3, the DAC and the host there, and the host's lines on
-M2's row that faces M1, so the bus under M2 runs without a crossing (v1.1 had 75
-jumpers, 174 mm). J2's and J3's contact order changed with it - J2: 1 SD0,
-2 SD1, 3 FS, 4 MCLK, 5 UART_TX, 6 BCLK; J3: 1 MCLK, 2 DOUT, 3 LRCK, 4 BCLK -
-and the silk names every contact. v1.3 took two flags of the TOSLINK input
-further: the S/PDIF receiver's AUDIO (channel-status bit 1) to the host's IO27,
-so a source that sends AC-3 or DTS - which the DIR9001 passes on untouched - is
-never put into the car, and the SRC4192's RDY to its own MUTE, so it stays silent
-while it settles on a new rate; four short jumpers more. v1.4 turned 20 two-pad parts end
-for end where their connections then run shorter and straighter - FB1, so RXVCC
-and 3V3_AON no longer cross it; R7, so U1-A drops straight onto R1 - each kept
-only if routing it again cost no jumper and no via more: 56 mm less copper on
-top, the same 37 jumpers. The board was then re-placed group by group and routed
-again after each: the ring and clock cluster round J1, the S/PDIF group (U12,
-U13) packed tighter, the DAC moved left - 37 jumpers became 11, 83 mm of bottom
-copper 29. A further round on 2026-10-02, after parts were moved again, took three
-more out: R29 sat where SRC_BCLK crossed under M2 and the line ran between its
-pads; RST_AIN reaches U12 through U13's body and under C39 and X1, with R30 by U13
-and U13's 3.3 V links outside its body; R38, R40 and R41 stand right of M1's row
-and R39 under M2, so the DAC's BCLK comes down through their bodies on top of its
-bundle and U15 gets BCLK, DOUT and LRCK in its own order. A last round the same
-day moved the battery corner (F1 by J4, the always-on LDO U5 up by U4, L2, D1 and
-D2 left, the buck's 100 nF input capacitors turned to face U6), U10 and U14 with
-their capacitors, J2 and J3, and the DAC: U15 and its capacitors sit higher and
-U16 with C50/C51 beside it, so 3V3_DAC is a short spine under U15's body. In the
-Si514's corner RT_CLK now takes one jumper under RX_BUF and SI_SCL - RX_BUF runs
-between the Si514's pad rows and over it, CLK+ round its west side - and SI_SCL
-dips under 3V3_SW at M1's row. The four jumpers left: RX_BUF and 3V3_AON under
-the 5 V trunk between U1 and U4/U5, RT_CLK (1.9 mm) and SI_SCL (1.3 mm). 5V_SW
-runs along the bottom edge to U16 and the line-out buffer U17 (block 11 of the
-sheet), with 100 uF + 100 nF (C78, C79) at its end; C82 is one more 100 nF on
-the battery input beside L2. On one layer the dual op-amp needs two
-crossings: 5V_SW passes between R45's pads, VNEG_A under U17's body. The
-Si514's land pattern takes the 3.2x5 and 2.5x3.2 packages only, R3 is two 27 k
-in parallel (R3, R42), and five test points (TP1, TP3, TP4, TP8, TP10) are gone.
-v1.5 (2026-10-03) packed the right and top edges tighter: the board is 2.5 mm
-narrower and 1.1 mm lower. The DIR9001 group with U14 moved 1.7 mm left, J5..J9
-and the line-out's output parts 2.4..3.1 mm, the top run of the 5 V trunk and
-the parts under it (U10, C23, C24, C63, C65, C80, C81, D3) 2 mm down; their
-copper moved with them. C32, C38 and C40 stand in one row over U13's body and
-R30 under it beside C39: C40, by the U13-U12 gap (now 1.1 mm wide), drops
-RST_AIN straight into it beside the 3.3 V feed that rises from U12's left side
-to the row's rail, and U13's ground pins reach their vias under its body. The
-jumpers stay four, 9 mm.
-In v1.6 (2026-10-04) J5 and J6 became Cliff's ORJ-5 and OTJ-5 (FCR684205R/T).
-Everlight's PLR135/T10 is no longer made, and its successor PLR237/T10BK is not
-stocked. The footprint follows Cliff's drawings: the rear, left side and port
-face (third-angle) and the PCB layout, read six times over independently. The
-pins are on 2.54 mm with pin 1 at the port's right. One peg sits 3.90 mm in
-front of the pins and two, 9.20 mm apart, 2.10 mm behind them. The body's face
-is 8.50 mm in front of the pins, on the board's edge, and the shutter 2.30 mm
-past it. The functions sit where the T10 had them; only the pin numbers run the
-other way. The housing is 11.5 mm wide against the T10's 9.7, and 19 mm high
-against 10. So the right edge's jacks J5..J9 and H2 moved about 1.1 mm right (by
-hand), and the board grew to 123.55 mm. The copper at the moved pins was
-redrawn: J5's output now runs between the pins and the front pegs and leaves
-between J6's pins 2 and 3.
-v1.6 also moved the series resistors to the pins that drive their lines. J2's
-six (R18, R19, R34..R37) stand in a column under M2's left edge, each level with
-a gap in M2's row: a line leaves the FPGA's pin, passes the gap into its
-resistor and runs on straight to J2, so the loops beside M1's row are gone. R20
-sits at M2's pin 35 and R21, in the column under R36, at pin 25: the host's
-UART_RX and I2S_DIN outputs go straight in, and I2S_DIN leaves R21's far pad
-under its body, back through M2's row. UART_TX's branch to the host's pin 32 now
-turns up just left of M1's pins instead of round the resistors' old places. R29
-sits at U13's SDOUT: SRC_BCLK runs between its pads into U13, and DIN2 comes in
-from below along SRC_BCLK's old run. The S/PDIF line's diagonal moved 1 mm right
-to clear R34.
 M1 and M2 are soldered to the board on pin headers, no sockets - two 1x20 and
 two 1x19 on 2.54 mm, which the 3D view shows under them, as it shows J2's and
 J3's. The headers' plastic leaves 2.5 mm under each module: room for the 0603
@@ -395,8 +305,7 @@ KiCad has no model for the MOST FOT, the TOSLINK housings or the RCA jacks, so
 Gerbers and drill files (zipped for the board house), the BOM, the pick-and-place
 file, the same two in JLCPCB's format, and a README with the board's numbers and
 the notes the BOM's values do not carry. JLCPCB's rotations were read off each
-chosen part's LCSC footprint: the community table had put U4, U8..U11, U14, U16
-and U18 a quarter turn off and the electrolytics in reversed (2026-10-03).
+chosen part's LCSC footprint.
 `check_all.py` fails while the package does not match the board.
 
 Every footprint is linked to its symbol, so after a change of the sheet: run
@@ -408,15 +317,14 @@ left overlapping a pad or another reference.
 ## Limits, by design
 
 - **Only the light tells the host what plays.** The listener never sends a
-  word, so the host learns which frame bytes carry the AUX source, and
-  whether the amplifier plays them, only from the telegrams it happens to
-  hear. At a cold start the ring, the FPGA and the ESP32 wake together
-  (WAKE); if the head unit connects the amplifier to AUX before the host is
-  listening, the phone is not injected until the head unit next changes a
-  source. The FPGA reads its bitstream from the module's flash in about
-  290 ms (25 MHz; Gowin's default 2.5 MHz took 2.9 s), so that window is
-  kept short. Asking (a SourceInfo.Get on the control channel) would end the
-  listener's silence, so this stays as it is.
+  word, so the host learns which frame bytes carry the AUX source, and whether
+  the amplifier plays them, only from the telegrams it happens to hear. At a
+  cold start the ring, the FPGA and the ESP32 wake together (WAKE); if the
+  head unit connects the amplifier to AUX before the host is listening, the
+  phone is not injected until the head unit next changes a source. The FPGA
+  reads its bitstream from the module's flash in about 290 ms, so that window
+  is kept short. Asking (a SourceInfo.Get on the control channel) would end
+  the listener's silence, so this stays as it is.
 - **Cars whose AUX is not a MOST source** - mixed inside the head unit - have
   no AUX bytes to replace; the phone cannot be injected there. Listening
   (J2, J3) needs the audio on the fibre as plain PCM: cars without the
@@ -439,14 +347,14 @@ left overlapping a pad or another reference.
   in parity (the count a clean block has is learnt on the ring). A bit can
   still flip unseen in a way neither shows; the CRC follows once a recording
   gives the polynomial.
-- **Injection is guarded** (critical audit, 2026-10-03). It is off until
-  allowed on the host's console ('i', kept in flash), so nothing of ours
-  enters a car's ring before a recording of that car has shown the telegrams
-  read right. The FPGA keeps an "on" for 2 s after the host's last command
-  (repeated every 0.5 s), so a host that hangs takes our audio out. After any
-  gap in the control blocks, injection waits until AUX's channels are told
-  again (the car's next Allocate.Result or SourceInfo for AUX), since the gap
-  may have hidden the DeAllocate that gave those bytes to another source.
+- **Injection is guarded.** It is off until allowed on the host's console
+  ('i', kept in flash), so nothing of ours enters a car's ring before a
+  recording of that car has shown the telegrams read right. The FPGA keeps an
+  "on" for 2 s after the host's last command (repeated every 0.5 s), so a host
+  that hangs takes our audio out. After any gap in the control blocks,
+  injection waits until AUX's channels are told again (the car's next
+  Allocate.Result or SourceInfo for AUX), since the gap may have hidden the
+  DeAllocate that gave those bytes to another source.
 
 ## Bring-up, in this order
 
@@ -483,10 +391,7 @@ reverse-polarity diode (silent at 35 V, clamping the fast pulses around
 50 V, shunting negative ones through its forward diode), the fuse a slow-blow
 2 A, with 100 nF 100 V (C83) right behind it at the TVS. The unsuppressed
 load dump (test A, 80..100 V) is not covered: it would take a 6.6 kW TVS,
-and cars of the MOST era have avalanche alternators. The
-first D2, an SMBJ26CA behind the diode, would have burnt in a 35 V load dump
-that the buck itself survives, and a negative pulse would have broken the
-diode before the TVS clamped it.
+and cars of the MOST era have avalanche alternators.
 
 ## Licence
 
@@ -517,7 +422,3 @@ The author made the decisions and placed the parts. Claude (Anthropic's AI
 model, in Claude Code) wrote the gateware, the host's firmware, the models and
 simulations, the board generators and copper, and the checks, as a co-author.
 The commit history shows both.
-
-The listener began in the author's earlier `most-bus` project (commit 08ea5fb,
-2026-09-26), where it grew next to a shelved STM32 + ADAU1466 design; only the
-listener came along.

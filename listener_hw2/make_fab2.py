@@ -202,8 +202,7 @@ FPGA), U7 (Si514), M2 (the host, Bluetooth in), J3 (I2S) and J2 (the analyser).
 - **min.** J5 (TOSLINK in), J8 and J9 (line out) are fitted but not connected: J5 has no supply,
   and J8 and J9 no signal.
 - **mid.** J5 is fitted but not connected, as in min.
-- **max.** U13 (SRC4192) is most of the difference in price: LCSC had 8 on 2026-10-07. For more
-  boards, consign the rest.
+- **max.** If LCSC holds too few U13 (SRC4192) for your boards, consign the rest.
 
 ## The board
 
@@ -243,7 +242,7 @@ FPGA), U7 (Si514), M2 (the host, Bluetooth in), J3 (I2S) and J2 (the analyser).
      with the order.
 4. **Placement preview.** Before paying, check pin 1 of every IC and of X1 on both sides, and the
    polarity of D1..D3, C44, C45, C63, C78 and C81.
-   - The rotations were read off each chosen part's LCSC footprint (2026-10-03). On the bottom,
+   - The rotations were read off each chosen part's LCSC footprint. On the bottom,
      JLCPCB counts them as KiCad's mirrored: 180 - KiCad's + the part's turn.
    - Each pin 1 dot goes to the board's pin 1 mark, the + of each electrolytic to the side of
      its silk +.

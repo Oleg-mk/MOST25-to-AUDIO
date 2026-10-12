@@ -342,10 +342,10 @@ again after any change to the board: `check_all.py` fails while this folder does
    {jlc['lines']} lines, {jlc['codes']} LCSC parts.
    - F1 (C2925010) is an LCSC part. If JLCPCB holds none, its BOM page buys it from LCSC
      with the order.
-   - On 2026-10-01 JLCPCB held 9 SRC4192IDBR (U13). For more boards, consign the rest.
+   - If JLCPCB holds too few SRC4192IDBR (U13) for your boards, consign the rest.
 4. **Placement preview.** Before paying, check pin 1 of every IC and of X1, and the polarity of
    D1..D3, C44, C45, C63, C78 and C81.
-   - The rotations were read off each chosen part's LCSC footprint (2026-10-03). A generic
+   - The rotations were read off each chosen part's LCSC footprint. A generic
      table gets these wrong: the electrolytics (reversed) and U4, U8..U11, U14, U16, U18 (a
      quarter turn off). Each pin 1 dot goes to the board's pin 1 mark, the + of each
      electrolytic to the side of its silk +.

@@ -61,13 +61,11 @@ Next: the per-car scales from a recording of a real ring.
 | IO21 | 25 | I2S_DIN_F (through R21) | out, our audio |
 | IO4 | 32 | UART_TX_F | in, control blocks, 3 Mbaud |
 | IO13 | 15 | OPT_ERR | in, the S/PDIF receiver's ERROR: 1 = no lock or a parity error |
-| IO27 | 11 | OPT_NPCM | in, the S/PDIF receiver's AUDIO: 1 = not PCM (board v1.3) |
+| IO27 | 11 | OPT_NPCM | in, the S/PDIF receiver's AUDIO: 1 = not PCM |
 | IO15 | 35 | UART_RX_F (through R20) | out, host commands, 3 Mbaud |
 
-All but OPT_ERR and OPT_NPCM sit on the DevKitC's row next to the FPGA module,
-each opposite the FPGA pin it meets (board v1.2). IO15 is a strapping pin (MTDO);
-the FPGA's pull-up on UART_RX holds it high through reset, which is what
-the ESP32 expects there.
+IO15 is a strapping pin (MTDO); the FPGA's pull-up on UART_RX holds it high
+through reset, which is what the ESP32 expects there.
 
 The console (UART0, the DevKitC's USB port) runs at 921600 baud, for the
 telegram trace; `idf.ps1 monitor` takes the rate from the configuration.
@@ -89,13 +87,12 @@ When the clocks come back, what is buffered no longer joins what arrives
 next, so it is dropped whole and the output restarts on fresh audio; the
 ring's rate is measured anew first (zeros go out meanwhile), since a ring
 that restarted at the other rate would be converted 8.8 % off, far beyond
-the loop's 1000 ppm (critical audit, R11).
+the loop's 1000 ppm.
 
 The buffer: 16384 frames in PSRAM, 200 ms kept. Without PSRAM, 8192 frames
-in internal RAM cannot keep 200 ms with room above it (as first written
-rm_init refused it at both phone rates and the output stayed silent: audit
-R10); `rm_target_ms` gives what they can - 125 ms at 48 kHz, 136 ms at
-44.1, above the 120 ms A2DP jitter takes - and the console says so.
+in internal RAM cannot keep 200 ms with room above it; `rm_target_ms` gives
+what they can - 125 ms at 48 kHz, 136 ms at 44.1, above the 120 ms A2DP
+jitter takes - and the console says so.
 
 ## The host
 
@@ -124,8 +121,7 @@ is no parity on that ring and is not used (the console says which).
 give the AUX source's channels; AudioAmplifier (0x22) Connect (StartResult,
 then Result) / SinkInfo / DisConnect / Mute give each sink's channels and
 state. Ack forms skip their SenderHandle. Every change is idempotent, and a
-channel list that is not ascending within 0..59 is ignored. Since the
-critical audit of 2026-10-03:
+channel list that is not ascending within 0..59 is ignored. Also:
 - a request to "any instance" (InstID 0 or 0xFF) is filed under the instance
   its device has shown, or waits under 0 until the device's answer names it;
 - a Connect.Result counts only while that sink's Connect.StartResult is
@@ -138,7 +134,7 @@ critical audit of 2026-10-03:
   16-bit stereo and 2 as 16-bit mono, the formats JLR is on record with; a
   list of 3 or 6, which could be 24 bit or three 16-bit channels, is neither
   played on J3 nor injected into until a SourceInfo or SinkInfo has named
-  the format of those very channels (the reader's rule, its audit R09);
+  the format of those very channels (the reader's rule);
 - Mute to SinkNr 0 is kept per instance and given to sinks seen later.
 
 **Decisions**, sent when they change, at start-up and every 2 s (the FPGA's
@@ -400,8 +396,8 @@ make -C test
 | UART link: 6 packets after noise, one with a flipped bit, one short of a byte, A5 5A inside each | the 4 intact ones, byte by byte and in one call; the packet right after the short one survives |
 | Telegram decoding, 23 blocks (see test 5) | 6 telegrams out, 5 blocks refused; the gapped and the stale transfer dropped |
 | Model: AUX on and off in every order, Ack forms, Info recovery, 24 bit once an Info names it | each decision as expected |
-| Model, the orders the critical audit (2026-10-03) found it getting wrong: Mute to all sinks before any sink is known (before SinkInfo, before Connect); a Connect to InstID 0 answered from instance 1, and to 0xFF once the instance is known; a Mute to InstID 0; a Result after DisConnect, a DisConnect while the Connect is open, a Result after an Error; SinkInfo / SourceInfo as PCM 8 bit x 4 channels on 4 bytes, 24-bit stereo on 4 bytes, MPEG2; 6 channels from a Connect alone, then named, connected again, moved, and after a DisConnect | each as the amplifier itself sees it; the same 13 checks against the model as it stood at 7ff5d2f: all 13 fail |
-| The internal-RAM fallback, 8192 frames | 200 ms refused at 44.1 and 48 kHz (the audit's finding); `rm_target_ms` gives 136 / 125 ms, which rm_init takes; the PSRAM buffer keeps its 200 ms |
+| Model: Mute to all sinks before any sink is known (before SinkInfo, before Connect); a Connect to InstID 0 answered from instance 1, and to 0xFF once the instance is known; a Mute to InstID 0; a Result after DisConnect, a DisConnect while the Connect is open, a Result after an Error; SinkInfo / SourceInfo as PCM 8 bit x 4 channels on 4 bytes, 24-bit stereo on 4 bytes, MPEG2; 6 channels from a Connect alone, then named, connected again, moved, and after a DisConnect | each as the amplifier itself sees it; the same 13 checks against the model as it stood at 7ff5d2f: all 13 fail |
+| The internal-RAM fallback, 8192 frames | 200 ms refused at 44.1 and 48 kHz; `rm_target_ms` gives 136 / 125 ms, which rm_init takes; the PSRAM buffer keeps its 200 ms |
 | UART link: a coefficient word with its set's tag | the tag in the byte after F, the XOR over it |
 | The source: phone and TOSLINK input, lock, settle, blips, not PCM, loss | each pick as expected; seven broken variants of `ain.c` each caught |
 | Sound settings from telegrams: 4 volume sources, tone, loudness, balance | each as sent; the source order holds |
