@@ -206,33 +206,38 @@ DA Series Guide, pp. 18-19): 1 the main source, 2 phone, navigation and
 voice, 3 the parking sensors, 4 the chimes. Each plays at the first of these
 that applies:
 - SpeakerLevel to that sink (JLR AUD3, dB);
-- sink 4, the chimes: a fixed -6 dB (`chime_db`), never byte 8 or the
-  volume;
-- sink 3, the parking sensors: byte 10 of 0xF0.0x409 (Jaguar XF), read from
-  a telegram of 11 bytes or more and kept when a shorter one follows;
-- byte 8 of 0xF0.0x409 (Jaguar XF: navigation and phone);
+- sink 4, the chimes: a fixed -6 dB (`chime_db`), never a 0x409 level or
+  the volume;
+- sink 3, the parking sensors: byte 11 of 0xF0.0x409 (Jaguar XF);
+- sink 2: byte 9 of 0xF0.0x409 (Jaguar XF: the navigation, the commonest on
+  that sink; the phone's and the voice's levels are left to a SpeakerLevel);
 - the volume.
 
-Then every sink, sink 1 and the chimes too, plays at its MixerLevel on top
-(0x22.0x467, catalogue 2V4-3 2.1.31: InputLevel, Balance, Fader per sink, the
-whole array or one sink by its position; a balance of 0x80 follows the main
-one). Each is silent while its own Mute (0x113) is on; a Mute to SinkNr 0
-silences them all, a Mute to sink 1 the main sink alone. Bytes 8 and 10 come
-only in 0x409, so they need no other sign of the car. The chimes' rule holds
-in every car, with nothing to key it on: a chime must not vanish with the
-volume turned down, so it sounds with the volume at 0 or before any volume
-has been heard, and a car that puts something else on sink 4 gets that at
--6 dB too. No tone on them, as an amplifier plays prompts. If an amplifier
-also turns the music down by itself while a prompt plays, the bus does not
-say so, and J3 does not do it.
+0xF0.0x409 is the gateway's Status. Only its whole record (byte 0 = 0) is
+taken, and a byte only where the telegram's length covers it: byte 2 the
+volume, bytes 7, 9, 10 and 11 the phone's, the navigation's, the voice's and
+the parking sensors' levels, each sent as the level + 5. A Set to it is the
+screen changing one channel ([channel, 0, level + 5]), and a record of kind 1
+repeats the level being changed without saying whose; neither is taken.
+MixerLevel (0x22.0x467) is not taken either: on the XF it comes from the
+gateway's shadow of the amplifier, in a layout nobody has read. Every sink
+follows the main balance. Each is silent while its own Mute (0x113) is on; a
+Mute to SinkNr 0 silences them all, a Mute to sink 1 the main sink alone.
+These bytes come only in 0x409, so they need no other sign of the car. The
+chimes' rule holds in every car, with nothing to key it on: a chime must not
+vanish with the volume turned down, so it sounds with the volume at 0 or
+before any volume has been heard, and a car that puts something else on sink 4
+gets that at -6 dB too. No tone on them, as an amplifier plays prompts. If an
+amplifier also turns the music down by itself while a prompt plays, the bus
+does not say so, and J3 does not do it.
 
 The scales are placeholders (`snd_cfg_default`) for every car but JLR AUD3,
 whose SpeakerLevel carries dB: raw volume -> dB on a square law over an
-assumed maximum (BMW 63, known; 40 elsewhere, a guess - the Jaguar XF's
-bytes 8 and 10 on the same law as its byte 2, `vol_max[SND_VOL_F0]`), 1 dB
-per bass / treble step (+-12 dB), 2 dB per balance step with the other side
-silent from 10 steps, loudness +8 dB of bass at -40 dB and below, 1 dB per
-MixerLevel step. A recording of the car's ring while stepping each control
+assumed maximum (BMW 63, known; the Jaguar XF's 35, and 25 for its 0x409
+levels, `lvl_max`, the scales JLR-HU's screen shows; 40 elsewhere, a guess),
+1 dB per bass / treble step (+-12 dB), 2 dB per balance step with the other
+side silent from 10 steps, loudness +8 dB of bass at -40 dB and below. A
+recording of the car's ring while stepping each control
 fixes them (Recording, below: `sound.txt`). The chimes' -6 dB is not a
 scale: it is the level JLR-MOST-Reader gives them.
 
@@ -362,17 +367,17 @@ make -C test
    counter's wrap; and a raw block 0161 > 016E, sent twice.
 6. `test_sound`: every volume source and their order, tone and loudness
    telegrams, Increment ignored, repeats no change; the other sinks' levels -
-   MixerLevel for every sink and for one, a record's field (y) ignored, its
-   balance or the main one, Jaguar XF's byte 8, SpeakerLevel to a sink over
-   both, a sink beyond 8; sink 3 on byte 10 before byte 8 (only from an
-   11-byte 0x409, kept when a 9-byte one follows), its own SpeakerLevel above
-   both; sink 4 at -6 dB before any volume, with no 0x409 and with the volume
-   at 0, never at byte 8 or the volume, under a SpeakerLevel of its own, its
-   MixerLevel on top; the coefficient words for flat tone, volume,
-   balance (to one side, to silence), mute, clamps, streams 1..3 (a level,
-   muted, the main balance or their own, off; the chimes sounding through
-   the main sink's mute and another sink's); both shelves at -12..+12 dB at
-   44.1 and 48 kHz judged on the rounded words.
+   MixerLevel taken by nothing, one balance for all; Jaguar XF's 0x409 whole
+   record (byte 2 of 35, bytes 9 and 11 less 5, of 25), each byte only where
+   the length covers it, the screen's Set, a whole record as Set or SetGet and
+   a kind-1 record not taken, a level of 5 or less silent; SpeakerLevel to a
+   sink over its byte, a sink beyond 8; sink 4 at -6 dB before any volume,
+   with no 0x409 and with the volume at 0, never at a 0x409 level or the
+   volume, under a SpeakerLevel of its own; the coefficient words for flat
+   tone, volume, balance (to one side, to silence), mute, clamps, streams 1..3
+   (a level, muted, the main balance, off; the chimes sounding through the
+   main sink's mute and another sink's); both shelves at -12..+12 dB at 44.1
+   and 48 kHz judged on the rounded words.
 7. `check_image.py`: two sets from `test_sound` run through the FPGA engine's
    bit-exact model (`listener_gw/sim/dsp_asm.py`): volume -20 dB, balance
    +4, bass +6, treble -4 with sines at 50 Hz, 1 kHz and 12 kHz; and four
@@ -401,7 +406,7 @@ make -C test
 | UART link: a coefficient word with its set's tag | the tag in the byte after F, the XOR over it |
 | The source: phone and TOSLINK input, lock, settle, blips, not PCM, loss | each pick as expected; seven broken variants of `ain.c` each caught |
 | Sound settings from telegrams: 4 volume sources, tone, loudness, balance | each as sent; the source order holds |
-| The other sinks: which ones, their levels, balance and mute | each as expected; eight broken variants of `amp_model.c`, `sound.c` and `dsp_img.c` each caught, and 14 more of `sound.c` and `dsp_img.c` for the parking sensors and the chimes, each caught by `test_sound`: byte 10 read from a 0x409 of 10 or of 9 bytes, `set_park` or `set_annc` without its equality test, the chimes deaf to their Mute, sink 4 at the volume, sink 4 at byte 8, the chimes' rule keyed on 0x409, sink 2 at byte 10, byte 8 before byte 10, the chimes' -6 dB before their own SpeakerLevel, no MixerLevel on the chimes, byte 10 not kept when a shorter 0x409 follows, `chime_db` only at start-up |
+| The other sinks: which ones, their levels, balance and mute | each as expected; ten broken variants of `sound.c`'s 0x409 and sink rules each caught by `test_sound`: a Set or a kind-1 record taken, the navigation from byte 8, the parking sensors from byte 10, no - 5 on the levels, a volume of 40, bytes 9 and 11 read one byte early, sink 3 falling back to the navigation level, the navigation level on every sink from 2 up |
 | Steering-wheel keys: next, previous, a NAKed telegram sent again, a release, other layouts | each as expected; eight broken variants of `wheel.c` each caught |
 | Shelves on the rounded words, -12..+12 dB, 44.1 and 48 kHz | full gain within 0.008 dB (15 Hz, 0.45 fs), the other band within 0.001 dB; every setting stable |
 | The firmware's set through the FPGA engine's model | L and R within 0.0002 dB of volume + balance + shelves at 50 Hz, 1 kHz, 12 kHz |

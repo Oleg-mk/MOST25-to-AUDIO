@@ -36,7 +36,7 @@ void dsp_levels(const snd_t *s, const snd_cfg_t *cfg, int muted, double *gl, dou
 {
     const double vdb = snd_sink_db(s, cfg, 1);
     const double v = (muted || vdb <= SND_SILENT + 1.0) ? 0.0 : pow(10.0, vdb / 20.0);
-    side_gains(cfg, v, (s->have & SND_H_BAL) ? s->balance : 0, gl, gr);
+    side_gains(cfg, v, snd_balance(s), gl, gr);
     const double tmax = cfg->tone_db_max;
     double loud = 0.0;
     if (s->loudness && v > 0.0 && cfg->loud_db_at < 0.0)
@@ -97,7 +97,7 @@ void dsp_extra_levels(const snd_t *s, const snd_cfg_t *cfg, const dsp_extra_t *e
     const double db = snd_sink_db(s, cfg, ex->sink);
     if (db <= SND_SILENT + 1.0)
         return;
-    side_gains(cfg, pow(10.0, db / 20.0), snd_sink_balance(s, ex->sink), gl, gr);
+    side_gains(cfg, pow(10.0, db / 20.0), snd_balance(s), gl, gr);
 }
 
 int dsp_image(const snd_t *s, const snd_cfg_t *cfg, int muted, const dsp_extra_t ex[DSP_N_EXTRAS], double fs,

@@ -43,7 +43,7 @@ VALUE_OPS = ("Set/Start", "SetGet/StartResult", "Status/Result")          # what
 NAMES = {
     (0x22, 0x110): "SinkInfo", (0x22, 0x111): "Connect", (0x22, 0x112): "DisConnect", (0x22, 0x113): "Mute",
     (0x22, 0x200): "Balance", (0x22, 0x201): "Loudness", (0x22, 0x202): "Bass", (0x22, 0x203): "Treble",
-    (0x22, 0x204): "Fader", (0x22, 0x400): "Volume", (0x22, 0x467): "MixerLevel", (0x22, 0x46D): "SpeakerLevel",
+    (0x22, 0x204): "Fader", (0x22, 0x400): "Volume", (0x22, 0x46D): "SpeakerLevel",
     (0x24, 0x100): "SourceInfo", (0x24, 0x101): "Allocate", (0x24, 0x102): "DeAllocate",
     (0x20, 0x200): "VolumeActual (BMW)", (0x20, 0x220): "Balance (BMW)", (0x20, 0x221): "Fader (BMW)",
     (0x20, 0x222): "Bass (BMW)", (0x20, 0x223): "Treble (BMW)",
@@ -142,8 +142,9 @@ def classify(raw: bytes | str) -> Line:
 
 def sound_values(t: Tel) -> list:
     """What sound.c takes from this telegram for J3's sound: [(what, number or None, as text)], one
-    for each value (a SpeakerLevel per sink, a MixerLevel's level and balance per sink). These raw
-    values are what a car's scales are fixed from (snd_cfg_t, listener_fw/README.md)."""
+    for each value (a SpeakerLevel per sink; every level in a 0x409 record, and the screen's Set to
+    one of them, so that the recording shows them all). These raw values are what a car's scales
+    are fixed from (snd_cfg_t, listener_fw/README.md)."""
     if t.op not in VALUE_OPS or t.length < 1:
         return []
     d = t.data
@@ -157,19 +158,6 @@ def sound_values(t: Tel) -> list:
             m = max(s8(v) for v in d[2:])
             return [(f"22.46D SpeakerLevel, sink {d[1]} (its loudest speaker, dB)", None if m <= -120 else m,
                      "silent" if m <= -120 else f"{m} dB")]
-        if t.fkt == 0x467:
-            if t.length < 5 or d[1] != 0:
-                return []
-            first, count = (d[0], 1) if d[0] else (1, (t.length - 2) // 3)
-            out = []
-            for i in range(count):
-                if first + i > SND_SINKS or 4 + 3 * i > t.length:
-                    break
-                lv, bal = s8(d[2 + 3 * i]), d[3 + 3 * i]
-                out.append((f"22.467 MixerLevel, sink {first + i}: level", lv, f"{lv:+d}"))
-                out.append((f"22.467 MixerLevel, sink {first + i}: balance", None if bal == 0x80 else s8(bal),
-                            "the main one" if bal == 0x80 else f"{s8(bal):+d}"))
-            return out
         if t.fkt in (0x200, 0x202, 0x203):
             return [(f"22.{t.fkt:03X} {NAMES[(0x22, t.fkt)]}", s8(d[0]), f"{s8(d[0]):+d}")]
         if t.fkt == 0x201:
@@ -180,11 +168,19 @@ def sound_values(t: Tel) -> list:
         if t.fkt in (0x220, 0x222, 0x223):
             return [(f"20.{t.fkt:03X} {NAMES[(0x20, t.fkt)]}", s8(d[0]), f"{s8(d[0]):+d}")]
     if t.fblock == 0xF0 and t.fkt == 0x409 and t.length >= 3:
-        out = [("F0.409 entertainment volume (Jaguar XF)", d[2], f"volume {d[2]}")]
-        if t.length >= 9:
-            out.append(("F0.409 navigation and phone volume (Jaguar XF)", d[8], f"volume {d[8]}"))
-        if t.length >= 11:
-            out.append(("F0.409 parking sensors volume (Jaguar XF)", d[10], f"volume {d[10]}"))
+        # the gateway's Status: byte 0 the record's kind; kind 0, the whole record, has the volume in
+        # byte 2 and the levels (sent + 5) in bytes 7, 9, 10, 11; the screen's Set is [channel, 0, level + 5]
+        lvl = lambda v: max(0, v - 5)                                     # noqa: E731
+        if t.op == "Set/Start":
+            return [(f"F0.409 Set, channel {d[0]:02X} (Jaguar XF)", lvl(d[2]), f"level {lvl(d[2])}")]
+        if t.op != "Status/Result":
+            return []
+        if d[0] != 0:
+            return [(f"F0.409 a record of kind {d[0]} (Jaguar XF)", None, d[:t.length].hex(" ").upper())]
+        out = [("F0.409 volume (Jaguar XF)", d[2], f"volume {d[2]}")]
+        for i, what in ((7, "phone"), (9, "navigation"), (10, "voice"), (11, "parking sensors")):
+            if t.length > i:
+                out.append((f"F0.409 {what} level (Jaguar XF)", lvl(d[i]), f"level {lvl(d[i])}"))
         return out
     return []
 

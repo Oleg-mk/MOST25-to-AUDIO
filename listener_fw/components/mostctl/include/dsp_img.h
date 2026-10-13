@@ -7,13 +7,12 @@
 //              loudness (up to loud_db_max, reached at loud_db_at of volume)
 //   biquad 1   high shelf at cfg->treble_hz: treble steps x tone_db_step
 //   2..7       straight through
-//   gains      stream 0, the amplifier's sink 1: its level (the volume and its
-//              MixerLevel), the side balance turns away attenuated (silent
-//              from bal_mute_steps on); streams 1..3, three more of its sinks
+//   gains      stream 0, the amplifier's sink 1: its level (the volume), the
+//              side balance turns away attenuated (silent from
+//              bal_mute_steps on); streams 1..3, three more of its sinks
 //              (navigation and phone, parking sensors, chimes: amp_model's
-//              am_extras): each at its own level by SinkNr and its balance
-//              (snd_sink_db, snd_sink_balance), silent while muted; no tone
-//              on them
+//              am_extras): each at its own level by SinkNr (snd_sink_db),
+//              the same balance, silent while muted; no tone on them
 //   glide      k = 1/256 per frame: a volume step settles in ~5 ms
 // Coefficients are designed in double (RBJ cookbook shelves, S = 1) and
 // rounded to Q4.28; each filter's stability is checked on the rounded words.

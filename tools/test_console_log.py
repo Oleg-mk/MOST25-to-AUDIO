@@ -8,7 +8,8 @@
             values: console_format must read every value back. A changed format in the firmware
             fails here, not in a car.
   sound     every function sound.c takes a value from has a name and a value here; the Jaguar XF's
-            0xF0.0x409 gives bytes 2 and 8, and byte 10 (the parking sensors) once it is 11 bytes long
+            0xF0.0x409: a whole record's volume and levels as far as its length goes, the screen's Set,
+            a record of another kind shown raw
   port      the DevKitC's bridge picked by its USB ID: CP2102N, CH9102, the FPGA module's bridge
             beside it ignored, two bridges refused (a wrong guess records nothing), macOS's cu node
   keys      Latin, Caps Lock, the Ukrainian layout
@@ -112,10 +113,11 @@ def sound():
     b20 = body[body.index("t->fblock == 0x20"):body.index("t->fblock == 0xF0")]
     funcs = [(0x22, int(x, 16)) for x in re.findall(r"case 0x([0-9A-F]+):", b22)] + \
             [(0x20, int(x, 16)) for x in re.findall(r"case 0x([0-9A-F]+):", b20)] + [(0xF0, 0x409)]
-    check(len(funcs) == 12, f"sound.c's functions: {funcs}")
+    check(len(funcs) == 11, f"sound.c's functions: {funcs}")
     for fb, fkt in funcs:
-        data = bytes([0, 0, 0xFB, 0x80, 0, 0, 0, 0, 7]) if fkt in (0x467, 0x409) else bytes([3, 1, 0xEC, 0xF6])
-        t = CF.Tel(0, 0x100, 0x180, fb, 1, fkt, "Set/Start", len(data), data, False)
+        data = bytes([0, 0, 20, 0, 0, 0, 0, 25, 0, 15, 20, 8]) if fkt == 0x409 else bytes([3, 1, 0xEC, 0xF6])
+        op = "Status/Result" if fkt == 0x409 else "Set/Start"
+        t = CF.Tel(0, 0x100, 0x180, fb, 1, fkt, op, len(data), data, False)
         check(CF.name(fb, fkt) != "", f"{fb:02X}.{fkt:03X}: no name")
         check(CF.sound_values(t), f"{fb:02X}.{fkt:03X}: no sound value from {data.hex()}")
         g = CF.Tel(0, 0x100, 0x180, fb, 1, fkt, "Get/Abort", len(data), data, False)
@@ -125,14 +127,18 @@ def sound():
     check(v == [("22.46D SpeakerLevel, sink 1 (its loudest speaker, dB)", 2, "2 dB")], f"SpeakerLevel: {v}")
     v = CF.sound_values(CF.Tel(0, 0x100, 0x180, 0x22, 1, 0x202, "Set/Start", 1, bytes([0xFD]), False))
     check(v == [("22.202 Bass", -3, "-3")], f"Bass: {v}")
-    # the XF's levels: bytes 2 and 8 in a 9-byte Status, byte 10 (the parking sensors) once it is 11 long
-    xf = bytes([1, 0, 30, 0, 0, 0, 0, 0, 20, 0, 12])
-    for n, want in ((9, [30, 20]), (11, [30, 20, 12])):
+    # the XF's whole record: the volume, then the levels (sent + 5) as far as the length goes
+    xf = bytes([0, 0, 30, 0, 0, 0, 0, 25, 0, 15, 20, 8])
+    for n, want in ((3, [30]), (10, [30, 20, 10]), (12, [30, 20, 10, 15, 3])):
         v = CF.sound_values(CF.Tel(0, 0x161, 0x16E, 0xF0, 1, 0x409, "Status/Result", n, xf[:n], False))
         check([x for _, x, _ in v] == want, f"F0.409, {n} bytes: {v}")
-    check(v[2:] == [("F0.409 parking sensors volume (Jaguar XF)", 12, "volume 12")], f"F0.409 byte 10: {v[2:]}")
+    check(v[4:] == [("F0.409 parking sensors level (Jaguar XF)", 3, "level 3")], f"F0.409 byte 11: {v[4:]}")
+    v = CF.sound_values(CF.Tel(0, 0x16E, 0x161, 0xF0, 1, 0x409, "Set/Start", 3, bytes([9, 0, 30]), False))
+    check(v == [("F0.409 Set, channel 09 (Jaguar XF)", 25, "level 25")], f"F0.409 Set: {v}")
+    v = CF.sound_values(CF.Tel(0, 0x161, 0x16E, 0xF0, 1, 0x409, "Status/Result", 3, bytes([1, 0, 30]), False))
+    check(v == [("F0.409 a record of kind 1 (Jaguar XF)", None, "01 00 1E")], f"F0.409 kind 1: {v}")
     print(f"{'ok  ' if BAD == bad0 else '    '} sound: the {len(funcs)} functions sound.c reads, named and read; "
-          f"0xF0.0x409's bytes 2, 8 and 10")
+          f"0xF0.0x409's record, Set and other kinds")
 
 
 def port(dev, vid, pid, sn="0001"):

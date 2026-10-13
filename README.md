@@ -129,11 +129,11 @@ sources and how sure each fact is.
   until a recording of the car's controls.
 - **The car's own messages:** whether a stock head unit sends 0x22.0x111
   Connect at all (J3 and the phone into the car take their channels from it);
-  which of 0xF0.0x409 and SpeakerLevel a Jaguar XF's amplifier gets, and 0x409's
-  byte positions (from one parser); whether JLR mutes with 0x113 or with 0x466
-  MuteParameters; whether the parking sensors and the chimes travel the ring as
-  audio, as mObridge's guide says for JLR. The capture and the recording settle
-  these too.
+  which of 0xF0.0x409 and SpeakerLevel a Jaguar XF's amplifier gets, and
+  0x409's byte positions (two layouts in one author's code, the later one
+  used); whether JLR mutes with 0x113 or with 0x466 MuteParameters; whether
+  the parking sensors and the chimes travel the ring as audio, as mObridge's
+  guide says for JLR. The capture and the recording settle these too.
 - **Real hardware:** no board has been powered, the regeneration has never run
   in a real ring, and no real S/PDIF receiver has taken the output.
 
@@ -331,12 +331,12 @@ left overlapping a pad or another reference.
   external amplifier, or with a copy-protected stream (DTCP), give it nothing
   to play (docs/vehicle_survey.md). Having MOST25 does not make a car one of
   them - only a recording of that car says.
-- **The per-car scales** - volume, tone, the other sinks' mixer levels, the
-  Jaguar XF's navigation and parking-sensor levels (0xF0.0x409 bytes 8 and
-  10) - are placeholders until a real ring is recorded.
+- **The per-car scales** - volume, tone, the Jaguar XF's navigation and
+  parking-sensor levels (0xF0.0x409 bytes 9 and 11) - are placeholders until
+  a real ring is recorded.
 - **Sink 4 is the chimes in every car**, as Jaguar Land Rover numbers the
-  amplifier's sinks: with no SpeakerLevel of its own it plays at -6 dB (its
-  MixerLevel on top), never at the volume, so a chime is heard with the volume down. A car
+  amplifier's sinks: with no SpeakerLevel of its own it plays at -6 dB,
+  never at the volume, so a chime is heard with the volume down. A car
   that puts something else on sink 4 gets that at -6 dB too.
 - **What an amplifier does on its own** is not on the bus: if it turns the
   music down while a prompt plays, J3 does not; it follows what the head unit

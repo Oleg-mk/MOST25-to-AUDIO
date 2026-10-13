@@ -106,7 +106,7 @@
 #define STATUS_US   10000000
 #define IMG_MIN_US  20000               // coefficient sets at most 50 a second
 #define SAVE_US     10000000            // settings to flash 10 s after the last change
-#define SND_MAGIC   0x534E4433u         // "SND3": the stored layout (per-sink levels, byte 10)
+#define SND_MAGIC   0x534E4434u         // "SND4": the stored layout (0x409 levels, no MixerLevel)
 #define CAP_RUNS    65536u              // the FPGA's capture buffer (CAP_AW 16)
 #define PIN_OPT_ERR 13                  // DIR9001 ERROR (M2 pad 15): high = the S/PDIF input has no lock
 #define PIN_OPT_NPCM 27                 // DIR9001 AUDIO (M2 pad 11, board v1.3): high = not PCM (AC-3, DTS)

@@ -10,7 +10,7 @@ proves the firmware and the gateware agree on the map, the number format and
 the arithmetic. image_mix.txt: the amplifier's four sinks mixed - sink 1 on
 stream 0 flat at -20 dB, sink 2 on stream 1 (mono, the same sample on both
 of its inputs, as amp_out feeds a mono stream) at -10 dB, sink 3 on stream 2
-at -26 dB with R 8 dB down, sink 4 (the chimes) on stream 3 at -14 dB; a sine
+at -26 dB, sink 4 (the chimes) on stream 3 at -14 dB; a sine
 of its own on each stream, and each must come out of L and R at its level.
 """
 import math
@@ -89,7 +89,7 @@ def check_mix():
         x2 = int(round(amp * math.sin(2 * math.pi * f2 * i / FS)))
         x3 = int(round(amp * math.sin(2 * math.pi * f3 * i / FS)))
         ys.append(eng.run(c, [x0, x0, x1, x1, x2, x2, x3, x3]))
-    want = {f0: (-20.0, -20.0), f1: (-10.0, -10.0), f2: (-26.0, -34.0), f3: (-14.0, -14.0)}
+    want = {f0: (-20.0, -20.0), f1: (-10.0, -10.0), f2: (-26.0, -26.0), f3: (-14.0, -14.0)}
     worst = 0.0
     for f, (wl, wr) in want.items():
         got = (level_db(ys, 0, f, amp, n // 2, n), level_db(ys, 1, f, amp, n // 2, n))

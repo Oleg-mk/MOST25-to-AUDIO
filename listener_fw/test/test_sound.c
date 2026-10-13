@@ -56,9 +56,10 @@ static void test_decode(void)
           s.bass, s.treble, s.loudness);
 
     // sources: the first in the list that has been heard wins
-    const uint8_t f0[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 5, 0, 3};
-    feed(&s, 0xF0, 0x409, MM_OP_SET, 11, f0);
-    CHECK(fabsf(snd_volume_db(&s) - (-12.041f)) < 0.01f, "Jaguar XF 0xF0.0x409 byte 2 over the catalogue's");
+    const uint8_t f0[] = {0x00, 0x00, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, f0);
+    CHECK(fabsf(snd_volume_db(&s) - (-9.722f)) < 0.01f, "Jaguar XF 0xF0.0x409 byte 2, 20 of 35, over the "
+          "catalogue's: %.3f", snd_volume_db(&s));
     const uint8_t bmw[] = {63};
     feed(&s, 0x20, 0x200, MM_OP_STATUS, 1, bmw);
     CHECK(fabsf(snd_volume_db(&s)) < 0.01f, "BMW 63 of 63 = 0 dB, over 0xF0");
@@ -77,7 +78,7 @@ static void test_decode(void)
     printf("  volume sources heard 0x%X, volume %.1f dB\n", s.vol_have, snd_volume_db(&s));
 }
 
-// the amplifier's other sinks: their levels and balance
+// the amplifier's other sinks: their levels
 static void test_sinks(void)
 {
     printf("sinks:\n");
@@ -93,92 +94,91 @@ static void test_sinks(void)
     CHECK(fabsf(snd_sink_db(&s, cfg, 3) + 12.041f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 5) + 12.041f) < 0.01f,
           "nothing of its own: a sink at the volume");
     CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f, "...but not the chimes: %.2f", snd_sink_db(&s, cfg, 4));
-    // MixerLevel, the whole array: Pos {0, 0}, then {InputLevel, Balance, Fader} for sinks 1..3
+    // MixerLevel is not taken: on the XF the gateway's shadow of the amplifier sends it, in no known layout
     const uint8_t mix[] = {0, 0, 0xFD, 0x80, 0x80, 0xF6, 0x80, 0x80, 0xEC, 0x05, 0x80};
-    CHECK(feed(&s, 0x22, 0x467, MM_OP_STATUS, 11, mix) == 1 && s.mix_have == 0x07, "MixerLevel, all sinks");
-    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 15.041f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 2) + 22.041f) < 0.01f &&
-          fabsf(snd_sink_db(&s, cfg, 3) + 32.041f) < 0.01f, "InputLevel on top of the volume: %.2f %.2f %.2f",
-          snd_sink_db(&s, cfg, 1), snd_sink_db(&s, cfg, 2), snd_sink_db(&s, cfg, 3));
-    CHECK(feed(&s, 0x22, 0x467, MM_OP_SET, 11, mix) == 0, "the same again is no change");
-    const uint8_t mix2[] = {2, 0, 0xFA, 0x80, 0x80};                  // sink 2 alone
-    CHECK(feed(&s, 0x22, 0x467, MM_OP_SET, 5, mix2) == 1 && s.mix_level[1] == -6 && s.mix_level[2] == -20,
-          "MixerLevel, one sink by its Pos");
-    const uint8_t mix_y[] = {2, 1, 0x10, 0x80, 0x80};
-    CHECK(feed(&s, 0x22, 0x467, MM_OP_SET, 5, mix_y) == 0, "one field of a record (y != 0): ignored");
+    CHECK(feed(&s, 0x22, 0x467, MM_OP_STATUS, 11, mix) == 0 && fabsf(snd_sink_db(&s, cfg, 2) + 12.041f) < 0.01f,
+          "MixerLevel: no change, sink 2 at the volume");
+    CHECK(snd_balance(&s) == 0, "no balance heard: 0");
     s.have |= SND_H_BAL;
     s.balance = -3;
-    CHECK(snd_sink_balance(&s, 2) == -3 && snd_sink_balance(&s, 3) == 5 && snd_sink_balance(&s, 4) == -3,
-          "balance 0x80 follows the main one, another is the sink's own");
-    // Jaguar XF: byte 8 of 0xF0.0x409 is navigation and phone, byte 10 the parking sensors
-    const uint8_t xf[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 10, 0, 3};
-    CHECK(feed(&s, 0xF0, 0x409, MM_OP_SET, 11, xf) == 1 && s.annc_have && s.park_have, "0xF0.0x409 bytes 8, 10");
-    CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 30.082f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 5) + 24.082f) < 0.01f,
-          "sinks 2, 5 at byte 8 (-24.08), sink 2's MixerLevel on top: %.3f %.3f", snd_sink_db(&s, cfg, 2),
-          snd_sink_db(&s, cfg, 5));
-    CHECK(fabsf(snd_sink_db(&s, cfg, 3) + 64.998f) < 0.01f, "sink 3 at byte 10 (-45.00), MixerLevel -20: %.3f",
+    CHECK(snd_balance(&s) == -3, "one balance for every sink");
+
+    // Jaguar XF's 0xF0.0x409, the gateway's Status: byte 0 the record's kind (0, the whole record),
+    // byte 2 the volume of 35; bytes 7, 9, 10, 11 phone, navigation, voice, parking sensors, each the
+    // level + 5, the level of 25
+    snd_init(&s);
+    const uint8_t xf[] = {0x00, 0x00, 20, 0, 0, 0, 0, 25, 0, 15, 25, 8};
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, xf) == 1 && s.annc_have && s.park_have, "0x409: bytes 2, 9, 11");
+    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 9.722f) < 0.01f, "sink 1 at byte 2, 20 of 35: %.3f",
+          snd_sink_db(&s, cfg, 1));
+    CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 15.918f) < 0.01f, "sink 2 at byte 9, 15 - 5 = 10 of 25: %.3f",
+          snd_sink_db(&s, cfg, 2));
+    CHECK(fabsf(snd_sink_db(&s, cfg, 3) + 36.833f) < 0.01f, "sink 3 at byte 11, 8 - 5 = 3 of 25: %.3f",
           snd_sink_db(&s, cfg, 3));
-    CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f, "sink 4 neither at byte 8 nor at the volume: %.3f",
+    CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f, "sink 4 at no byte and not the volume: %.3f",
           snd_sink_db(&s, cfg, 4));
-    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 15.041f) < 0.01f, "...and sink 1 at neither byte");
+    CHECK(fabsf(snd_sink_db(&s, cfg, 5) + 9.722f) < 0.01f, "sink 5 at the volume, not byte 9: %.3f",
+          snd_sink_db(&s, cfg, 5));
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, xf) == 0, "the same again is no change");
+    // the screen's Set to one channel ([channel, 0, level + 5]) and a kind-1 record are not taken
+    const uint8_t set_pdc[] = {0x09, 0x00, 30};
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_SET, 3, set_pdc) == 0 && fabsf(snd_sink_db(&s, cfg, 1) + 9.722f) < 0.01f,
+          "Set [09, 0, 30]: its byte 2 is that channel's level, not the volume");
+    const uint8_t kind1[] = {0x01, 0x00, 30, 0, 0, 0, 0, 30, 0, 30, 30, 30};
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, kind1) == 0, "a kind-1 record: not taken");
+    const uint8_t set_all[] = {0x00, 0x00, 30, 0, 0, 0, 0, 30, 0, 30, 30, 30};
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_SET, 12, set_all) == 0 && feed(&s, 0xF0, 0x409, MM_OP_SETGET, 12, set_all) == 0,
+          "a whole record as Set or SetGet: not taken either, 0x409 from its Status alone");
+
+    // a byte counts only where the length covers it
+    snd_init(&s);
+    const uint8_t xfl[] = {0x00, 0x00, 35, 0, 0, 0, 0, 25, 0, 15, 25, 8};
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 9, xfl) == 1 && !s.annc_have && !s.park_have &&
+          fabsf(snd_sink_db(&s, cfg, 2)) < 0.01f, "9 bytes: byte 2 alone, sink 2 at the volume (35 of 35)");
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 10, xfl) == 1 && s.annc_have && !s.park_have &&
+          fabsf(snd_sink_db(&s, cfg, 2) + 15.918f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 3)) < 0.01f,
+          "10 bytes: byte 9 too, sink 3 still at the volume");
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 11, xfl) == 0 && !s.park_have, "11 bytes: still no byte 11");
+    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, xfl) == 1 && fabsf(snd_sink_db(&s, cfg, 3) + 36.833f) < 0.01f,
+          "12 bytes: sink 3 at byte 11: %.3f", snd_sink_db(&s, cfg, 3));
+    // a level at the offset or below is silent, as a volume of 0 is
+    const uint8_t low[] = {0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 5, 0, 3};
+    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, low);
+    CHECK(snd_sink_db(&s, cfg, 1) <= SND_SILENT && snd_sink_db(&s, cfg, 2) <= SND_SILENT &&
+          snd_sink_db(&s, cfg, 3) <= SND_SILENT && fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f,
+          "bytes 9 = 5 and 11 = 3: silent; the chimes play on");
+
+    // SpeakerLevel to a sink beats its 0x409 level; to sink 1 it is the volume
+    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 12, xf);
     const uint8_t spk2[] = {0x00, 0x02, 0xEC, 0xEE, 0xEC};           // -20 -18 -20
     feed(&s, 0x22, 0x46D, MM_OP_SET, 5, spk2);
-    CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 24.0f) < 0.01f, "SpeakerLevel to sink 2 wins, MixerLevel on top: %.2f",
+    CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 18.0f) < 0.01f, "SpeakerLevel to sink 2 beats byte 9: %.2f",
           snd_sink_db(&s, cfg, 2));
-    const uint8_t spk9[] = {0x00, 0x09, 0xEC};
-    CHECK(feed(&s, 0x22, 0x46D, MM_OP_SET, 3, spk9) == 0 && snd_sink_db(&s, cfg, 9) <= SND_SILENT,
-          "sink 9: beyond what is kept");
-
-    // Jaguar Land Rover's sinks 2..4 (navigation and phone, parking sensors, chimes), no MixerLevel
-    snd_init(&s);
-    const uint8_t xf9[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 10};       // the Status without byte 10
-    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 9, xf9);
-    CHECK(!s.park_have && fabsf(snd_sink_db(&s, cfg, 3) + 24.082f) < 0.01f,
-          "9 bytes: no byte 10, sink 3 at byte 8: %.3f", snd_sink_db(&s, cfg, 3));
-    CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f, "sink 4 at -6 dB: %.3f", snd_sink_db(&s, cfg, 4));
-    const uint8_t xf10[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 10, 0};   // one byte short of byte 10
-    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 10, xf10);
-    CHECK(!s.park_have && fabsf(snd_sink_db(&s, cfg, 3) + 24.082f) < 0.01f,
-          "10 bytes: still no byte 10, sink 3 at byte 8: %.3f", snd_sink_db(&s, cfg, 3));
-    const uint8_t xf11[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 10, 0, 3};
-    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 11, xf11) == 1 && fabsf(snd_sink_db(&s, cfg, 3) + 44.998f) < 0.01f,
-          "11 bytes: sink 3 at byte 10: %.3f", snd_sink_db(&s, cfg, 3));
-    CHECK(feed(&s, 0xF0, 0x409, MM_OP_STATUS, 11, xf11) == 0, "the same again is no change (bytes 2, 8, 10)");
-    const uint8_t xf9b[] = {0x01, 0x00, 20, 0, 0, 0, 0, 0, 25};
-    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 9, xf9b);
-    CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 8.165f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 3) + 44.998f) < 0.01f,
-          "9 bytes again: sink 2 at the new byte 8, sink 3 keeps byte 10: %.3f %.3f", snd_sink_db(&s, cfg, 2),
+    const uint8_t spk3[] = {0x00, 0x03, 0xF1};
+    feed(&s, 0x22, 0x46D, MM_OP_STATUS, 3, spk3);
+    CHECK(fabsf(snd_sink_db(&s, cfg, 3) + 15.0f) < 0.01f, "SpeakerLevel to sink 3 beats byte 11: %.3f",
           snd_sink_db(&s, cfg, 3));
-    const uint8_t xf0[] = {0x01, 0x00, 0, 0, 0, 0, 0, 0, 25};
-    feed(&s, 0xF0, 0x409, MM_OP_STATUS, 9, xf0);
-    CHECK(snd_sink_db(&s, cfg, 1) <= SND_SILENT && fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f &&
-          fabsf(snd_sink_db(&s, cfg, 2) + 8.165f) < 0.01f, "volume 0: sink 1 silent, sinks 2 and 4 play on");
     const uint8_t spk4[] = {0x00, 0x04, 0xF7, 0xF4};                 // -9 -12
     CHECK(feed(&s, 0x22, 0x46D, MM_OP_STATUS, 4, spk4) == 1 && fabsf(snd_sink_db(&s, cfg, 4) + 9.0f) < 0.01f,
           "SpeakerLevel to sink 4 beats the fixed level: %.3f", snd_sink_db(&s, cfg, 4));
     const uint8_t spk1[] = {0x00, 0x01, 0xEC};
     feed(&s, 0x22, 0x46D, MM_OP_STATUS, 3, spk1);
-    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 20.0f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 3) + 44.998f) < 0.01f,
-          "SpeakerLevel to sink 1: the volume, sink 3 still at byte 10: %.3f %.3f", snd_sink_db(&s, cfg, 1),
-          snd_sink_db(&s, cfg, 3));
-    const uint8_t spk3[] = {0x00, 0x03, 0xF1};
-    feed(&s, 0x22, 0x46D, MM_OP_STATUS, 3, spk3);
-    CHECK(fabsf(snd_sink_db(&s, cfg, 3) + 15.0f) < 0.01f, "SpeakerLevel to sink 3 beats byte 10: %.3f",
-          snd_sink_db(&s, cfg, 3));
+    CHECK(fabsf(snd_sink_db(&s, cfg, 1) + 20.0f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 5) + 20.0f) < 0.01f,
+          "SpeakerLevel to sink 1: the volume, over byte 2: %.3f", snd_sink_db(&s, cfg, 1));
+    const uint8_t spk9[] = {0x00, 0x09, 0xEC};
+    CHECK(feed(&s, 0x22, 0x46D, MM_OP_SET, 3, spk9) == 0 && snd_sink_db(&s, cfg, 9) <= SND_SILENT,
+          "sink 9: beyond what is kept");
 
-    // a car without 0x409: the chimes keep their fixed level, MixerLevel on top
+    // a car without 0x409: sinks 2 and 3 at the volume, the chimes at their fixed level
     snd_init(&s);
     feed(&s, 0x22, 0x400, MM_OP_STATUS, 1, v20);
     CHECK(fabsf(snd_sink_db(&s, cfg, 2) + 12.041f) < 0.01f && fabsf(snd_sink_db(&s, cfg, 3) + 12.041f) < 0.01f,
           "no 0x409: sinks 2, 3 at the volume");
     CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f, "no 0x409: sink 4 at -6 dB, not the volume: %.3f",
           snd_sink_db(&s, cfg, 4));
-    const uint8_t mix4[] = {4, 0, 0xFD, 0x80, 0x80};
-    feed(&s, 0x22, 0x467, MM_OP_STATUS, 5, mix4);
-    CHECK(fabsf(snd_sink_db(&s, cfg, 4) + 9.0f) < 0.01f, "sink 4's MixerLevel -3 on top: %.3f",
-          snd_sink_db(&s, cfg, 4));
     const uint8_t v0[] = {0};
     feed(&s, 0x22, 0x400, MM_OP_STATUS, 1, v0);
-    CHECK(snd_sink_db(&s, cfg, 3) <= SND_SILENT && fabsf(snd_sink_db(&s, cfg, 4) + 9.0f) < 0.01f,
+    CHECK(snd_sink_db(&s, cfg, 3) <= SND_SILENT && fabsf(snd_sink_db(&s, cfg, 4) + 6.0f) < 0.01f,
           "volume 0: sink 3 silent, the chimes not");
 }
 
@@ -229,15 +229,14 @@ static void test_image(void)
     dsp_image(&s, &snd_cfg_default, 1, NULL, 48000, w);
     CHECK(w[DSP_C_KT(0, 0)] == 0 && w[DSP_C_KT(0, 1)] == 0, "muted: both silent");
 
-    // streams 1..3: sink 2 at -10 dB on top of the volume, sink 3 muted, sink 4 (the chimes) at its fixed
+    // streams 1..3: sink 2 at its SpeakerLevel -30 dB, sink 3 muted, sink 4 (the chimes) at its fixed
     // -6 dB, not the volume's -20; the main mute is not theirs
-    s.mix_have = 0x02;
-    s.mix_level[1] = -10;
-    s.mix_bal[1] = 0x80;
+    s.spk_have = 0x02;
+    s.spk_db[1] = -30.0f;
     const dsp_extra_t ex[DSP_N_EXTRAS] = {{2, 0}, {3, 1}, {4, 0}};
     dsp_image(&s, &snd_cfg_default, 1, ex, 48000, w);
     CHECK(fabs(w[DSP_C_KT(1, 0)] / one / k - 0.031623) < 1e-5 && w[DSP_C_KT(1, 1)] == w[DSP_C_KT(1, 0)],
-          "sink 2: -20 - 10 dB = x %.6f, the main sink muted", w[DSP_C_KT(1, 0)] / one / k);
+          "sink 2: -30 dB = x %.6f, the main sink muted", w[DSP_C_KT(1, 0)] / one / k);
     CHECK(w[DSP_C_KT(2, 0)] == 0 && w[DSP_C_KT(2, 1)] == 0 && w[DSP_C_KT(0, 0)] == 0, "sink 3 muted: silent");
     CHECK(fabs(w[DSP_C_KT(3, 0)] / one / k - 0.501187) < 1e-5 && w[DSP_C_KT(3, 1)] == w[DSP_C_KT(3, 0)],
           "sink 4 on stream 3: -6 dB = x %.6f, beside a muted sink 3", w[DSP_C_KT(3, 0)] / one / k);
@@ -249,14 +248,10 @@ static void test_image(void)
     dsp_image(&s, &snd_cfg_default, 0, ex, 48000, w);
     const double rl1 = 20 * log10((double)w[DSP_C_KT(1, 1)] / w[DSP_C_KT(1, 0)]);
     CHECK(fabs(rl1 + 8.0) < 0.001, "sink 2 follows the main balance: R %.3f dB under L", rl1);
-    s.mix_bal[1] = (uint8_t)-4;
-    dsp_image(&s, &snd_cfg_default, 0, ex, 48000, w);
-    CHECK(w[DSP_C_KT(1, 0)] < w[DSP_C_KT(1, 1)] && w[DSP_C_KT(0, 0)] > w[DSP_C_KT(0, 1)],
-          "sink 2 with a balance of its own (-4): L under R, the main one as it was");
     const dsp_extra_t off[DSP_N_EXTRAS] = {{0, 0}, {0, 0}, {0, 0}};
     dsp_image(&s, &snd_cfg_default, 0, off, 48000, w);
     CHECK(w[DSP_C_KT(1, 0)] == 0 && w[DSP_C_KT(2, 0)] == 0 && w[DSP_C_KT(3, 0)] == 0, "streams off: silent");
-    s.mix_have = 0;
+    s.spk_have = 0;
     s.balance = 0;
 
     // shelves, judged on the rounded words: the full gain well inside the
@@ -312,25 +307,22 @@ static void test_image(void)
         fclose(f);
     }
 
-    // ...and the mix: sink 1 flat at -20 dB, sink 2 (stream 1, mono) 10 dB above it,
-    // sink 3 (stream 2) at its own SpeakerLevel -26 dB with a balance of +4 of its own,
-    // sink 4 (stream 3, the chimes) at its own SpeakerLevel -14 dB
+    // ...and the mix: sink 1 flat at -20 dB, sink 2 (stream 1, mono) at its own SpeakerLevel -10 dB,
+    // sink 3 (stream 2) at its own -26 dB, sink 4 (stream 3, the chimes) at its own -14 dB
     snd_init(&s);
     s.loudness = 0;
     s.vol_have = 1u << SND_VOL_STD;
     s.vol_db[SND_VOL_STD] = -20.0f;
-    s.mix_have = 0x06;
-    s.mix_level[1] = 10; s.mix_bal[1] = 0x80;
-    s.mix_level[2] = 0;  s.mix_bal[2] = 4;
-    s.spk_have = 0x0C;
+    s.spk_have = 0x0E;
+    s.spk_db[1] = -10.0f;
     s.spk_db[2] = -26.0f;
     s.spk_db[3] = -14.0f;
     const dsp_extra_t mixex[DSP_N_EXTRAS] = {{2, 0}, {3, 0}, {4, 0}};
     dsp_image(&s, &snd_cfg_default, 0, mixex, 48000, w);
     f = fopen("image_mix.txt", "w");
     if (f) {
-        fprintf(f, "# fs 48000, sink 1 -20 dB flat; sink 2 (stream 1) -10 dB; sink 3 (stream 2) -26 dB, "
-                   "balance +4 (R -8 dB); sink 4 (stream 3) -14 dB\n");
+        fprintf(f, "# fs 48000, sink 1 -20 dB flat; sink 2 (stream 1) -10 dB; sink 3 (stream 2) -26 dB; "
+                   "sink 4 (stream 3) -14 dB\n");
         for (int a = 0; a < DSP_C_IMAGE; a++)
             fprintf(f, "%d\n", (int)w[a]);
         fclose(f);
