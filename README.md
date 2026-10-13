@@ -185,6 +185,26 @@ Trioma make them).
 
 ![The underside of board v2.0: M2 with its WROVER-IE, and the SMD parts the board house places on this side](listener_hw2/views/listener_v2_underside.png)
 
+## Rough cost
+
+| Item | Approx. USD | Basis (seen 2026-10-12) |
+|---|---|---|
+| JLCPCB: 5 boards, 2 of them assembled on both sides | min 200-230, mid 225-255, max 275-310, plus shipping and tax | JLCPCB's quote and assembly price page: 5 bare boards (4 layers, ENIG) $25; SMD on both sides needs Standard PCBA, $51 setup and $16 stencil for both sides plus $1.53 per part line; the parts for two boards $25 (min) to $75 (max), most of max's being U13 (SRC4192, about $17.56); two Si514s pre-ordered, $17-24 |
+| Sipeed Tang Nano 20K | 26-32 | $25 at launch; Spotpear $31.90 |
+| Espressif ESP32-DevKitC-VIE | 11-14 | DigiKey $11.00 |
+| TE 1-1394640-1 (J1) | 22-27, plus shipping | no distributor stocks it; eBay about $22 (2026-10-12), AliExpress about $27 (2026-10-13) |
+| Cliff FCR684208R and FCR684208T (J5, J6) | 13 | DigiKey $7.83 + $5.22 |
+| 3 x BKL Electronic 0101153 (J7..J9) | 28-33 | Bürklin, €8.35-9.94 each |
+| J4 with its plug, the pin headers, a fuse and wire for the 12 V tap | 5-10 | DigiKey; the fuse and wire rough |
+| The tube, the printed caps, screws | 3-12 | the tube about 335 UAH a metre; 23 g of PETG |
+| U.FL-to-SMA pigtail and a 2.4 GHz antenna | 4-11 | Adafruit 851 $3.95; a TE Linx antenna $7.13 |
+| MOST loop-in adapter, TOSLINK cable | 25-50, plus shipping | a MOST25 splitter on Tindie $20, a Dension set about €40, depending on the node you tap; TOSLINK $5-7 |
+
+The first listener comes to roughly $340-435 for min, $365-460 for mid and $415-515 for max,
+plus shipping and tax. The second board from the same order is already assembled and paid for:
+its modules, hand parts, enclosure and cables add about $140-205. Most of the order is JLCPCB's
+fixed fees for assembling both sides, so more boards from one order cost less each.
+
 ## Repository map
 
 | Folder | What | Built with |
